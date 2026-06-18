@@ -40,7 +40,7 @@ spec:
     awsRegion: us-east-1
     orgName: sourceplane
     owner: sourceplane
-    repo: multi-tenant-saas
+    repo: lumen
 
     turboFilter: "@saas/metering-worker"
     wranglerConfig: wrangler.jsonc

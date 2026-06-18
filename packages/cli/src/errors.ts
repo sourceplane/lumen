@@ -1,4 +1,4 @@
-// CLI error helpers. Translate `SourceplaneError` subclasses (from
+// CLI error helpers. Translate `LumenError` subclasses (from
 // `@saas/sdk/errors`) into actionable CLI messages with non-zero exit
 // codes; surface request IDs.
 //
@@ -11,20 +11,20 @@
 //   5   — context missing (e.g. `org use` not run, command needs an org)
 //   6   — server-side error surfaced via SDK
 
-import { SourceplaneError, UnauthenticatedError } from "@saas/sdk";
+import { LumenError, UnauthenticatedError } from "@saas/sdk";
 
 import { formatErrorJson, type OutputMode } from "./output/index.js";
 
 export class MissingAuthError extends Error {
   constructor() {
-    super("not logged in (run `sourceplane login`)");
+    super("not logged in (run `lumen login`)");
     this.name = "MissingAuthError";
   }
 }
 
 export class MissingOrgContextError extends Error {
   constructor() {
-    super("no active organization (run `sourceplane org use <id>`)");
+    super("no active organization (run `lumen org use <id>`)");
     this.name = "MissingOrgContextError";
   }
 }
@@ -57,9 +57,9 @@ export function formatCliError({ err, mode }: FormatErrorInput): FormattedError 
     return formatPlain(2, "usage", err.message, mode);
   }
   if (err instanceof UnauthenticatedError) {
-    return formatSdk(4, err, "token rejected — run `sourceplane login` to refresh", mode);
+    return formatSdk(4, err, "token rejected — run `lumen login` to refresh", mode);
   }
-  if (err instanceof SourceplaneError) {
+  if (err instanceof LumenError) {
     return formatSdk(6, err, err.message, mode);
   }
   if (err instanceof Error) {
@@ -82,7 +82,7 @@ function formatPlain(
 
 function formatSdk(
   exitCode: number,
-  err: SourceplaneError,
+  err: LumenError,
   hint: string,
   mode: OutputMode,
 ): FormattedError {

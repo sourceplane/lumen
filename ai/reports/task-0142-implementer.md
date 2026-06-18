@@ -15,7 +15,7 @@
   logged.
 - `integration.token.issued` event+audit carrying actor, repos, permissions —
   test proves the token string is absent from every persisted parameter.
-- SDK `integrations.issueGithubToken`; CLI `sourceplane integrations github
+- SDK `integrations.issueGithubToken`; CLI `lumen integrations github
   token --repos=… --permissions=key:level,…`.
 - `apps/integrations-worker/README.md`: the "act on GitHub from your
   product" octokit recipe + the react-to-`scm.*` recipe, in the

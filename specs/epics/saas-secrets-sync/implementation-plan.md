@@ -9,7 +9,7 @@ Status: Normative for the SS cluster. As-built record in
 **Scope**
 
 - Define the escrow document: one AWS Secrets Manager secret per environment
-  at `sourceplane/multi-tenant-saas/worker-secrets/<env>`, JSON shape:
+  at `sourceplane/lumen/worker-secrets/<env>`, JSON shape:
 
   ```json
   {
@@ -24,7 +24,7 @@ Status: Normative for the SS cluster. As-built record in
 
   This matches the wire-live fetch shape (`<component>__<env>.json`) so the
   composition step that already fetches wiring payloads can fetch escrow with
-  the same mechanism and IAM grant (`sourceplane/multi-tenant-saas/*` is already in
+  the same mechanism and IAM grant (`sourceplane/lumen/*` is already in
   the plan/deploy role policies).
 
 - Commit `tooling/secrets-sync/secrets.manifest.json` — the **non-secret**
@@ -99,7 +99,7 @@ secret version.
 **Scope**
 
 - Human writes the live values into
-  `sourceplane/multi-tenant-saas/worker-secrets/{stage,prod}`:
+  `sourceplane/lumen/worker-secrets/{stage,prod}`:
   identity (GitHub/Google client secrets + `OAUTH_STATE_SECRET`), billing
   (`POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET`), webhooks/config/integrations
   (`SECRET_ENCRYPTION_KEY` — current values, pre-SS4), integrations GitHub App

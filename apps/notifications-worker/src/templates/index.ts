@@ -24,7 +24,7 @@ export type TemplateData = Record<string, string | number | boolean | null>;
 
 export interface TemplateRenderOptions {
   /**
-   * Product display name used in subjects/footers (e.g. "Sourceplane").
+   * Product display name used in subjects/footers (e.g. "Lumen").
    * Falls back to neutral copy when not configured so a misconfigured
    * deployment still produces a sensible email.
    */

@@ -5,7 +5,7 @@ PERF3. Backend (packages/db executor). No contract/signature change.
 
 ## Why
 
-Every handler called `createSqlExecutor(env.SOURCEPLANE_DB)` per request, which
+Every handler called `createSqlExecutor(env.LUMEN_DB)` per request, which
 built a fresh `postgres()` client and `sql.end()`-ed it on dispose. So the
 TLS/auth handshake to Hyperdrive recurred on **every request in every worker**
 — the dominant per-worker latency floor (~0.5–1s) still visible after PERF2/3.

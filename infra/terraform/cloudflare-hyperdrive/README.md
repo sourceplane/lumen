@@ -34,7 +34,7 @@ This Terraform component provisions **Cloudflare Hyperdrive** resources for stag
                    │
 ┌──────────────────▼──────────────────────────────────┐
 │ Supabase Postgres (stage or prod)                   │
-│ (multi-tenant-saas-stage, multi-tenant-saas-prod)  │
+│ (lumen-stage, lumen-prod)  │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -43,7 +43,7 @@ This Terraform component provisions **Cloudflare Hyperdrive** resources for stag
 For each environment (stage, prod):
 
 - **`cloudflare_hyperdrive_config`**: Hyperdrive gateway resource
-  - **Name**: `{namespacePrefix}multi-tenant-saas-{environment}` (e.g., `multi-tenant-saas-stage`)
+  - **Name**: `{namespacePrefix}lumen-{environment}` (e.g., `lumen-stage`)
   - **Origin**: Supabase Postgres (host, port, database, user, password read from AWS Secrets Manager)
   - **Caching**: Enabled by default (can be disabled; not configured per-environment in this component)
 
@@ -56,10 +56,10 @@ All parameters follow the Orun/golden-path Terraform convention:
 | `awsRegion` | string | `us-east-1` | AWS region for Secrets Manager access |
 | `cloudflareApiToken` | string | *(required, sensitive)* | Cloudflare API token (from `CLOUDFLARE_API_TOKEN` env var in CI) |
 | `cloudflareAccountId` | string | `""` | Cloudflare account ID (from `CLOUDFLARE_ACCOUNT_ID` env var in CI, or passed as `-var`) |
-| `orgName` | string | `sourceplane` | Organization name (for tags and secret paths) |
-| `owner` | string | `sourceplane` | Repository owner (for tags) |
-| `repo` | string | `multi-tenant-saas` | Repository name (for tags and secret paths) |
-| `namespace` | string | `sourceplane` | Namespace (for labels and naming conventions) |
+| `orgName` | string | `lumen` | Organization name (for tags and secret paths) |
+| `owner` | string | `lumen` | Repository owner (for tags) |
+| `repo` | string | `lumen` | Repository name (for tags and secret paths) |
+| `namespace` | string | `lumen` | Namespace (for labels and naming conventions) |
 | `namespacePrefix` | string | `""` | Prefix for resource names (e.g., `dev-` for non-prod) |
 | `environment` | string | `stage` | Environment name (stage or prod) |
 | `component` | string | `cloudflare-hyperdrive` | Component name (for tags) |
@@ -87,7 +87,7 @@ This component depends on:
 
 1. **`supabase` component** (same repo)
    - Must run first to create Supabase projects and write credentials to AWS Secrets Manager
-   - This component reads credentials from the secret path: `sourceplane/multi-tenant-saas/supabase/{environment}`
+   - This component reads credentials from the secret path: `sourceplane/lumen/supabase/{environment}`
 
 2. **AWS Secrets Manager access**
    - IAM role must allow `secretsmanager:GetSecretValue` for the Supabase secret path
@@ -113,7 +113,7 @@ Subscribed environments:
 
 Supabase credentials are stored in AWS Secrets Manager and read at plan/apply time:
 
-- **Secret path**: `sourceplane/multi-tenant-saas/supabase/{environment}`
+- **Secret path**: `sourceplane/lumen/supabase/{environment}`
 - **Secret contents**: JSON with fields `database_host`, `database_port`, `database_name`, `database_user`, `database_password`
 - **Terraform access**: Via `data.aws_secretsmanager_secret_version` data source
 - **Lifecycle**: Written by the `supabase` component; this component reads only
@@ -137,7 +137,7 @@ Once this component is applied, Worker bindings will reference the Hyperdrive re
 // wrangler.toml or environment bindings
 [[env.stage.services]]
 binding = "HYPERDRIVE_STAGE"
-service = "multi-tenant-saas-stage"
+service = "lumen-stage"
 
 // Worker code (pseudocode)
 import postgres from 'pg';
@@ -160,13 +160,13 @@ aws sts get-caller-identity
 
 # Ensure Supabase component has run at least once
 # (Secrets Manager entries exist for stage/prod)
-aws secretsmanager get-secret-value --secret-id sourceplane/multi-tenant-saas/supabase/stage
+aws secretsmanager get-secret-value --secret-id sourceplane/lumen/supabase/stage
 ```
 
 ### Validate Syntax
 
 ```bash
-cd /path/to/multi-tenant-saas
+cd /path/to/lumen
 orun validate --intent intent.yaml
 ```
 

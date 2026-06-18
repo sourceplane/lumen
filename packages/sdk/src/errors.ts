@@ -1,9 +1,9 @@
-// Typed error hierarchy for the Sourceplane SDK.
+// Typed error hierarchy for the Lumen SDK.
 //
 // The api-edge error envelope is:
 //   { error: { code: string, message: string, details: object, requestId?: string } }
 // where `code` is one of `ERROR_CODES` from `@saas/contracts/errors`. Unknown
-// codes (forward compatibility) fall back to the generic `SourceplaneError`
+// codes (forward compatibility) fall back to the generic `LumenError`
 // base class with the raw envelope preserved.
 //
 // `RateLimitError` decodes the `Retry-After` and `X-RateLimit-{Limit,Remaining,
@@ -20,7 +20,7 @@ export interface ErrorEnvelope {
   requestId?: string;
 }
 
-export interface SourceplaneErrorInit {
+export interface LumenErrorInit {
   envelope: ErrorEnvelope;
   status: number;
   requestId: string;
@@ -30,10 +30,10 @@ export interface SourceplaneErrorInit {
 
 /**
  * Base error type. Unknown error codes (forward-compat, e.g. a future
- * `quota_exceeded`) decode to this class — `instanceof SourceplaneError`
+ * `quota_exceeded`) decode to this class — `instanceof LumenError`
  * still matches.
  */
-export class SourceplaneError extends Error {
+export class LumenError extends Error {
   readonly code: string;
   readonly status: number;
   readonly requestId: string;
@@ -42,9 +42,9 @@ export class SourceplaneError extends Error {
   /** Present only when the error was synthesised from a real Response. */
   readonly response: Response | undefined;
 
-  constructor(init: SourceplaneErrorInit) {
+  constructor(init: LumenErrorInit) {
     super(init.envelope.message);
-    this.name = "SourceplaneError";
+    this.name = "LumenError";
     this.code = init.envelope.code;
     this.status = init.status;
     this.requestId = init.requestId;
@@ -54,46 +54,46 @@ export class SourceplaneError extends Error {
   }
 }
 
-export class BadRequestError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class BadRequestError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "BadRequestError";
   }
 }
 
-export class UnauthenticatedError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class UnauthenticatedError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "UnauthenticatedError";
   }
 }
 
-export class ForbiddenError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class ForbiddenError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "ForbiddenError";
   }
 }
 
-export class NotFoundError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class NotFoundError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "NotFoundError";
   }
 }
 
-export class ConflictError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class ConflictError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "ConflictError";
   }
 }
 
-export class ValidationError extends SourceplaneError {
+export class ValidationError extends LumenError {
   /** Field-level violations, when the server provides them. */
   readonly fields: Record<string, string[]>;
 
-  constructor(init: SourceplaneErrorInit) {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "ValidationError";
     const raw = init.envelope.details["fields"];
@@ -101,22 +101,22 @@ export class ValidationError extends SourceplaneError {
   }
 }
 
-export class PreconditionFailedError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class PreconditionFailedError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "PreconditionFailedError";
   }
 }
 
-export class UnsupportedError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class UnsupportedError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "UnsupportedError";
   }
 }
 
-export class InternalError extends SourceplaneError {
-  constructor(init: SourceplaneErrorInit) {
+export class InternalError extends LumenError {
+  constructor(init: LumenErrorInit) {
     super(init);
     this.name = "InternalError";
   }
@@ -131,14 +131,14 @@ export interface RateLimitWindow {
   resetAt: number | null;
 }
 
-export interface RateLimitErrorInit extends SourceplaneErrorInit {
+export interface RateLimitErrorInit extends LumenErrorInit {
   retryAfterSeconds: number | null;
   /** Scope that tripped the limit (echoed from `details.scope`). */
   scope: "org" | "identity" | null;
   windows: RateLimitWindow[];
 }
 
-export class RateLimitError extends SourceplaneError {
+export class RateLimitError extends LumenError {
   readonly retryAfterSeconds: number | null;
   readonly scope: "org" | "identity" | null;
   readonly windows: RateLimitWindow[];
@@ -167,19 +167,19 @@ export class RateLimitError extends SourceplaneError {
 // ---------------------------------------------------------------------------
 
 /**
- * Decode an HTTP `Response` into the appropriate `SourceplaneError` subclass.
+ * Decode an HTTP `Response` into the appropriate `LumenError` subclass.
  *
- * Forward-compatible: unknown error codes resolve to the base `SourceplaneError`.
+ * Forward-compatible: unknown error codes resolve to the base `LumenError`.
  * Robust to non-JSON 5xx bodies (gateway HTML, empty body, etc.) — synthesises
  * a generic `InternalError` envelope in that case.
  */
 export async function decodeError(
   response: Response,
   fallbackRequestId: string,
-): Promise<SourceplaneError> {
+): Promise<LumenError> {
   const envelope = await readErrorEnvelope(response, fallbackRequestId);
   const requestId = envelope.requestId ?? fallbackRequestId;
-  const init: SourceplaneErrorInit = {
+  const init: LumenErrorInit = {
     envelope,
     status: response.status,
     requestId,
@@ -209,12 +209,12 @@ export async function decodeError(
       return decodeRateLimit(init, response);
     default:
       // Forward-compat: unknown codes still surface a typed error.
-      return new SourceplaneError(init);
+      return new LumenError(init);
   }
 }
 
 function decodeRateLimit(
-  init: SourceplaneErrorInit,
+  init: LumenErrorInit,
   response: Response,
 ): RateLimitError {
   const retryAfter = parseIntHeader(response.headers.get("retry-after"));

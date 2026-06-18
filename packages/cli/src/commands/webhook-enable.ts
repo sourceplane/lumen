@@ -1,4 +1,4 @@
-// `sourceplane webhook enable <endpointId>` — Task 0114.
+// `lumen webhook enable <endpointId>` — Task 0114.
 //
 // Symmetric CLI surface to the Task 0113 console "Re-enable" button +
 // enable-endpoint dialog. Closes the B5 endpoint-CRUD CLI gap for the
@@ -75,7 +75,7 @@ export async function webhookEnableCommand(
   const endpointId = ctx.args[0];
   if (endpointId === undefined || endpointId.length === 0) {
     throw new UsageError(
-      "usage: sourceplane webhook enable <endpointId> [--idempotency-key=KEY] [--output=human|json]",
+      "usage: lumen webhook enable <endpointId> [--idempotency-key=KEY] [--output=human|json]",
     );
   }
 

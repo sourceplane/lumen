@@ -15,7 +15,7 @@ secrets share one **platform** document.
 
 | Document (per `<env>`) | Keys |
 |---|---|
-| `sourceplane/multi-tenant-saas/integrations/github-oauth/<env>` | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` |
+| `sourceplane/lumen/integrations/github-oauth/<env>` | `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET` |
 | `…/integrations/google-oauth/<env>` | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` |
 | `…/integrations/polar/<env>` | `BILLING_PROVIDER`, `POLAR_SERVER`, `POLAR_PRODUCT_MAP`, `POLAR_SUCCESS_URL`, `POLAR_ACCESS_TOKEN`, `POLAR_WEBHOOK_SECRET` |
 | `…/integrations/cloudflare-email/<env>` | `NOTIFICATIONS_PROVIDER`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME` (no secret) |
@@ -52,7 +52,7 @@ webhook endpoints and integration tokens).
 
    ```bash
    aws secretsmanager create-secret \
-     --name sourceplane/multi-tenant-saas/integrations/github-oauth/stage \
+     --name sourceplane/lumen/integrations/github-oauth/stage \
      --secret-string file://github-oauth-stage.json
    # …repeat for google-oauth, polar, cloudflare-email, and platform-secrets
    # (use put-secret-value if the secret already exists)

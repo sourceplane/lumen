@@ -2,18 +2,18 @@
 //
 // The binary name, default API endpoint, OS keychain service, and config
 // directory live here so a rebranded instance retargets one file. The
-// `@saas/sdk` client class name (`Sourceplane`) is intentionally NOT part of
+// `@saas/sdk` client class name (`Lumen`) is intentionally NOT part of
 // this seam — it is a code identifier, handled by the blueprint rename map
 // (BF12), not a runtime value.
 
 /** CLI binary name (matches `bin` in package.json). */
-export const CLI_BIN = "sourceplane";
+export const CLI_BIN = "lumen";
 
 /** Product/brand name used in human-facing CLI copy. */
-export const PRODUCT_NAME = "Sourceplane";
+export const PRODUCT_NAME = "Lumen";
 
 /** Default API base URL when `--api-url` is not supplied. */
-export const DEFAULT_API_URL = "https://api.sourceplane.dev";
+export const DEFAULT_API_URL = "https://api.lumen.app";
 
 /** OS keychain service name for stored credentials. */
 export const KEYCHAIN_SERVICE = `${CLI_BIN}-cli`;

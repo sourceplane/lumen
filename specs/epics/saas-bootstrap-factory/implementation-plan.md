@@ -124,7 +124,7 @@ literal and committed; only config is generated.**
   (`${WORKERS_DEV_SUBDOMAIN}`, `${ORUN_ENVIRONMENT}`) instead of literals
   where the harness already exposes them.
 
-**Done when.** `grep -rn "rahulvarghesepullely\|sourceplane" apps/*/src
+**Done when.** `grep -rn "your-workers-subdomain\|sourceplane" apps/*/src
 packages/*/src` returns only the config seam files (and `@saas/` package
 names); stage smoke is green.
 
@@ -132,12 +132,12 @@ names); stage smoke is green.
 
 ### BF4 — Generalize runtime binding names
 
-**Why now.** Every DB-using worker binds Hyperdrive as `SOURCEPLANE_DB`, and
+**Why now.** Every DB-using worker binds Hyperdrive as `LUMEN_DB`, and
 code reads that name. Binding names are API between infra and code; a generic
 name removes a whole class of rename churn from instantiation.
 
 **Scope.**
-- Rename `SOURCEPLANE_DB` → `PLATFORM_DB` (final name decided in
+- Rename `LUMEN_DB` → `PLATFORM_DB` (final name decided in
   `risks-and-open-questions.md`) across all 13 `wrangler.jsonc` files and
   every `env.` accessor; same for any other branded binding/var names found in
   the sweep.

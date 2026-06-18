@@ -1,15 +1,15 @@
 # Supabase Infrastructure Component
 
 Provisions Supabase projects for `stage` and `prod` environments under the
-`sourceplane` organization and stores generated credentials in AWS Secrets
+`lumen` organization and stores generated credentials in AWS Secrets
 Manager.
 
 ## Environments
 
 | Environment | Project Name               | Status       |
 |-------------|----------------------------|--------------|
-| stage       | multi-tenant-saas-stage    | Provisioned  |
-| prod        | multi-tenant-saas-prod     | Provisioned  |
+| stage       | lumen-stage    | Provisioned  |
+| prod        | lumen-prod     | Provisioned  |
 | dev         | —                          | Not provisioned |
 
 ## Authentication
@@ -22,15 +22,15 @@ this variable.
 
 State is stored at:
 ```
-s3://sourceplane-<env>/env/<env>/multi-tenant-saas/supabase/terraform.tfstate
+s3://sourceplane-<env>/env/<env>/lumen/supabase/terraform.tfstate
 ```
 
 ## AWS Secrets Manager
 
 Credentials are stored at:
 ```
-sourceplane/multi-tenant-saas/supabase/stage
-sourceplane/multi-tenant-saas/supabase/prod
+sourceplane/lumen/supabase/stage
+sourceplane/lumen/supabase/prod
 ```
 
 The named Secrets Manager secret is treated as a stable container. Terraform

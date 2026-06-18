@@ -7,22 +7,22 @@ installation-token broker. Contract: `specs/components/17-integrations.md`.
 
 ## Recipe: act on GitHub from your product
 
-Your backend holds one Sourceplane API key and **zero GitHub credentials**.
+Your backend holds one Lumen API key and **zero GitHub credentials**.
 Exchange it for a short-lived, repo-scoped installation token whenever you
 need to call GitHub — post a check run, read a file, set a deploy status:
 
 ```ts
-import { Sourceplane } from "@saas/sdk";
+import { Lumen } from "@saas/sdk";
 import { Octokit } from "@octokit/rest";
 
-const sourceplane = new Sourceplane({
-  baseUrl: process.env.SOURCEPLANE_API_URL!,
-  token: process.env.SOURCEPLANE_API_KEY!, // service-principal key
+const lumen = new Lumen({
+  baseUrl: process.env.LUMEN_API_URL!,
+  token: process.env.LUMEN_API_KEY!, // service-principal key
 });
 
 // Mint a token scoped to exactly the repos + permissions you need.
 // TTL ≤ 1h; mint per task and let it expire — never store it.
-const { token } = await sourceplane.integrations.issueGithubToken(ORG_ID, {
+const { token } = await lumen.integrations.issueGithubToken(ORG_ID, {
   repositories: ["777001"],                 // linked provider repo ids
   permissions: { checks: "write" },         // ⊆ the App's grant
 });
@@ -31,7 +31,7 @@ const octokit = new Octokit({ auth: token });
 await octokit.checks.create({
   owner: "acme",
   repo: "storefront",
-  name: "sourceplane/verify",
+  name: "lumen/verify",
   head_sha: headSha,
   status: "completed",
   conclusion: "success",

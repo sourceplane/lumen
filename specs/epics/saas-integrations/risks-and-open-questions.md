@@ -14,7 +14,7 @@ webhook secret, client id/secret, callback + setup + webhook URLs pointed at
 that env's edge. Until provided: IG0 fully, and IG2's worker logic against
 recorded fixtures, proceed; live connect/inbound parks. **Default
 recommendation:** register `sourceplane-dev|stage|prod` Apps under the
-`sourceplane` GitHub org; store secrets via `wrangler secret put` now, BF
+`lumen` GitHub org; store secrets via `wrangler secret put` now, BF
 instance parameters at IG7.
 
 ### D2 — The App's permission set (blocks IG1 registration form)

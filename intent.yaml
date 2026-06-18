@@ -2,7 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Intent
 
 metadata:
-  name: multi-tenant-saas
+  name: lumen
   description: Reusable Cloudflare and Supabase multi-tenant SaaS starter
   namespace: sourceplane
 
@@ -77,13 +77,13 @@ environments:
         namespace: sourceplane
         namespacePrefix: dev-
         owner: sourceplane
-        repo: multi-tenant-saas
+        repo: lumen
         CONSOLE_CUSTOM_DOMAIN: ""
     policies:
       requireApproval: "false"
     env:
       AWS_REGION: us-east-1
-      BASE_DOMAIN: sourceplane.ai
+      BASE_DOMAIN: lumen.app
 
   stage:
     activation:
@@ -98,13 +98,13 @@ environments:
         namespace: sourceplane
         namespacePrefix: stg-
         owner: sourceplane
-        repo: multi-tenant-saas
-        CONSOLE_CUSTOM_DOMAIN: stage.sourceplane.ai
+        repo: lumen
+        CONSOLE_CUSTOM_DOMAIN: stage.lumen.app
     policies:
       requireApproval: "true"
     env:
       AWS_REGION: us-east-1
-      BASE_DOMAIN: sourceplane.ai
+      BASE_DOMAIN: lumen.app
 
   prod:
     activation:
@@ -122,10 +122,10 @@ environments:
         namespace: sourceplane
         namespacePrefix: prod-
         owner: sourceplane
-        repo: multi-tenant-saas
-        CONSOLE_CUSTOM_DOMAIN: prod.sourceplane.ai
+        repo: lumen
+        CONSOLE_CUSTOM_DOMAIN: prod.lumen.app
     policies:
       requireApproval: "true"
     env:
       AWS_REGION: us-east-1
-      BASE_DOMAIN: sourceplane.ai
+      BASE_DOMAIN: lumen.app

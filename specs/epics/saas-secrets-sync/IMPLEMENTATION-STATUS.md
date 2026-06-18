@@ -29,7 +29,7 @@ on boot.
 - Pre-SS3: absent escrow document = clean skip; present-but-incomplete
   escrow = hard failure.
 
-- Escrow path: `sourceplane/multi-tenant-saas/worker-secrets/<env>` (one JSON
+- Escrow path: `sourceplane/lumen/worker-secrets/<env>` (one JSON
   doc per environment, `worker → SECRET_NAME → value`), shaped to be fetchable
   by the same composition mechanism as BF6 wire-live payloads.
 - AWS Secrets Manager is the system of record; Cloudflare worker secrets /

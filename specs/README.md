@@ -1,4 +1,4 @@
-# Sourceplane SaaS — Spec Pack
+# Lumen SaaS — Spec Pack
 
 Status: Normative index
 

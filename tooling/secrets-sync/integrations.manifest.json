@@ -1,6 +1,6 @@
 {
   "$comment": "SS6 source of truth (saas-secrets-sync): per-integration documents in AWS Secrets Manager, each holding the non-secret config AND the secret(s) for ONE provider integration. Non-integration secrets (repo/account-generated, not tied to a provider) live in a single platform-secrets doc. assemble.mjs projects this into (a) the per-worker secret view committed as secrets.manifest.json and consumed by check.mjs/sync.mjs, and (b) the per-worker config view rendered into wrangler vars. config keys are non-secret and may be logged; secret keys never are.",
-  "escrowRoot": "sourceplane/multi-tenant-saas",
+  "escrowRoot": "sourceplane/lumen",
   "environments": ["stage", "prod"],
   "deferredConsumers": ["integrations-worker"],
   "integrations": {

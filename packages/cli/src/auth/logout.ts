@@ -1,4 +1,4 @@
-// `sourceplane logout` — clear token + active org context.
+// `lumen logout` — clear token + active org context.
 
 import type { OutputMode } from "../output/index.js";
 import { formatOutput } from "../output/index.js";

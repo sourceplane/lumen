@@ -1,7 +1,7 @@
 # @saas/webhook-verifier
 
 Zero-dependency, WebCrypto-only HMAC-SHA256 signature verifier for
-Sourceplane outbound webhook deliveries. Runs verbatim on Cloudflare
+Lumen outbound webhook deliveries. Runs verbatim on Cloudflare
 Workers, Bun, modern Node, and browsers.
 
 ```ts
@@ -13,7 +13,7 @@ import {
 export async function handler(request: Request): Promise<Response> {
   const body = await request.text();
   const result = await verifyWebhookSignature({
-    secret: process.env.SOURCEPLANE_WEBHOOK_SECRET!,
+    secret: process.env.LUMEN_WEBHOOK_SECRET!,
     body,
     headers: request.headers,
     // toleranceSeconds: DEFAULT_TOLERANCE_SECONDS, // 5 minutes; tighten if you have strict NTP
@@ -30,5 +30,5 @@ export async function handler(request: Request): Promise<Response> {
 your clocks are tightly synchronized, raise it if they aren't.
 
 The companion `signWebhookPayload({ secret, body, timestamp })` helper
-produces the exact `sha256=<hex>` header value Sourceplane emits — useful
+produces the exact `sha256=<hex>` header value Lumen emits — useful
 for fixtures and symmetric debugging.

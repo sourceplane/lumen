@@ -40,7 +40,7 @@ inventing account IDs, role ARNs, project refs, or secret names.
 not hand-create IAM users, roles, policies, or S3 state buckets.
 
 The required `aws-admin` component for this repo creates environment-scoped
-GitHub OIDC roles for `sourceplane/multi-tenant-saas`. Those roles must allow:
+GitHub OIDC roles for `sourceplane/lumen`. Those roles must allow:
 
 - Terraform state read/write against the shared S3 state buckets named
   `sourceplane-<env>`.
@@ -67,7 +67,7 @@ The baseline CI environment needs:
   explicit pre-run credential step that is itself encoded in the Orun-planned
   job behavior.
 - `SUPABASE_API_KEY` as a GitHub Actions secret with management access to the
-  Supabase `sourceplane` organization. Terraform jobs must map this secret to
+  Supabase `lumen` organization. Terraform jobs must map this secret to
   the selected Supabase provider's access-token input without printing it.
 
 Provider-specific credentials, Supabase database passwords, API keys, and
@@ -80,7 +80,7 @@ connection strings must live in AWS Secrets Manager under:
 Example:
 
 ```text
-sourceplane/multi-tenant-saas/supabase/stage
+sourceplane/lumen/supabase/stage
 ```
 
 Secret values must never be committed, echoed in logs, or copied into task
@@ -182,7 +182,7 @@ through Orun jobs after AWS access and S3 state are in place.
 
 The current Supabase target decision is:
 
-- Organization/account name: `sourceplane`
+- Organization/account name: `lumen`
 - Supabase organization slug/id: `dwazxcrywsdbxpuouifa`
 - Task 0006 provisions only `stage` and `prod`.
 - `dev` is intentionally not provisioned for now and must not be added to the
@@ -191,7 +191,7 @@ The current Supabase target decision is:
   separate primary Postgres database. Do not use branches or a shared
   project/database for these environments.
 - Project names should follow `<repo>-<env>`:
-  `multi-tenant-saas-stage` and `multi-tenant-saas-prod`.
+  `lumen-stage` and `lumen-prod`.
 - Project refs are assigned by Supabase during creation and must be recorded as
   non-secret outputs/report values after apply.
 
@@ -232,7 +232,7 @@ environment promotion or cross-component dependency behavior.
 
 ## Acceptance Criteria
 
-- `multi-tenant-saas` uses the Orun runtime pinned in `kiox.yaml`
+- `lumen` uses the Orun runtime pinned in `kiox.yaml`
   (authoritative; `kiox.lock` records the resolved digest) while continuing to
   follow `aws-admin` for Terraform component and backend structure.
 - `intent.yaml` uses the `dev`, `stage`, `prod` environment shape and
@@ -242,7 +242,7 @@ environment promotion or cross-component dependency behavior.
 - AWS-admin-created roles allow the multi-tenant SaaS CI path to read/write its
   Secrets Manager namespace and Terraform state.
 - Supabase `stage` and `prod` projects are separate, Terraform-created projects
-  under organization `sourceplane` (`dwazxcrywsdbxpuouifa`), and their generated
+  under organization `lumen` (`dwazxcrywsdbxpuouifa`), and their generated
   database credentials are stored in AWS Secrets Manager.
 - CI and local `kiox -- orun ...` behavior are verified from rendered plans,
   not inferred from file names.

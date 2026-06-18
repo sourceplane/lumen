@@ -46,7 +46,7 @@ Owner: api-edge + contracts. Out: per-resource quota (billing entitlements — d
 
 Generate a typed SDK from `packages/contracts` (one client shared by console, CLI,
 and external customers). Ship `packages/cli` per component `13` on top of the SDK.
-Token storage on keychain via `keytar` with a `~/.config/sourceplane/` fallback.
+Token storage on keychain via `keytar` with a `~/.config/lumen/` fallback.
 
 Owner: `packages/sdk` + `packages/cli`. Unlocks external automation, CI flows,
 future integrations.
