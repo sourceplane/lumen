@@ -11,6 +11,21 @@
  * lives here behind `/orgs/[slug]/settings/*`.
  */
 
+import { SOLO_MODE } from "../../lib/solo-mode";
+
+// Settings sub-paths suppressed under the M0/Solo profile (also 404'd at the API
+// edge): collaboration (members, invitations), credentials (api-keys), and the
+// developer integration surface (webhooks, integrations, audit). Kept: General,
+// Notifications, Billing, and Config (feature flags).
+const SOLO_SUPPRESSED_PATHS = [
+  "/members",
+  "/invitations",
+  "/api-keys",
+  "/webhooks",
+  "/integrations",
+  "/audit",
+];
+
 export interface SettingsNavLink {
   href: string;
   label: string;
@@ -37,9 +52,9 @@ export interface SettingsNavGroup {
  * consoles (Stripe, Vercel, Linear) split settings: who/what the org is, how
  * it pays, and the developer-facing integration surface.
  */
-export function buildSettingsNav(orgSlug: string): SettingsNavGroup[] {
+export function buildSettingsNav(orgSlug: string, soloMode: boolean = SOLO_MODE): SettingsNavGroup[] {
   const base = `/orgs/${orgSlug}/settings`;
-  return [
+  const groups: SettingsNavGroup[] = [
     {
       id: "organization",
       label: "Organization",
@@ -120,6 +135,21 @@ export function buildSettingsNav(orgSlug: string): SettingsNavGroup[] {
       ],
     },
   ];
+
+  if (!soloMode) return groups;
+
+  // Solo: the user IS the tenant. Relabel the org group to "Account", drop the
+  // suppressed links, and omit any group left empty (e.g. a Developer group that
+  // now holds only Config). Off the profile this is never reached.
+  return groups
+    .map((g) => ({
+      ...g,
+      label: g.id === "organization" ? "Account" : g.label,
+      links: g.links.filter(
+        (l) => !SOLO_SUPPRESSED_PATHS.some((p) => l.href === `${base}${p}` || l.href.startsWith(`${base}${p}/`)),
+      ),
+    }))
+    .filter((g) => g.links.length > 0);
 }
 
 /** Flatten the grouped nav into an ordered link list (used by the mobile bar). */

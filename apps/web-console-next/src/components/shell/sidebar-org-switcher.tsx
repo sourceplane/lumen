@@ -14,6 +14,7 @@ import {
 import { useSession } from "@/lib/session";
 import { wrap } from "@/lib/api";
 import { useApiQuery, qk } from "@/lib/query";
+import { SOLO_MODE } from "@/lib/solo-mode";
 
 /**
  * Org switcher anchored at the top of the sidebar (Vercel's team-switcher
@@ -40,8 +41,22 @@ export function SidebarOrgSwitcher({ onNavigate }: { onNavigate?: () => void } =
   };
 
   const current = orgs?.find((o) => o.slug === orgSlug) ?? null;
-  const label = current?.name ?? orgSlug ?? "Select organization";
+  const label = current?.name ?? orgSlug ?? (SOLO_MODE ? "Account" : "Select organization");
   const seed = (label.trim()[0] ?? "S").toUpperCase();
+
+  // Solo profile: there is exactly one (invisible) workspace, so there is no
+  // switching, no "view all", and no "create org". Render a static account
+  // chip instead of the switcher dropdown.
+  if (SOLO_MODE) {
+    return (
+      <div className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left">
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-gradient-to-br from-primary to-primary/40 text-xs font-bold text-primary-foreground">
+          {seed}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold tracking-tight">{label}</span>
+      </div>
+    );
+  }
 
   return (
     <DropdownMenu>

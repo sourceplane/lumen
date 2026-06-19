@@ -5,6 +5,8 @@
  * (the Sheet drawer on small screens). Icon resolution happens in the renderer.
  */
 
+import { SOLO_MODE } from "../../lib/solo-mode";
+
 export interface NavLink {
   href: string;
   label: string;
@@ -30,8 +32,13 @@ export interface NavScope {
  * Build the sidebar sections for the current URL scope. Org and project
  * sections only appear when their slug is present, matching the URL-driven
  * scope invariant (no local navigation state).
+ *
+ * Under the M0/Solo profile (`soloMode`) the org reads as the user's "Account":
+ * projects and usage/quota are suppressed (hidden at the API edge too), the
+ * section is relabelled, and project scope never appears. Defaults to the build
+ * flag, so callers are unchanged; tests pass it explicitly for both profiles.
  */
-export function buildNavSections(scope: NavScope): NavSection[] {
+export function buildNavSections(scope: NavScope, soloMode: boolean = SOLO_MODE): NavSection[] {
   const sections: NavSection[] = [];
   const orgSlug = scope.orgSlug ?? null;
   const projectSlug = scope.projectSlug ?? null;
@@ -53,17 +60,24 @@ export function buildNavSections(scope: NavScope): NavSection[] {
     // secondary navigation (see `settings-nav.ts`).
     sections.push({
       id: "org",
-      label: orgSlug ? `Org · ${orgSlug}` : "Organization",
-      links: [
-        { href: `${orgBase}/projects`, label: "Projects", icon: "FolderKanban" },
-        { href: `${orgBase}/usage`, label: "Usage & quota", icon: "Gauge" },
-        // Opens the dedicated settings panel — flagged so the renderer shows a ›.
-        { href: `${orgBase}/settings`, label: "Settings", icon: "Settings", subPanel: true },
-      ],
+      label: soloMode ? "Account" : orgSlug ? `Org · ${orgSlug}` : "Organization",
+      links: soloMode
+        ? [
+            // Solo: projects & usage/quota are platform plumbing the B2C user
+            // never sees; their surfaces collapse to the Settings (Account) panel.
+            { href: `${orgBase}/settings`, label: "Settings", icon: "Settings", subPanel: true },
+          ]
+        : [
+            { href: `${orgBase}/projects`, label: "Projects", icon: "FolderKanban" },
+            { href: `${orgBase}/usage`, label: "Usage & quota", icon: "Gauge" },
+            // Opens the dedicated settings panel — flagged so the renderer shows a ›.
+            { href: `${orgBase}/settings`, label: "Settings", icon: "Settings", subPanel: true },
+          ],
     });
   }
 
-  if (projectBase) {
+  // Project scope is suppressed entirely under Solo (no projects exist).
+  if (projectBase && !soloMode) {
     sections.push({
       id: "project",
       label: projectSlug ? `Project · ${projectSlug}` : "Project",

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Building2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { pickAccountBillingOrg } from "@/components/billing/account-org";
 import { useSession } from "@/lib/session";
-import { readLastOrgSlug, clearLastOrgSlug } from "@/lib/last-org";
+import { readLastOrgSlug, clearLastOrgSlug, defaultOrgDestination } from "@/lib/last-org";
+import { SOLO_MODE } from "@/lib/solo-mode";
 import { useApiQuery, qk, usePrefetch } from "@/lib/query";
 import { useToast } from "@/components/ui/toast";
 import { wrap } from "@/lib/api";
@@ -18,10 +20,19 @@ import { wrap } from "@/lib/api";
 export default function OrgsPage() {
   const { client } = useSession();
   const { toast } = useToast();
+  const router = useRouter();
   const prefetch = usePrefetch();
   const orgs = useApiQuery(qk.orgs(), () =>
     wrap(async () => (await client.organizations.list()).organizations),
   );
+
+  // Solo profile: there is no org chooser — the personal workspace is invisible.
+  // Auto-resolve it and forward to its dashboard. Off the profile this is inert.
+  React.useEffect(() => {
+    if (!SOLO_MODE || !orgs.data || orgs.data.length === 0) return;
+    const home = pickAccountBillingOrg(orgs.data)!;
+    router.replace(defaultOrgDestination(home.slug));
+  }, [orgs.data, router]);
   // Multi-org is gated on the account's billing parent (its earliest-created
   // org — same choice the membership-worker MO2 gate makes). The paywall's
   // "Upgrade plan" CTA starts a Business checkout for that org.

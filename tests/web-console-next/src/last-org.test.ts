@@ -11,6 +11,17 @@ describe("defaultOrgDestination", () => {
   it("falls back to onboarding when none is remembered — there is no org-less landing view", () => {
     expect(defaultOrgDestination(null)).toBe("/onboarding");
   });
+
+  it("Solo: lands on the Account (settings) surface, not projects", () => {
+    expect(defaultOrgDestination("acme", true)).toBe("/orgs/acme/settings");
+    // No remembered org still routes to onboarding (which forwards to the
+    // auto-provisioned personal org once it loads).
+    expect(defaultOrgDestination(null, true)).toBe("/onboarding");
+  });
+
+  it("baseline (soloMode=false) still lands on projects", () => {
+    expect(defaultOrgDestination("acme", false)).toBe("/orgs/acme/projects");
+  });
 });
 
 describe("resolvePostAuthDestination", () => {

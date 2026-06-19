@@ -18,6 +18,7 @@
  */
 
 import { STORAGE_PREFIX } from "./app-config";
+import { SOLO_MODE } from "./solo-mode";
 import { pickAccountBillingOrg } from "@/components/billing/account-org";
 
 const LAST_ORG_KEY = `${STORAGE_PREFIX}.last-org`;
@@ -57,8 +58,12 @@ export function clearLastOrgSlug(): void {
  * forwards to an existing one. Pure given a slug so it's trivially testable;
  * callers pass `readLastOrgSlug()`.
  */
-export function defaultOrgDestination(lastOrgSlug: string | null): string {
-  return lastOrgSlug ? `/orgs/${lastOrgSlug}/projects` : "/onboarding";
+export function defaultOrgDestination(lastOrgSlug: string | null, soloMode: boolean = SOLO_MODE): string {
+  if (!lastOrgSlug) return "/onboarding";
+  // Solo: projects are suppressed, so the personal workspace's "dashboard" is
+  // its Account (settings) surface — where the kept single-user features live
+  // (account, notifications, billing, config). Baseline lands on projects.
+  return soloMode ? `/orgs/${lastOrgSlug}/settings` : `/orgs/${lastOrgSlug}/projects`;
 }
 
 /** Minimal shape of the API client needed to resolve the post-auth destination. */

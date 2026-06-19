@@ -24,7 +24,8 @@
     "GITHUB_OAUTH_CLIENT_ID": "",
     "GOOGLE_OAUTH_CLIENT_ID": "",
     "OAUTH_REDIRECT_BASE_URL": "http://localhost:8787",
-    "OAUTH_ALLOWED_CONSOLE_ORIGINS": "http://localhost:3000"
+    "OAUTH_ALLOWED_CONSOLE_ORIGINS": "http://localhost:3000",
+    "SOLO_MODE": "true"
   },
   "env": {
     "dev": {
@@ -34,7 +35,8 @@
         "GITHUB_OAUTH_CLIENT_ID": "",
         "GOOGLE_OAUTH_CLIENT_ID": "",
         "OAUTH_REDIRECT_BASE_URL": "",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://lumen-web-console-next-dev.your-workers-subdomain.workers.dev"
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://lumen-web-console-next-dev.your-workers-subdomain.workers.dev",
+        "SOLO_MODE": "true"
       }
     },
     "stage": {
@@ -44,7 +46,8 @@
         "GITHUB_OAUTH_CLIENT_ID": "Ov23liKBsjAqJJsmBavV",
         "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://api-edge-stage.your-workers-subdomain.workers.dev",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.lumen.app,https://lumen-web-console-next-stage.your-workers-subdomain.workers.dev"
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.lumen.app,https://lumen-web-console-next-stage.your-workers-subdomain.workers.dev",
+        "SOLO_MODE": "true"
       },
       "hyperdrive": [
         {
@@ -74,7 +77,8 @@
         "GITHUB_OAUTH_CLIENT_ID": "Ov23lilp2aoyeBDVU8Vc",
         "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
         "OAUTH_REDIRECT_BASE_URL": "https://api-edge-prod.your-workers-subdomain.workers.dev",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://prod.lumen.app,https://lumen-web-console-next-prod.your-workers-subdomain.workers.dev"
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://prod.lumen.app,https://lumen-web-console-next-prod.your-workers-subdomain.workers.dev",
+        "SOLO_MODE": "true"
       },
       "hyperdrive": [
         {

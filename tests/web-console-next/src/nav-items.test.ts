@@ -60,6 +60,32 @@ describe("buildNavSections", () => {
   });
 });
 
+describe("buildNavSections under the Solo (M0) profile", () => {
+  it("relabels the org section to 'Account' and drops Projects + Usage", () => {
+    const org = buildNavSections({ orgSlug: "acme" }, true).find((s) => s.id === "org")!;
+    expect(org.label).toBe("Account");
+    const hrefs = org.links.map((l) => l.href);
+    expect(hrefs).toEqual(["/orgs/acme/settings"]); // only Settings survives
+    expect(hrefs).not.toContain("/orgs/acme/projects");
+    expect(hrefs).not.toContain("/orgs/acme/usage");
+  });
+
+  it("suppresses the project section even when a project slug is present", () => {
+    const sections = buildNavSections({ orgSlug: "acme", projectSlug: "web" }, true);
+    expect(sections.find((s) => s.id === "project")).toBeUndefined();
+  });
+
+  it("keeps the full baseline section when soloMode is false", () => {
+    const org = buildNavSections({ orgSlug: "acme" }, false).find((s) => s.id === "org")!;
+    expect(org.label).toBe("Org · acme");
+    expect(org.links.map((l) => l.href)).toEqual([
+      "/orgs/acme/projects",
+      "/orgs/acme/usage",
+      "/orgs/acme/settings",
+    ]);
+  });
+});
+
 describe("isLinkActive", () => {
   it("matches /orgs only exactly (not nested org pages)", () => {
     expect(isLinkActive("/orgs", "/orgs")).toBe(true);
