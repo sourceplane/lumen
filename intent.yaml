@@ -101,7 +101,7 @@ environments:
         repo: lumen
         CONSOLE_CUSTOM_DOMAIN: stage.lumen.app
     policies:
-      requireApproval: "true"
+      requireApproval: "false"
     env:
       AWS_REGION: us-east-1
       BASE_DOMAIN: lumen.app
@@ -125,7 +125,7 @@ environments:
         repo: lumen
         CONSOLE_CUSTOM_DOMAIN: prod.lumen.app
     policies:
-      requireApproval: "true"
+      requireApproval: "false"
     env:
       AWS_REGION: us-east-1
       BASE_DOMAIN: lumen.app
