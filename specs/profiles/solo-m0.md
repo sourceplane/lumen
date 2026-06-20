@@ -104,9 +104,11 @@ later request.
   General settings page relabel the tenant noun to **"Account"**
   (`TENANT_NOUN`). Pure nav models: `nav-items.ts`, `settings-nav.ts`.
 - **Lands straight on the dashboard.** The org chooser (`/orgs`) auto-resolves
-  the personal org and forwards; the org root (`/orgs/:slug`) and post-auth
-  landing go to the **Account (settings)** surface instead of Projects (which is
-  suppressed). `/orgs/new` is blocked (bounces home).
+  the personal org and forwards — rendering a neutral placeholder (no
+  "Organizations" heading, no "New organization" CTA) while it resolves, so org
+  wording never flashes. The org root (`/orgs/:slug`) and post-auth landing go to
+  the **Account (settings)** surface instead of Projects (which is suppressed).
+  `/orgs/new` is blocked (bounces home).
 - **Hidden surfaces** (nav + settings): members, invitations, projects,
   environments, usage/quota, webhooks, integrations, API keys. **Kept:** Account
   general, Notifications, Billing, Config (flags).
