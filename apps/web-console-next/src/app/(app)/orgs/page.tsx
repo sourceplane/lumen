@@ -59,6 +59,28 @@ export default function OrgsPage() {
     }
   }, [orgs.data]);
 
+  // Solo: the org chooser is never shown — the personal workspace is invisible
+  // and the effect above forwards to it. Render a neutral placeholder (no org
+  // wording, no "create" CTA) while that resolves, matching /orgs/new. Off the
+  // profile this is dead and the full chooser below renders unchanged.
+  if (SOLO_MODE) {
+    return (
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Card key={i}>
+            <CardHeader>
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20 mt-2" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-3 w-44" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex items-end justify-between gap-4">
