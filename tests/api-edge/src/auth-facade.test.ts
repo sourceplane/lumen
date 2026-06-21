@@ -481,7 +481,7 @@ describe("api-edge auth facade", () => {
 
     it("returns 503 with safe envelope when service binding throws", async () => {
       const fetcher = createThrowingFetcher(
-        new Error("Connection refused to identity-worker-stage.internal"),
+        new Error("Connection refused to lumen-identity-worker-stage.internal"),
       );
       const request = new Request("https://api.example.com/v1/auth/login/start", {
         method: "POST",
@@ -501,7 +501,7 @@ describe("api-edge auth facade", () => {
       expect(json.error.code).toBe("internal_error");
       expect(json.error.message).toBe("Authentication service unavailable");
       expect(JSON.stringify(json)).not.toContain("Connection refused");
-      expect(JSON.stringify(json)).not.toContain("identity-worker-stage");
+      expect(JSON.stringify(json)).not.toContain("lumen-identity-worker-stage");
     });
 
     it("returns 405 for wrong method on auth routes", async () => {
@@ -576,7 +576,7 @@ describe("api-edge auth facade", () => {
   });
 
   describe("config verification", () => {
-    it("wrangler.jsonc has stage service binding to identity-worker-stage", () => {
+    it("wrangler.jsonc has stage service binding to lumen-identity-worker-stage", () => {
       const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
@@ -585,10 +585,10 @@ describe("api-edge auth facade", () => {
       expect(stageServices).toBeDefined();
       const identity = stageServices.find((s: any) => s.binding === "IDENTITY_WORKER");
       expect(identity).toBeDefined();
-      expect(identity.service).toBe("identity-worker-stage");
+      expect(identity.service).toBe("lumen-identity-worker-stage");
     });
 
-    it("wrangler.jsonc has prod service binding to identity-worker-prod", () => {
+    it("wrangler.jsonc has prod service binding to lumen-identity-worker-prod", () => {
       const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
@@ -597,7 +597,7 @@ describe("api-edge auth facade", () => {
       expect(prodServices).toBeDefined();
       const identity = prodServices.find((s: any) => s.binding === "IDENTITY_WORKER");
       expect(identity).toBeDefined();
-      expect(identity.service).toBe("identity-worker-prod");
+      expect(identity.service).toBe("lumen-identity-worker-prod");
     });
 
     it("stage does not bind to prod identity worker", () => {

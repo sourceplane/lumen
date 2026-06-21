@@ -3,7 +3,7 @@
 // resolved from AWS Secrets Manager at deploy time (wire-live) or from the
 // committed wiring.fixture.json for offline dry-runs (wire-fixture).
 {
-  "name": "identity-worker",
+  "name": "lumen-identity-worker",
   "compatibility_date": "2025-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
@@ -35,7 +35,7 @@
         "GITHUB_OAUTH_CLIENT_ID": "",
         "GOOGLE_OAUTH_CLIENT_ID": "",
         "OAUTH_REDIRECT_BASE_URL": "",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://lumen-web-console-next-dev.your-workers-subdomain.workers.dev",
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://lumen-web-console-next-dev.rahulvarghesepullely.workers.dev",
         "SOLO_MODE": "true"
       }
     },
@@ -45,8 +45,8 @@
         "DEBUG_DELIVERY": "true",
         "GITHUB_OAUTH_CLIENT_ID": "Ov23liKBsjAqJJsmBavV",
         "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
-        "OAUTH_REDIRECT_BASE_URL": "https://api-edge-stage.your-workers-subdomain.workers.dev",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.lumen.app,https://lumen-web-console-next-stage.your-workers-subdomain.workers.dev",
+        "OAUTH_REDIRECT_BASE_URL": "https://lumen-api-edge-stage.rahulvarghesepullely.workers.dev",
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://stage.lumen.app,https://lumen-web-console-next-stage.rahulvarghesepullely.workers.dev",
         "SOLO_MODE": "true"
       },
       "hyperdrive": [
@@ -58,15 +58,15 @@
       "services": [
         {
           "binding": "MEMBERSHIP_WORKER",
-          "service": "membership-worker-stage"
+          "service": "lumen-membership-worker-stage"
         },
         {
           "binding": "POLICY_WORKER",
-          "service": "policy-worker-stage"
+          "service": "lumen-policy-worker-stage"
         },
         {
           "binding": "NOTIFICATIONS_WORKER",
-          "service": "notifications-worker-stage"
+          "service": "lumen-notifications-worker-stage"
         }
       ]
     },
@@ -76,8 +76,8 @@
         "DEBUG_DELIVERY": "false",
         "GITHUB_OAUTH_CLIENT_ID": "Ov23lilp2aoyeBDVU8Vc",
         "GOOGLE_OAUTH_CLIENT_ID": "441163126775-7fabhvpbl9tsga921rklpdlde7mduq34.apps.googleusercontent.com",
-        "OAUTH_REDIRECT_BASE_URL": "https://api-edge-prod.your-workers-subdomain.workers.dev",
-        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://prod.lumen.app,https://lumen-web-console-next-prod.your-workers-subdomain.workers.dev",
+        "OAUTH_REDIRECT_BASE_URL": "https://lumen-api-edge-prod.rahulvarghesepullely.workers.dev",
+        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://prod.lumen.app,https://lumen-web-console-next-prod.rahulvarghesepullely.workers.dev",
         "SOLO_MODE": "true"
       },
       "hyperdrive": [
@@ -89,15 +89,15 @@
       "services": [
         {
           "binding": "MEMBERSHIP_WORKER",
-          "service": "membership-worker-prod"
+          "service": "lumen-membership-worker-prod"
         },
         {
           "binding": "POLICY_WORKER",
-          "service": "policy-worker-prod"
+          "service": "lumen-policy-worker-prod"
         },
         {
           "binding": "NOTIFICATIONS_WORKER",
-          "service": "notifications-worker-prod"
+          "service": "lumen-notifications-worker-prod"
         }
       ]
     }

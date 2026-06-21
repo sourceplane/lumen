@@ -836,7 +836,7 @@ describe("api-edge project facade", () => {
   });
 
   describe("binding verification config", () => {
-    it("wrangler.jsonc has stage PROJECTS_WORKER binding to projects-worker-stage", () => {
+    it("wrangler.jsonc has stage PROJECTS_WORKER binding to lumen-projects-worker-stage", () => {
       const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
@@ -845,10 +845,10 @@ describe("api-edge project facade", () => {
       expect(stageServices).toBeDefined();
       const projects = stageServices.find((s: any) => s.binding === "PROJECTS_WORKER");
       expect(projects).toBeDefined();
-      expect(projects.service).toBe("projects-worker-stage");
+      expect(projects.service).toBe("lumen-projects-worker-stage");
     });
 
-    it("wrangler.jsonc has prod PROJECTS_WORKER binding to projects-worker-prod", () => {
+    it("wrangler.jsonc has prod PROJECTS_WORKER binding to lumen-projects-worker-prod", () => {
       const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
@@ -857,7 +857,7 @@ describe("api-edge project facade", () => {
       expect(prodServices).toBeDefined();
       const projects = prodServices.find((s: any) => s.binding === "PROJECTS_WORKER");
       expect(projects).toBeDefined();
-      expect(projects.service).toBe("projects-worker-prod");
+      expect(projects.service).toBe("lumen-projects-worker-prod");
     });
 
     it("stage does not bind to prod projects worker", () => {

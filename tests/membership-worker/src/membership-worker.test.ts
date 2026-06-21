@@ -1186,18 +1186,18 @@ describe("wrangler config", () => {
   // Strip single-line comments for JSONC parsing
   const config = JSON.parse(raw.replace(/^\s*\/\/.*$/gm, ""));
 
-  it("stage binds POLICY_WORKER to policy-worker-stage", () => {
+  it("stage binds POLICY_WORKER to lumen-policy-worker-stage", () => {
     const stageServices = config.env.stage.services;
     const policyBinding = stageServices.find((s: { binding: string }) => s.binding === "POLICY_WORKER");
     expect(policyBinding).toBeDefined();
-    expect(policyBinding.service).toBe("policy-worker-stage");
+    expect(policyBinding.service).toBe("lumen-policy-worker-stage");
   });
 
-  it("prod binds POLICY_WORKER to policy-worker-prod", () => {
+  it("prod binds POLICY_WORKER to lumen-policy-worker-prod", () => {
     const prodServices = config.env.prod.services;
     const policyBinding = prodServices.find((s: { binding: string }) => s.binding === "POLICY_WORKER");
     expect(policyBinding).toBeDefined();
-    expect(policyBinding.service).toBe("policy-worker-prod");
+    expect(policyBinding.service).toBe("lumen-policy-worker-prod");
   });
 
   it("stage and prod never cross environments", () => {

@@ -3,7 +3,7 @@
 // resolved from AWS Secrets Manager at deploy time (wire-live) or from the
 // committed wiring.fixture.json for offline dry-runs (wire-fixture).
 {
-  "name": "admin-worker",
+  "name": "lumen-admin-worker",
   "compatibility_date": "2025-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
