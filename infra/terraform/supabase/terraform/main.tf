@@ -103,10 +103,11 @@ variable "terraformVersion" {
   default = "1.15.3"
 }
 
-# Supabase target identity — supplied as TF_VAR_supabaseOrgId / TF_VAR_supabaseRegion
-# from the component's `spec.parameters` (see infra/terraform/supabase/component.yaml).
-# Required (no default) so a missing value fails plan loudly instead of silently
-# pointing at the wrong Supabase organization or region.
+# Supabase target identity. supabaseRegion comes from the component's
+# `spec.parameters`; supabaseOrgId is account-specific and injected as
+# TF_VAR_supabaseOrgId from the SUPABASE_ORG_ID CI secret (see
+# .github/workflows/ci.yml). Both are required (no default) so a missing value
+# fails plan loudly instead of silently pointing at the wrong org or region.
 variable "supabaseOrgId" {
   type = string
 }
