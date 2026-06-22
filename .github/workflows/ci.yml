@@ -91,4 +91,8 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_API_KEY }}
           TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Supabase org id is environment/account-specific, so it comes from a
+          # CI secret rather than a committed component parameter. Used by the
+          # supabase terraform component as var.supabaseOrgId.
+          TF_VAR_supabaseOrgId: ${{ secrets.SUPABASE_ORG_ID }}
           DOCKER_CONFIG: /home/runner/.docker
