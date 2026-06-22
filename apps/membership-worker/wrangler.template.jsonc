@@ -39,10 +39,6 @@
         {
           "binding": "BILLING_WORKER",
           "service": "lumen-billing-worker-stage"
-        },
-        {
-          "binding": "NOTIFICATIONS_WORKER",
-          "service": "lumen-notifications-worker-stage"
         }
       ]
     },
@@ -66,10 +62,6 @@
         {
           "binding": "BILLING_WORKER",
           "service": "lumen-billing-worker-prod"
-        },
-        {
-          "binding": "NOTIFICATIONS_WORKER",
-          "service": "lumen-notifications-worker-prod"
         }
       ]
     }
