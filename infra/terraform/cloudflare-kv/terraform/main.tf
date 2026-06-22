@@ -123,7 +123,13 @@ variable "terraformVersion" {
 # for KV namespaces themselves — TTL is per-PUT, owned by the Worker.
 
 locals {
-  idempotency_namespace_title = "${var.namespacePrefix}api-edge-idempotency-${var.environment}"
+  # Brand-namespaced with var.repo so the title is unique to this fork. Cloudflare
+  # KV namespace titles must be unique per account, and this fork shares an account
+  # with the baseline (which uses the un-branded title) — without the brand the
+  # create fails with "a namespace with this account ID and title already exists"
+  # (10014). Workers resolve this KV by ID via the wiring secret, so the title is
+  # free to change.
+  idempotency_namespace_title = "${var.namespacePrefix}${var.repo}-api-edge-idempotency-${var.environment}"
 }
 
 resource "cloudflare_workers_kv_namespace" "api_edge_idempotency" {

@@ -39,4 +39,4 @@ spec:
           - profile: apply
             when:
               triggerRef: github-push-main
-# ci: trigger convergence — first-boot infra bring-up (kv stage/prod)
+# ci: re-trigger kv apply with brand-namespaced title (baseline collision fix)
