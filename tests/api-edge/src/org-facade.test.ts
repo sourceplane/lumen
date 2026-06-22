@@ -238,7 +238,7 @@ describe("api-edge org facade", () => {
     it("returns 503 with safe envelope when membership binding throws", async () => {
       const { fetcher: identityFetcher } = createSessionFetcher("usr_abc123");
       const membershipFetcher = createThrowingFetcher(
-        new Error("Connection refused to membership-worker-stage.internal"),
+        new Error("Connection refused to lumen-membership-worker-stage.internal"),
       );
 
       const request = new Request("https://api.example.com/v1/organizations", {
@@ -257,7 +257,7 @@ describe("api-edge org facade", () => {
       const json = await response.json() as any;
       expect(json.error.message).toBe("Membership service unavailable");
       expect(JSON.stringify(json)).not.toContain("Connection refused");
-      expect(JSON.stringify(json)).not.toContain("membership-worker-stage");
+      expect(JSON.stringify(json)).not.toContain("lumen-membership-worker-stage");
     });
 
     it("returns 405 for unsupported method on /v1/organizations", async () => {
@@ -433,7 +433,7 @@ describe("api-edge org facade", () => {
   });
 
   describe("binding verification config", () => {
-    it("wrangler.jsonc has stage MEMBERSHIP_WORKER binding to membership-worker-stage", () => {
+    it("wrangler.jsonc has stage MEMBERSHIP_WORKER binding to lumen-membership-worker-stage", () => {
       const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
@@ -442,10 +442,10 @@ describe("api-edge org facade", () => {
       expect(stageServices).toBeDefined();
       const membership = stageServices.find((s: any) => s.binding === "MEMBERSHIP_WORKER");
       expect(membership).toBeDefined();
-      expect(membership.service).toBe("membership-worker-stage");
+      expect(membership.service).toBe("lumen-membership-worker-stage");
     });
 
-    it("wrangler.jsonc has prod MEMBERSHIP_WORKER binding to membership-worker-prod", () => {
+    it("wrangler.jsonc has prod MEMBERSHIP_WORKER binding to lumen-membership-worker-prod", () => {
       const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
@@ -454,7 +454,7 @@ describe("api-edge org facade", () => {
       expect(prodServices).toBeDefined();
       const membership = prodServices.find((s: any) => s.binding === "MEMBERSHIP_WORKER");
       expect(membership).toBeDefined();
-      expect(membership.service).toBe("membership-worker-prod");
+      expect(membership.service).toBe("lumen-membership-worker-prod");
     });
 
     it("stage does not bind to prod membership worker", () => {

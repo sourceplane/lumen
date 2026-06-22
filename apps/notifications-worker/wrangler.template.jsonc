@@ -3,7 +3,7 @@
 // resolved from AWS Secrets Manager at deploy time (wire-live) or from the
 // committed wiring.fixture.json for offline dry-runs (wire-fixture).
 {
-  "name": "notifications-worker",
+  "name": "lumen-notifications-worker",
   "compatibility_date": "2025-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
@@ -49,7 +49,7 @@
       "services": [
         {
           "binding": "EVENTS_WORKER",
-          "service": "events-worker-stage"
+          "service": "lumen-events-worker-stage"
         }
       ]
     },
@@ -76,7 +76,7 @@
       "services": [
         {
           "binding": "EVENTS_WORKER",
-          "service": "events-worker-prod"
+          "service": "lumen-events-worker-prod"
         }
       ]
     }

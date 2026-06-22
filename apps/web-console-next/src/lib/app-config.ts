@@ -19,7 +19,7 @@ export const WORKERS_DEV_SUBDOMAIN = "rahulvarghesepullely";
 
 /** api-edge workers.dev URL for a given environment name. */
 export function apiEdgeWorkersDevUrl(environment: string): string {
-  return `https://api-edge-${environment}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`;
+  return `https://lumen-api-edge-${environment}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`;
 }
 
 /** Sales contact surfaced by the billing upgrade UX. */

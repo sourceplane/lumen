@@ -177,18 +177,18 @@ const HAS_API_EDGE = fs.existsSync(path.join(ROOT, "apps", "api-edge", "componen
     env: Record<string, { services?: Array<{ binding: string; service: string }> }>;
   };
 
-  test("stage binds CONFIG_WORKER to config-worker-stage", () => {
+  test("stage binds CONFIG_WORKER to lumen-config-worker-stage", () => {
     const svc = rendered.env.stage?.services ?? [];
     const cw = svc.find((s) => s.binding === "CONFIG_WORKER");
     expect(cw).toBeDefined();
-    expect(cw!.service).toBe("config-worker-stage");
+    expect(cw!.service).toBe("lumen-config-worker-stage");
   });
 
-  test("prod binds CONFIG_WORKER to config-worker-prod", () => {
+  test("prod binds CONFIG_WORKER to lumen-config-worker-prod", () => {
     const svc = rendered.env.prod?.services ?? [];
     const cw = svc.find((s) => s.binding === "CONFIG_WORKER");
     expect(cw).toBeDefined();
-    expect(cw!.service).toBe("config-worker-prod");
+    expect(cw!.service).toBe("lumen-config-worker-prod");
   });
 });
 
@@ -227,7 +227,12 @@ describe("every wrangler service binding is a declared dependsOn edge", () => {
     test(`${app} declares its service-binding prerequisites`, () => {
       const raw = fs.readFileSync(wrangler, "utf-8");
       const bound = new Set(
-        [...raw.matchAll(/"service":\s*"([a-z-]+?)-(?:dev|stage|prod)"/g)].map((m) => m[1]),
+        // Deployed worker names are brand-prefixed (lumen-<component>-<env>) but
+        // the orun component / dependsOn identity is the bare <component>, so map
+        // the binding back by stripping both the env suffix and the brand prefix.
+        [...raw.matchAll(/"service":\s*"([a-z-]+?)-(?:dev|stage|prod)"/g)].map((m) =>
+          (m[1] ?? "").replace(/^lumen-/, ""),
+        ),
       );
       const componentYaml = readYaml(`apps/${app}/component.yaml`);
       const declared = new Set(

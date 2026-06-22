@@ -6,7 +6,7 @@
 // values and trivial derivations only.
 
 /** The Cloudflare account's workers.dev subdomain serving this instance. */
-export const WORKERS_DEV_SUBDOMAIN = "your-workers-subdomain";
+export const WORKERS_DEV_SUBDOMAIN = "rahulvarghesepullely";
 
 /** Worker name prefix of the console delivery (per-env: `${prefix}-${env}`). */
 export const CONSOLE_WORKER_PREFIX = "lumen-web-console-next";
