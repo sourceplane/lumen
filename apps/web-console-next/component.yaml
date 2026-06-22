@@ -9,6 +9,12 @@ spec:
   owner: platform
   domain: starter-ui
   path: apps/web-console-next
+  # The deploy smoke health-checks the api-edge worker
+  # (lumen-api-edge-<env>/health), so api-edge must be live before this
+  # component's stage/prod deploy+smoke runs. Without this ordering the smoke
+  # races api-edge's concurrent deploy and fails with curl exit 22 (404).
+  dependsOn:
+    - component: api-edge
   subscribe:
     environments:
       - name: dev
