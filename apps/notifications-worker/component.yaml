@@ -61,5 +61,5 @@ spec:
     layer: runtime
     surface: notifications
     runtime: cloudflare
-# ci: trigger full-component verification (orun v2.12.0 upgrade — PR #183)
-# ci: rebuild marker — redeploy for PX3 preferences facade callers (stage/prod drift from the failed #280 convergence run)
+# ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
+# ci: cycle-break pass 1 — deploy cluster with feedback edges stripped (20260622T135810Z)
