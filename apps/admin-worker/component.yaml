@@ -60,4 +60,4 @@ spec:
     layer: runtime
     surface: admin-support
     runtime: cloudflare
-# ci: trigger full-component verification (orun v2.12.0 upgrade — PR #183)
+# ci: re-trigger deploy (batch A — runner-starvation recovery 20260622T115650Z)
