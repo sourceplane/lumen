@@ -49,6 +49,10 @@
       ],
       "services": [
         {
+          "binding": "MEMBERSHIP_WORKER",
+          "service": "lumen-membership-worker-stage"
+        },
+        {
           "binding": "POLICY_WORKER",
           "service": "lumen-policy-worker-stage"
         }
@@ -70,6 +74,10 @@
         }
       ],
       "services": [
+        {
+          "binding": "MEMBERSHIP_WORKER",
+          "service": "lumen-membership-worker-prod"
+        },
         {
           "binding": "POLICY_WORKER",
           "service": "lumen-policy-worker-prod"
