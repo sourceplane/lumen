@@ -226,13 +226,22 @@ describe("every wrangler service binding is a declared dependsOn edge", () => {
 
     test(`${app} declares its service-binding prerequisites`, () => {
       const raw = fs.readFileSync(wrangler, "utf-8");
+      // Deployed worker names may be brand-prefixed (<brand>-<component>-<env>),
+      // but the orun component / dependsOn identity is the bare <component>.
+      // Derive this worker's brand prefix from its own top-level name vs its
+      // app directory, then strip it (and the env suffix) to recover the
+      // component — keeping the test brand-agnostic across forks.
+      const ownName = (raw.match(/"name":\s*"([a-z][a-z0-9-]*)"/) ?? [])[1] ?? app;
+      const brandPrefix = ownName.endsWith(app)
+        ? ownName.slice(0, ownName.length - app.length)
+        : "";
       const bound = new Set(
-        // Deployed worker names are brand-prefixed (lumen-<component>-<env>) but
-        // the orun component / dependsOn identity is the bare <component>, so map
-        // the binding back by stripping both the env suffix and the brand prefix.
-        [...raw.matchAll(/"service":\s*"([a-z-]+?)-(?:dev|stage|prod)"/g)].map((m) =>
-          (m[1] ?? "").replace(/^lumen-/, ""),
-        ),
+        [...raw.matchAll(/"service":\s*"([a-z-]+?)-(?:dev|stage|prod)"/g)].map((m) => {
+          const name = m[1] ?? "";
+          return brandPrefix && name.startsWith(brandPrefix)
+            ? name.slice(brandPrefix.length)
+            : name;
+        }),
       );
       const componentYaml = readYaml(`apps/${app}/component.yaml`);
       const declared = new Set(
