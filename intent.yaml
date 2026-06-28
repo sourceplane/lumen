@@ -8,7 +8,7 @@ metadata:
 
 execution:
   state:
-    backendUrl: https://orun-api.sourceplane.ai
+    backendUrl: https://api-edge-prod.oruncloud.workers.dev
     # Declared, enforced tenancy: the org claim is sent on every remote op
     # (including the credential-free CI OIDC exchange) so orun-cloud can enforce
     # claim ⊆ authorized. Declaring it implies strict mode — a non-interactive
