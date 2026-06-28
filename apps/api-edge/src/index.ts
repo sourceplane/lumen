@@ -127,3 +127,5 @@ async function checkDatabase(
     await adapter.dispose();
   }
 }
+
+// orun-ci-probe: dummy change #3 (api-edge) so web-console-next dependsOn api-edge is an in-plan edge → dependency-ordered claim.
