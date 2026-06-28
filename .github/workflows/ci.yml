@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.15.0
+          version: v2.19.0
       - run: |
           set -euo pipefail
 
@@ -74,7 +74,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.15.0
+          version: v2.19.0
       - run: |
           orun run \
             --plan plan.json \
