@@ -32,7 +32,12 @@ jobs:
       - uses: sourceplane/orun-action@v1.2.0
         with:
           version: v2.19.0
-      - run: |
+      - env:
+          # Surface the best-effort catalog auto-sync (execution.state.autopushCatalog).
+          # A successful push prints "✓ pushed catalog …"; ORUN_VERBOSE also makes
+          # any skip/failure visible instead of silent.
+          ORUN_VERBOSE: "1"
+        run: |
           set -euo pipefail
 
           plan_args=(
