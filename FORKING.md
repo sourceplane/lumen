@@ -1,11 +1,10 @@
-# Forking this baseline into a new SaaS
+# Forking Lumen into a new SaaS
 
-This repo is a reusable baseline: fork it, rebrand it, deploy it as a new
-product. The mechanical rename is one script; everything that needs human
-hands (cloud accounts, secrets, OAuth apps) is the checklist below. The
-process was proven by the first real instantiation (`orun-cloud`) and
-sharpened by the second (`lumen`); the friction each found is folded back in
-here (see §5 for the hard-won bring-up details).
+Lumen is a reusable, self-contained baseline: fork it, rebrand it, deploy it
+as a new product. The mechanical rename is one script; everything that needs
+human hands (cloud accounts, secrets, OAuth apps) is the checklist below. The
+process has been proven end-to-end by real instantiations; the friction each
+found is folded back in here (see §5 for the hard-won bring-up details).
 
 ## 1. Create the repo
 
@@ -42,7 +41,7 @@ git diff --stat                                                     # review, co
 ```
 
 The script applies the deterministic rename map (repo slug, product domain,
-display name, SDK class `Sourceplane` → your PascalName, CLI bin, **every
+display name, SDK class `Lumen` → your PascalName, CLI bin, **every
 Cloudflare worker resource name**, wire-visible user agents, branded env vars,
 workers.dev subdomain), runs a leftover sweep that fails on any missed baseline
 identity, writes a provenance record to `ai/context/fork-from-baseline.md`, and
