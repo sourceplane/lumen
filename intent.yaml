@@ -9,11 +9,13 @@ metadata:
 execution:
   state:
     backendUrl: https://api-edge-prod.oruncloud.workers.dev
-    # Declared, enforced tenancy: the org claim is sent on every remote op
+    # Declared, enforced tenancy: the workspace claim is sent on every remote op
     # (including the credential-free CI OIDC exchange) so orun-cloud can enforce
     # claim ⊆ authorized. Declaring it implies strict mode — a non-interactive
-    # run that resolves no org fails fast (specs/oidc-ci-tenancy §4.1).
-    org: org_284b8876ef284118b76bf0d524f83c03
+    # run that resolves no workspace fails fast (specs/oidc-ci-tenancy §4.1).
+    # `workspace` is the leading spelling in orun v2.20.0 (a ws_ Workspace ID,
+    # slug, or legacy org_ id); it supersedes the deprecated `org:` alias.
+    workspace: ws_4975BJ7P
     requireOrg: true
     # Push/sync the resolved catalog to orun-cloud after a successful plan on the
     # default branch, keeping the org-global catalog head fresh without an
