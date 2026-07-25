@@ -88,7 +88,7 @@ tests-follow-their-subject) and orders/validates copies against it.
 
 **Step 0 — scaffolding (no components).** Create the new repo with the
 non-component skeleton: `intent.yaml`, `kiox.yaml` + `kiox.lock`,
-`.github/workflows/ci.yml`, `stack-tectonic/`, `tooling/`, root
+`.github/workflows/ci.yml`, `tooling/`, root
 `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `turbo.json`,
 `.gitignore`, and the docs you want. CI plans an empty job matrix and is
 green before any component exists.

@@ -17,10 +17,6 @@ kiox.lock                  Resolved Kiox provider lock
   /workflows
     ci.yml                 Portable Orun plan/run workflow for PRs and main
 
-/stack-tectonic            Repo-owned operations catalog, aligned with aws-admin stack style
-  stack.yaml
-  /compositions
-
 /apps
   /api-edge                Public HTTP entry Worker
     component.yaml         Component descriptor (type: cloudflare-worker-turbo)
@@ -94,6 +90,10 @@ kiox.lock                  Resolved Kiox provider lock
   ...this spec pack...
 ```
 
+Execution contracts are not vendored in this tree. They are consumed from the
+published catalog `oci://ghcr.io/sourceplane/stack-tectonic`, pinned to an
+explicit version in `intent.yaml`.
+
 ## Repo Rules
 
 ### Workspace and toolchain
@@ -140,7 +140,7 @@ kiox.lock                  Resolved Kiox provider lock
 - Every CI-gated test suite is modeled as a first-class Orun component under `tests/components/`.
 - `packages/testing` holds shared fixtures, harnesses, and helpers; it is not the CI gate by itself.
 - Deployable, package, and infra components must declare `dependsOn` edges to the test components that gate them.
-- The starter test composition should begin as a repo-owned `turbo-test` contract inside `stack-tectonic/compositions/` so unit, contract, integration, and smoke suites can run through Orun with repo-specific inputs.
+- The starter test composition should begin as a `turbo-test` contract in the `stack-tectonic` catalog so unit, contract, integration, and smoke suites can run through Orun with repo-specific inputs.
 - A component that cannot name its required test component dependency is not ready to merge.
 
 ## Platform Resource Mapping
@@ -227,9 +227,10 @@ CI and deployment. The working model is the Orun golden path captured in
 `specs/core/orun-golden-path.md`, with `aws-admin` as the reference implementation
 for Terraform, S3 backend, and environment structure.
 
-- **`stack-tectonic/`** is the repo-owned operations catalog. Its Terraform
-  composition must be brought in line with `../aws-admin/stacks/aws-admin-terraform/`
-  before new infra work depends on it.
+- **The composition stack** is owned by `sourceplane/stack-tectonic` and consumed
+  as a pinned OCI artifact. It is not vendored in this repo; composition changes
+  are made, verified and released there, then adopted here by bumping the pinned
+  version in `intent.yaml`.
 - **`intent.yaml`** records discovery roots, composition sources and bindings,
   trigger bindings, and `dev` -> `stage` -> `prod` environment promotion. It
   uses `parameterDefaults.terraform` and `env.AWS_REGION` like `aws-admin`.
@@ -271,13 +272,16 @@ The CI workflow (`ci.yml`) compiles one Orun plan on every PR and push to main, 
 
 Adding a new app, package, infra module, or test suite requires only a colocated `component.yaml`. The workflow does not need to change.
 
-If a repo-specific composition change is needed:
+If a composition change is needed, it happens in `sourceplane/stack-tectonic`,
+not here:
 
-1. update `stack-tectonic/` first,
-2. update the schema/profile/job contract and README together,
-3. add or update the matching smoke fixture there when one exists,
-4. run local `kiox -- orun validate`, `plan`, and `run --dry-run`,
-5. then merge the consuming component change.
+1. change the schema/profile/job contract and README together in that repo,
+2. add or update the matching smoke fixture there when one exists,
+3. let its verify workflow gate the change, then tag a release — which publishes
+   the new OCI version,
+4. bump the pinned `ref:` in this repo's `intent.yaml`,
+5. run local `orun validate`, `plan`, and `run --dry-run` against the new pin,
+6. then merge the consuming component change.
 
 ## CI And Quality Gates
 
