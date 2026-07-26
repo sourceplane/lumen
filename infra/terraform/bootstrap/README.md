@@ -49,3 +49,5 @@ The deploy role has write access to secrets under the prefix:
 `sourceplane/lumen/*`
 
 Smoke verification uses `dev` only to avoid production artifacts.
+
+<!-- CI control probe: verifying terraform lane behaviour on the pre-OCI stack. -->
