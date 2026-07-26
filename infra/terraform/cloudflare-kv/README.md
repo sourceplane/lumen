@@ -198,4 +198,5 @@ terraform -chdir=infra/terraform/cloudflare-kv/terraform fmt -check
 
 - Cloudflare Workers KV: https://developers.cloudflare.com/kv/
 - Stripe Idempotency-Key contract: https://stripe.com/docs/api/idempotent_requests
-- Orun Terraform component spec: see `stack-tectonic/compositions/terraform/`
+- Orun Terraform component spec: see the `terraform` composition in the
+  [stack-tectonic](https://github.com/sourceplane/stack-tectonic) catalog

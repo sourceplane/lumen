@@ -26,7 +26,7 @@ big-bang generator bolted on top.
 |-------|-------|
 | Status | **Draft (not started)** |
 | Cluster | **BF** (BF0–BF9 here; **BF10–BF14 moved → `orun/specs/orun-scaffolding/`**) |
-| Owner(s) | `stack-tectonic/`, `infra/terraform/*`, all `wrangler.jsonc` surfaces, `apps/api-edge`, `apps/web-console-next`, `specs/core/` (the instantiator engine is orun's; this repo authors `blueprint.yaml`) |
+| Owner(s) | the `stack-tectonic` catalog (separate repo), `infra/terraform/*`, all `wrangler.jsonc` surfaces, `apps/api-edge`, `apps/web-console-next`, `specs/core/` (the instantiator engine is orun's; this repo authors `blueprint.yaml`) |
 | Target branch | `main` |
 | Builds on | `core/orun-golden-path.md`, `core/constitution.md`, `core/access-and-infra.md`, `stack-tectonic` publish-stack |
 | End-state target | A second live SaaS instance (scratch "acme") deployed to its own Cloudflare/Supabase/AWS accounts from `instance.yaml` only, via `orun instantiate` (engine: `orun/specs/orun-scaffolding/`), with an `orun … upgrade` path back to this golden repo |

@@ -27,7 +27,7 @@ Effective state path: `env/<environment>/lumen/bootstrap/terraform.tfstate`
 ## AWS Roles
 
 Credential assumption is handled by the Orun Terraform composition
-(`stack-tectonic/compositions/terraform/`) via `aws-actions/configure-aws-credentials@v4`.
+(the `terraform` composition in the stack-tectonic catalog) via `aws-actions/configure-aws-credentials@v4`.
 
 The account ID and `owner`/`repo` are not hard-coded in the composition: the
 role ARN is rendered from `{{.parameters.awsAccountId}}` (set in `intent.yaml`

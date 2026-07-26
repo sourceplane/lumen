@@ -40,9 +40,15 @@ Last updated: 2026-05-26
   Credential payload changes should be written through
   `aws_secretsmanager_secret_version` with `AWSCURRENT`, not by replacing the
   named secret.
-- Composition source is `kind: dir` (local `stack-tectonic/` directory), not the
-  published OCI image. This keeps composition changes validated in-repo before
-  publishing.
+- Composition source is `kind: oci`, pinned to a published
+  `ghcr.io/sourceplane/stack-tectonic` version. **This supersedes the earlier
+  decision to hold this repo on `kind: dir`** (local `stack-tectonic/`) for
+  in-repo validation. The stack now lives in `sourceplane/stack-tectonic`, which
+  gates every change with its own verify workflow before release, so the
+  in-repo-validation argument no longer applies — and keeping a second copy here
+  was already producing drift against `orun-cloud`. The tag is pinned, never
+  `latest`, so a catalog release cannot change this repo's execution contracts
+  without a commit here.
 - All component types use `spec.parameters` instead of `spec.inputs` on the
   current Orun runtime.
 - Cloudflare/Supabase human-provided resources discovered in Task 0002 remain

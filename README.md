@@ -92,11 +92,17 @@ infra/terraform/cloudflare-kv      api-edge idempotency KV namespace
 infra/terraform/cloudflare-domain  Zone adoption + console custom domain
 infra/db-migrate                   Database migration runner component
 
-stack-tectonic            Repo-local Orun composition stack (execution contracts)
 tooling/tsconfig          Shared TypeScript configurations
 tooling/eslint            Shared ESLint configuration
 tests/*                   Per-component contract and verifier test suites
 ```
+
+Execution contracts (the composition stack) are not vendored here. They are
+consumed from the published catalog at
+`oci://ghcr.io/sourceplane/stack-tectonic`, pinned to an explicit version in
+`intent.yaml`. Composition changes are made in
+[sourceplane/stack-tectonic](https://github.com/sourceplane/stack-tectonic),
+released there, and adopted here by bumping the pinned tag.
 
 ## CI
 

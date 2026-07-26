@@ -288,23 +288,25 @@ missing (that is its purpose).
 
 ### BF10 — Consume the published OCI stack
 
-**Why now.** The composition stack is published to GHCR (`publish-stack`) but
-nothing consumes it; this repo uses `kind: dir`. Cross-repo reuse — the whole
-point of a golden-path stack — is therefore unproven.
+**Why now.** The composition stack is published to GHCR but nothing consumed it;
+this repo used `kind: dir`. Cross-repo reuse — the whole point of a golden-path
+stack — was therefore unproven, and keeping a second copy of the stack here was
+already drifting against `orun-cloud`'s copy.
 
 **Scope.**
-- Verify the `release` profile actually publishes `stack-tectonic` (post-BF2,
-  now account-agnostic) and that versioning/locking behaves.
-- Add a consumer fixture (e.g. `tests/stack-consumer/` or a scratch repo): a
-  minimal `intent.yaml` with `kind: oci` source pointing at the published
-  stack + one `turbo-package` and one `cloudflare-worker-turbo` smoke
-  component; `orun validate` + `orun plan` must succeed against the OCI
-  artifact.
-- Golden repo itself **stays** on `kind: dir` (deliberate dogfooding —
-  `ai/context/decisions.md`); instantiated repos will pin OCI.
+- Move the stack out of this repo into `sourceplane/stack-tectonic`, which owns
+  the catalog, gates it with its own verify workflow, and publishes the OCI
+  artifact on tagged release.
+- Point this repo's `intent.yaml` at `kind: oci`, pinned to an explicit version,
+  and delete the repo-local `stack-tectonic/` tree.
+- This **supersedes** the earlier "golden repo stays on `kind: dir`" dogfooding
+  decision; `ai/context/decisions.md` is updated accordingly. Dogfooding is now
+  the stronger form: this repo consumes the same published artifact an
+  instantiated repo does.
 
-**Done when.** The fixture validates and plans against
-`ghcr.io/sourceplane/stack-tectonic:vX` with no repo-local compositions.
+**Done when.** This repo validates and plans against
+`ghcr.io/sourceplane/stack-tectonic:<version>` with no repo-local compositions,
+and a changed component still produces the same job set it did on `kind: dir`.
 
 **Human help.** GHCR package permissions if the release publish lacks them
 (likely already in place — CI logs into GHCR today).
