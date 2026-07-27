@@ -34,6 +34,16 @@ spec:
   env:
     AWS_EC2_METADATA_DISABLED: "true"
 
+  # Both values resolve from orun secrets (project rung, brokered from the
+  # Supabase integration): a short-lived Management-API access token minted
+  # fresh per run (management-access template — the provider reads
+  # SUPABASE_ACCESS_TOKEN from env natively), and the org id as a non-secret
+  # connection fact (org-id template) surfaced straight to Terraform. The
+  # SUPABASE_ORG_ID CI secret and its TF_VAR mapping are retired.
+  secretEnv:
+    SUPABASE_ACCESS_TOKEN: "secret://lumen/lumen/{{ .environment }}/SUPABASE_ACCESS_TOKEN"
+    TF_VAR_supabaseOrgId: "secret://lumen/lumen/{{ .environment }}/SUPABASE_ORG_ID"
+
   subscribe:
     environments:
       - name: stage

@@ -31,6 +31,13 @@ spec:
     owner: sourceplane
     repo: lumen
 
+  # The migration runner's Management-API token (required in apply mode)
+  # resolves from orun secrets — minted fresh per run from the Supabase
+  # integration (management-access template). Replaces the ambient
+  # SUPABASE_ACCESS_TOKEN CI value.
+  secretEnv:
+    SUPABASE_ACCESS_TOKEN: "secret://lumen/lumen/{{ .environment }}/SUPABASE_ACCESS_TOKEN"
+
   subscribe:
     environments:
       - name: stage

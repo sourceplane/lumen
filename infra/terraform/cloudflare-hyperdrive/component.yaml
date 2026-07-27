@@ -28,6 +28,16 @@ spec:
   env:
     AWS_EC2_METADATA_DISABLED: "true"
 
+  # All three values resolve from orun secrets (project rung, brokered from
+  # the Cloudflare integration): the provider credential is minted fresh per
+  # run from the hyperdrive-edit template (Workers Hyperdrive Write — the
+  # workers-deploy token deliberately cannot touch Hyperdrive), and the
+  # account id is a non-secret connection fact (account-id template).
+  # Component-level because plan-only lanes refresh against the live API too.
+  secretEnv:
+    CLOUDFLARE_API_TOKEN: "secret://lumen/lumen/{{ .environment }}/CLOUDFLARE_HYPERDRIVE_TOKEN"
+    CLOUDFLARE_ACCOUNT_ID: "secret://lumen/lumen/{{ .environment }}/CLOUDFLARE_ACCOUNT_ID"
+    TF_VAR_cloudflare_account_id: "secret://lumen/lumen/{{ .environment }}/CLOUDFLARE_ACCOUNT_ID"
 
   subscribe:
     environments:

@@ -38,7 +38,9 @@ provider "aws" {
   }
 }
 
-# Authenticates via SUPABASE_ACCESS_TOKEN env var (mapped from SUPABASE_API_KEY in CI)
+# Authenticates via the SUPABASE_ACCESS_TOKEN env var (provider-native): a
+# short-lived Management-API token minted per run from the workspace's
+# Supabase integration, resolved into the job env by orun.
 provider "supabase" {}
 
 # --- Variables (standard Orun parameters) ---
