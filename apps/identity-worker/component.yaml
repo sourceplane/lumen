@@ -14,6 +14,14 @@ spec:
     - component: policy-worker
     - component: membership-worker
     - component: notifications-worker
+  # Runtime secrets, wire-now-seed-later: best-effort references —
+  # an unseeded key is skipped at resolve (and by secrets-live), so
+  # this block is inert until the value is stored in orun secrets.
+  optionalSecretEnv:
+    GITHUB_OAUTH_CLIENT_SECRET: "secret://lumen/lumen/{{ .environment }}/GITHUB_OAUTH_CLIENT_SECRET"
+    GOOGLE_OAUTH_CLIENT_SECRET: "secret://lumen/lumen/{{ .environment }}/GOOGLE_OAUTH_CLIENT_SECRET"
+    OAUTH_STATE_SECRET: "secret://lumen/lumen/{{ .environment }}/OAUTH_STATE_SECRET"
+
   subscribe:
     environments:
       - name: dev
@@ -44,8 +52,9 @@ spec:
     owner: sourceplane
     repo: lumen
 
-    # SS2: manifest key for the secrets-live escrow sync (saas-secrets-sync).
-    secretsWorker: identity-worker
+    # Runtime worker secrets, pushed by the secrets-live step from the
+    # values orun resolves for the optionalSecretEnv references below.
+    runtimeSecrets: "GITHUB_OAUTH_CLIENT_SECRET,GOOGLE_OAUTH_CLIENT_SECRET,OAUTH_STATE_SECRET"
     turboFilter: "@saas/identity-worker"
     wranglerConfig: wrangler.jsonc
     wranglerTemplate: wrangler.template.jsonc

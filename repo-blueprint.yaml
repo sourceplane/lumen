@@ -334,11 +334,6 @@ modules:
     from: packages/sdk
     to: packages/sdk
     dependsOn: [contracts]
-  - name: secrets-sync-tests
-    mode: copy
-    source: baseline
-    from: tests/secrets-sync
-    to: tests/secrets-sync
   - name: shared
     mode: copy
     source: baseline
@@ -521,7 +516,7 @@ phases:
   - name: infrastructure
     modules: [bootstrap, cloudflare-hyperdrive, cloudflare-kv, db-migrate, supabase]
   - name: workers
-    modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, secrets-sync-tests, webhooks-worker, webhooks-worker-tests]
+    modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, webhooks-worker, webhooks-worker-tests]
   - name: edge
     modules: [api-edge, api-edge-tests]
   - name: console

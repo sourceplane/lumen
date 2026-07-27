@@ -225,11 +225,6 @@ modules:
   to: tests/projects-worker
   dependsOn:
   - projects-worker
-- name: secrets-sync-tests
-  mode: copy
-  source: baseline
-  from: tests/secrets-sync
-  to: tests/secrets-sync
 - name: webhooks-worker
   mode: copy
   source: baseline
@@ -270,6 +265,5 @@ phases:
   - policy-worker-tests
   - projects-worker
   - projects-worker-tests
-  - secrets-sync-tests
   - webhooks-worker
   - webhooks-worker-tests
