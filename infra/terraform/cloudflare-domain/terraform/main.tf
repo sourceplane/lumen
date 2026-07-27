@@ -34,22 +34,16 @@ provider "aws" {
   }
 }
 
-provider "cloudflare" {
-  api_token = var.cloudflare_api_token
-}
+# Authenticates via the CLOUDFLARE_API_TOKEN env var (provider-native): the
+# token is an orun-managed secret resolved into the job env at run time, so it
+# never transits Terraform variables.
+provider "cloudflare" {}
 
 # --- Variables (standard Orun parameters) ---
 
 variable "awsRegion" {
   type    = string
   default = "us-east-1"
-}
-
-variable "cloudflare_api_token" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "Cloudflare API token (from CLOUDFLARE_API_TOKEN env var)"
 }
 
 variable "cloudflare_account_id" {

@@ -61,7 +61,6 @@ Standard Orun parameters (matching `cloudflare-hyperdrive`):
 | Name | Type | Default | Description |
 |---|---|---|---|
 | `awsRegion` | string | `us-east-1` | AWS region for Terraform state backend |
-| `cloudflare_api_token` | string (sensitive) | `""` | From `CLOUDFLARE_API_TOKEN` env var |
 | `cloudflare_account_id` | string (sensitive) | `""` | From `CLOUDFLARE_ACCOUNT_ID` env var |
 | `orgName` | string | `lumen` | Org identifier |
 | `owner` | string | `lumen` | GitHub owner |

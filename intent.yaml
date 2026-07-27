@@ -31,7 +31,7 @@ compositions:
     # a commit here. Bumping the tag is the deliberate upgrade step.
     - name: stack-tectonic
       kind: oci
-      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.13.0
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.14.0
   resolution:
     precedence:
       - stack-tectonic
