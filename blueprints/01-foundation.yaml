@@ -1,0 +1,170 @@
+apiVersion: orun.dev/v1
+kind: Blueprint
+metadata:
+  name: lumen-baseline-foundation
+  description: Phase 1/7 (foundation) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
+    is enforced by running the phases in sequence into the same --out.
+inputs:
+  repoName:
+    type: string
+    pattern: ^[a-z][a-z0-9-]*$
+    required: true
+    description: "Repo slug (e.g. acme-cloud) \u2014 intent metadata.name, Supabase/Hyperdrive project\
+      \ names, OIDC roles."
+  productName:
+    type: string
+    required: true
+    description: Human display name (e.g. "Acme Cloud").
+  productDomain:
+    type: string
+    required: true
+    description: "Product domain (e.g. acme.dev) \u2014 BASE_DOMAIN, console custom domains, OAuth origins."
+  pascalName:
+    type: string
+    default: ''
+    description: SDK class identifier (default derived from productName by rebrand.mjs).
+  brandSlug:
+    type: string
+    default: ''
+    description: Cloudflare worker resource prefix (default repoName).
+  cliBin:
+    type: string
+    default: ''
+    description: CLI binary name + env-var prefix source (default repoName).
+  apiBaseUrl:
+    type: string
+    default: ''
+    description: CLI default API base (default https://api.<productDomain>).
+  workersDevSubdomain:
+    type: string
+    default: your-workers-subdomain
+    description: workers.dev subdomain for app-config seams.
+  salesEmail:
+    type: string
+    default: ''
+    description: Optional sales mailbox retarget; empty keeps the baseline mailbox.
+  orunWorkspace:
+    type: string
+    default: ''
+    description: "Orun Cloud workspace ID (ws_\u2026) for this instance's remote state. rebrand.mjs treats\
+      \ the orun state backend as org-owned and leaves it alone, so without this the fork inherits the\
+      \ BASELINE's workspace and its CI would claim another tenant's workspace. Left empty, the scaffold\
+      \ writes a placeholder that fails loudly rather than silently cross-tenanting."
+sources:
+- name: baseline
+  kind: dir
+  path: ..
+ignore:
+- dist
+- coverage
+- .turbo
+- .next
+- .wrangler
+- .open-next
+- wrangler.jsonc
+- '*.tsbuildinfo'
+modules:
+- name: cli
+  mode: copy
+  source: baseline
+  from: packages/cli
+  to: packages/cli
+  dependsOn:
+  - sdk
+  - webhook-verifier
+- name: contracts
+  mode: copy
+  source: baseline
+  from: packages/contracts
+  to: packages/contracts
+- name: contracts-tests
+  mode: copy
+  source: baseline
+  from: tests/contracts
+  to: tests/contracts
+  dependsOn:
+  - contracts
+  - testing
+- name: db
+  mode: copy
+  source: baseline
+  from: packages/db
+  to: packages/db
+- name: db-tests
+  mode: copy
+  source: baseline
+  from: tests/db
+  to: tests/db
+  dependsOn:
+  - db
+- name: notifications-client
+  mode: copy
+  source: baseline
+  from: packages/notifications-client
+  to: packages/notifications-client
+  dependsOn:
+  - contracts
+- name: notifications-client-tests
+  mode: copy
+  source: baseline
+  from: tests/notifications-client
+  to: tests/notifications-client
+  dependsOn:
+  - contracts
+  - notifications-client
+- name: policy-engine
+  mode: copy
+  source: baseline
+  from: packages/policy-engine
+  to: packages/policy-engine
+  dependsOn:
+  - contracts
+- name: policy-engine-tests
+  mode: copy
+  source: baseline
+  from: tests/policy-engine
+  to: tests/policy-engine
+  dependsOn:
+  - contracts
+  - policy-engine
+- name: sdk
+  mode: copy
+  source: baseline
+  from: packages/sdk
+  to: packages/sdk
+  dependsOn:
+  - contracts
+- name: shared
+  mode: copy
+  source: baseline
+  from: packages/shared
+  to: packages/shared
+- name: testing
+  mode: copy
+  source: baseline
+  from: packages/testing
+  to: packages/testing
+  dependsOn:
+  - contracts
+  - db
+- name: webhook-verifier
+  mode: copy
+  source: baseline
+  from: packages/webhook-verifier
+  to: packages/webhook-verifier
+phases:
+- name: foundation
+  modules:
+  - cli
+  - contracts
+  - contracts-tests
+  - db
+  - db-tests
+  - notifications-client
+  - notifications-client-tests
+  - policy-engine
+  - policy-engine-tests
+  - sdk
+  - shared
+  - testing
+  - webhook-verifier

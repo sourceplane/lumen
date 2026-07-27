@@ -1,0 +1,275 @@
+apiVersion: orun.dev/v1
+kind: Blueprint
+metadata:
+  name: lumen-baseline-workers
+  description: Phase 3/7 (workers) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
+    is enforced by running the phases in sequence into the same --out.
+inputs:
+  repoName:
+    type: string
+    pattern: ^[a-z][a-z0-9-]*$
+    required: true
+    description: "Repo slug (e.g. acme-cloud) \u2014 intent metadata.name, Supabase/Hyperdrive project\
+      \ names, OIDC roles."
+  productName:
+    type: string
+    required: true
+    description: Human display name (e.g. "Acme Cloud").
+  productDomain:
+    type: string
+    required: true
+    description: "Product domain (e.g. acme.dev) \u2014 BASE_DOMAIN, console custom domains, OAuth origins."
+  pascalName:
+    type: string
+    default: ''
+    description: SDK class identifier (default derived from productName by rebrand.mjs).
+  brandSlug:
+    type: string
+    default: ''
+    description: Cloudflare worker resource prefix (default repoName).
+  cliBin:
+    type: string
+    default: ''
+    description: CLI binary name + env-var prefix source (default repoName).
+  apiBaseUrl:
+    type: string
+    default: ''
+    description: CLI default API base (default https://api.<productDomain>).
+  workersDevSubdomain:
+    type: string
+    default: your-workers-subdomain
+    description: workers.dev subdomain for app-config seams.
+  salesEmail:
+    type: string
+    default: ''
+    description: Optional sales mailbox retarget; empty keeps the baseline mailbox.
+  orunWorkspace:
+    type: string
+    default: ''
+    description: "Orun Cloud workspace ID (ws_\u2026) for this instance's remote state. rebrand.mjs treats\
+      \ the orun state backend as org-owned and leaves it alone, so without this the fork inherits the\
+      \ BASELINE's workspace and its CI would claim another tenant's workspace. Left empty, the scaffold\
+      \ writes a placeholder that fails loudly rather than silently cross-tenanting."
+sources:
+- name: baseline
+  kind: dir
+  path: ..
+ignore:
+- dist
+- coverage
+- .turbo
+- .next
+- .wrangler
+- .open-next
+- wrangler.jsonc
+- '*.tsbuildinfo'
+modules:
+- name: admin-worker
+  mode: copy
+  source: baseline
+  from: apps/admin-worker
+  to: apps/admin-worker
+- name: admin-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/admin-worker
+  to: tests/admin-worker
+  dependsOn:
+  - admin-worker
+- name: billing-worker
+  mode: copy
+  source: baseline
+  from: apps/billing-worker
+  to: apps/billing-worker
+  dependsOn:
+  - policy-worker
+- name: billing-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/billing-worker
+  to: tests/billing-worker
+  dependsOn:
+  - billing-worker
+- name: config-worker
+  mode: copy
+  source: baseline
+  from: apps/config-worker
+  to: apps/config-worker
+  dependsOn:
+  - membership-worker
+  - policy-worker
+- name: config-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/config-worker
+  to: tests/config-worker
+  dependsOn:
+  - config-worker
+- name: events-worker
+  mode: copy
+  source: baseline
+  from: apps/events-worker
+  to: apps/events-worker
+  dependsOn:
+  - membership-worker
+  - policy-worker
+- name: events-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/events-worker
+  to: tests/events-worker
+  dependsOn:
+  - events-worker
+- name: identity-worker
+  mode: copy
+  source: baseline
+  from: apps/identity-worker
+  to: apps/identity-worker
+  dependsOn:
+  - membership-worker
+  - notifications-worker
+  - policy-worker
+- name: identity-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/identity-worker
+  to: tests/identity-worker
+  dependsOn:
+  - identity-worker
+- name: integrations-worker
+  mode: copy
+  source: baseline
+  from: apps/integrations-worker
+  to: apps/integrations-worker
+  dependsOn:
+  - billing-worker
+  - membership-worker
+  - policy-worker
+  - projects-worker
+- name: integrations-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/integrations-worker
+  to: tests/integrations-worker
+  dependsOn:
+  - integrations-worker
+- name: membership-worker
+  mode: copy
+  source: baseline
+  from: apps/membership-worker
+  to: apps/membership-worker
+  dependsOn:
+  - billing-worker
+  - policy-worker
+- name: membership-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/membership-worker
+  to: tests/membership-worker
+  dependsOn:
+  - membership-worker
+- name: metering-worker
+  mode: copy
+  source: baseline
+  from: apps/metering-worker
+  to: apps/metering-worker
+  dependsOn:
+  - membership-worker
+  - policy-worker
+- name: metering-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/metering-worker
+  to: tests/metering-worker
+  dependsOn:
+  - metering-worker
+- name: notifications-worker
+  mode: copy
+  source: baseline
+  from: apps/notifications-worker
+  to: apps/notifications-worker
+  dependsOn:
+  - events-worker
+- name: notifications-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/notifications-worker
+  to: tests/notifications-worker
+  dependsOn:
+  - notifications-worker
+- name: policy-worker
+  mode: copy
+  source: baseline
+  from: apps/policy-worker
+  to: apps/policy-worker
+- name: policy-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/policy-worker
+  to: tests/policy-worker
+  dependsOn:
+  - policy-worker
+- name: projects-worker
+  mode: copy
+  source: baseline
+  from: apps/projects-worker
+  to: apps/projects-worker
+  dependsOn:
+  - billing-worker
+  - membership-worker
+  - policy-worker
+- name: projects-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/projects-worker
+  to: tests/projects-worker
+  dependsOn:
+  - projects-worker
+- name: secrets-sync-tests
+  mode: copy
+  source: baseline
+  from: tests/secrets-sync
+  to: tests/secrets-sync
+- name: webhooks-worker
+  mode: copy
+  source: baseline
+  from: apps/webhooks-worker
+  to: apps/webhooks-worker
+  dependsOn:
+  - membership-worker
+  - policy-worker
+- name: webhooks-worker-tests
+  mode: copy
+  source: baseline
+  from: tests/webhooks-worker
+  to: tests/webhooks-worker
+  dependsOn:
+  - webhooks-worker
+phases:
+- name: workers
+  modules:
+  - admin-worker
+  - admin-worker-tests
+  - billing-worker
+  - billing-worker-tests
+  - config-worker
+  - config-worker-tests
+  - events-worker
+  - events-worker-tests
+  - identity-worker
+  - identity-worker-tests
+  - integrations-worker
+  - integrations-worker-tests
+  - membership-worker
+  - membership-worker-tests
+  - metering-worker
+  - metering-worker-tests
+  - notifications-worker
+  - notifications-worker-tests
+  - policy-worker
+  - policy-worker-tests
+  - projects-worker
+  - projects-worker-tests
+  - secrets-sync-tests
+  - webhooks-worker
+  - webhooks-worker-tests

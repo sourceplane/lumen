@@ -1,0 +1,83 @@
+apiVersion: orun.dev/v1
+kind: Blueprint
+metadata:
+  name: lumen-baseline-console
+  description: Phase 5/7 (console) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
+    is enforced by running the phases in sequence into the same --out.
+inputs:
+  repoName:
+    type: string
+    pattern: ^[a-z][a-z0-9-]*$
+    required: true
+    description: "Repo slug (e.g. acme-cloud) \u2014 intent metadata.name, Supabase/Hyperdrive project\
+      \ names, OIDC roles."
+  productName:
+    type: string
+    required: true
+    description: Human display name (e.g. "Acme Cloud").
+  productDomain:
+    type: string
+    required: true
+    description: "Product domain (e.g. acme.dev) \u2014 BASE_DOMAIN, console custom domains, OAuth origins."
+  pascalName:
+    type: string
+    default: ''
+    description: SDK class identifier (default derived from productName by rebrand.mjs).
+  brandSlug:
+    type: string
+    default: ''
+    description: Cloudflare worker resource prefix (default repoName).
+  cliBin:
+    type: string
+    default: ''
+    description: CLI binary name + env-var prefix source (default repoName).
+  apiBaseUrl:
+    type: string
+    default: ''
+    description: CLI default API base (default https://api.<productDomain>).
+  workersDevSubdomain:
+    type: string
+    default: your-workers-subdomain
+    description: workers.dev subdomain for app-config seams.
+  salesEmail:
+    type: string
+    default: ''
+    description: Optional sales mailbox retarget; empty keeps the baseline mailbox.
+  orunWorkspace:
+    type: string
+    default: ''
+    description: "Orun Cloud workspace ID (ws_\u2026) for this instance's remote state. rebrand.mjs treats\
+      \ the orun state backend as org-owned and leaves it alone, so without this the fork inherits the\
+      \ BASELINE's workspace and its CI would claim another tenant's workspace. Left empty, the scaffold\
+      \ writes a placeholder that fails loudly rather than silently cross-tenanting."
+sources:
+- name: baseline
+  kind: dir
+  path: ..
+ignore:
+- dist
+- coverage
+- .turbo
+- .next
+- .wrangler
+- .open-next
+- wrangler.jsonc
+- '*.tsbuildinfo'
+modules:
+- name: web-console-next
+  mode: copy
+  source: baseline
+  from: apps/web-console-next
+  to: apps/web-console-next
+- name: web-console-next-tests
+  mode: copy
+  source: baseline
+  from: tests/web-console-next
+  to: tests/web-console-next
+  dependsOn:
+  - web-console-next
+phases:
+- name: console
+  modules:
+  - web-console-next
+  - web-console-next-tests

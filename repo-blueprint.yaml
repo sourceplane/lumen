@@ -1,0 +1,593 @@
+apiVersion: orun.dev/v1
+kind: Blueprint
+metadata:
+  name: lumen-baseline
+  description: >-
+    Lumen as a Blueprint of itself — instantiate a new Cloudflare + Supabase
+    multi-tenant SaaS repo from the Lumen baseline. This is the unified
+    replacement for tooling/fork/components.mjs (its prerequisite graph + copy
+    ordering now live in orun's own DAG over the declared dependsOn edges below)
+    and tooling/rebrand/rebrand.mjs (its instance-identity rename map is declared
+    as the `rebrand` hook + the templated rebrand-values file). See FORKING.md
+    for the operator checklist no script can perform (cloud accounts, secrets,
+    OAuth/GitHub apps).
+
+# ── INPUTS ────────────────────────────────────────────────────────────────
+# The instance-identity contract, transcribed from tooling/rebrand/rebrand.mjs.
+# These feed the templated .rebrand/values.json that the `rebrand` hook applies
+# across the copied tree. Org-owned identity (GitHub org `sourceplane`, the orun
+# state backend, `sourceplane.io` apiVersion, company mailboxes) is intentionally
+# NOT an input — rebrand.mjs protects it.
+inputs:
+  repoName:
+    type: string
+    pattern: "^[a-z][a-z0-9-]*$"
+    required: true
+    description: Repo slug (e.g. acme-cloud) — intent metadata.name, Supabase/Hyperdrive project names, OIDC roles.
+  productName:
+    type: string
+    required: true
+    description: Human display name (e.g. "Acme Cloud").
+  productDomain:
+    type: string
+    required: true
+    description: Product domain (e.g. acme.dev) — BASE_DOMAIN, console custom domains, OAuth origins.
+  pascalName:
+    type: string
+    default: ""
+    description: SDK class identifier (default derived from productName by rebrand.mjs).
+  brandSlug:
+    type: string
+    default: ""
+    description: Cloudflare worker resource prefix (default repoName).
+  cliBin:
+    type: string
+    default: ""
+    description: CLI binary name + env-var prefix source (default repoName).
+  apiBaseUrl:
+    type: string
+    default: ""
+    description: CLI default API base (default https://api.<productDomain>).
+  workersDevSubdomain:
+    type: string
+    default: "your-workers-subdomain"
+    description: workers.dev subdomain for app-config seams.
+  salesEmail:
+    type: string
+    default: ""
+    description: Optional sales mailbox retarget; empty keeps the baseline mailbox.
+  orunWorkspace:
+    type: string
+    default: ""
+    description: >-
+      Orun Cloud workspace ID (ws_…) for this instance's remote state. rebrand.mjs
+      treats the orun state backend as org-owned and leaves it alone, so without
+      this the fork inherits the BASELINE's workspace and its CI would claim
+      another tenant's workspace. Left empty, the scaffold writes a placeholder
+      that fails loudly rather than silently cross-tenanting.
+
+# ── SOURCES ───────────────────────────────────────────────────────────────
+# The baseline is this repo itself. Run `orun new` from the Lumen repo root so
+# `path: .` resolves to the baseline; orun pins it by digest into the object
+# store before any module reads it, so a fork is reproducible + provenanced.
+sources:
+  - name: baseline
+    kind: dir
+    path: .
+
+# Derived build output the baseline must never carry into a fork (the same set
+# tooling/fork/components.mjs skips). Declared here so orun's core stays
+# ecosystem-neutral — it excludes exactly what the blueprint names, nothing more.
+ignore:
+  - dist
+  - coverage
+  - .turbo
+  - .next
+  - .wrangler
+  - .open-next
+  # Locally-rendered, gitignored artifacts. `orun new` snapshots the working
+  # tree, not the git index, so without these it copies whatever the operator
+  # happens to have built — and a fork would ship with the BASELINE's rendered
+  # config baked in.
+  #
+  # wrangler.jsonc is the important one: it is rendered from
+  # wrangler.template.jsonc at deploy time and carries resolved values
+  # (baseline domains, and per BF6 the deploy-time binding IDs that must never
+  # be committed). Only the committed *.template.jsonc belongs in a fork.
+  - wrangler.jsonc
+  - "*.tsbuildinfo"
+
+# ── MODULES ───────────────────────────────────────────────────────────────
+# One module per component (mode: copy), with dependsOn edges TRANSCRIBED from
+# what tooling/fork/components.mjs sniffed (declared dependsOn + wrangler service
+# bindings + wiringComponents + workspace package deps + tests-follow-subject).
+# orun orders them with its own DAG — the ordering that JS reimplementation is
+# retired.
+#
+# Foundation libraries (packages/{contracts,sdk,db,policy-engine}) are copied so
+# the fork is a self-contained workspace. To instead consume them as pinned
+# shared packages (the SaaS-factory model, design §4), switch those four modules
+# to `mode: consume` and drop their `to:` — they then participate in ordering and
+# provenance but emit no bytes.
+modules:
+  - name: admin-worker
+    mode: copy
+    source: baseline
+    from: apps/admin-worker
+    to: apps/admin-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db]
+  - name: admin-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/admin-worker
+    to: tests/admin-worker
+    dependsOn: [admin-worker, contracts, db]
+  - name: api-edge
+    mode: copy
+    source: baseline
+    from: apps/api-edge
+    to: apps/api-edge
+    dependsOn: [billing-worker, cloudflare-hyperdrive, cloudflare-kv, config-worker, contracts, db, events-worker, identity-worker, integrations-worker, membership-worker, metering-worker, notifications-worker, projects-worker, webhooks-worker]
+  - name: api-edge-tests
+    mode: copy
+    source: baseline
+    from: tests/api-edge
+    to: tests/api-edge
+    dependsOn: [api-edge, contracts, db]
+  - name: billing-worker
+    mode: copy
+    source: baseline
+    from: apps/billing-worker
+    to: apps/billing-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, policy-worker]
+  - name: billing-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/billing-worker
+    to: tests/billing-worker
+    dependsOn: [billing-worker, contracts, db]
+  - name: bootstrap
+    mode: copy
+    source: baseline
+    from: infra/terraform/bootstrap
+    to: infra/terraform/bootstrap
+  - name: cli
+    mode: copy
+    source: baseline
+    from: packages/cli
+    to: packages/cli
+    dependsOn: [sdk, webhook-verifier]
+  - name: cloudflare-domain
+    mode: copy
+    source: baseline
+    from: infra/terraform/cloudflare-domain
+    to: infra/terraform/cloudflare-domain
+    dependsOn: [web-console-next]
+  - name: cloudflare-hyperdrive
+    mode: copy
+    source: baseline
+    from: infra/terraform/cloudflare-hyperdrive
+    to: infra/terraform/cloudflare-hyperdrive
+    dependsOn: [supabase]
+  - name: cloudflare-kv
+    mode: copy
+    source: baseline
+    from: infra/terraform/cloudflare-kv
+    to: infra/terraform/cloudflare-kv
+  - name: config-worker
+    mode: copy
+    source: baseline
+    from: apps/config-worker
+    to: apps/config-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, membership-worker, policy-worker]
+  - name: config-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/config-worker
+    to: tests/config-worker
+    dependsOn: [config-worker, contracts, db]
+  - name: contracts
+    mode: copy
+    source: baseline
+    from: packages/contracts
+    to: packages/contracts
+  - name: contracts-tests
+    mode: copy
+    source: baseline
+    from: tests/contracts
+    to: tests/contracts
+    dependsOn: [contracts, testing]
+  - name: db
+    mode: copy
+    source: baseline
+    from: packages/db
+    to: packages/db
+  - name: db-migrate
+    mode: copy
+    source: baseline
+    from: infra/db-migrate
+    to: infra/db-migrate
+    dependsOn: [db, supabase]
+  - name: db-tests
+    mode: copy
+    source: baseline
+    from: tests/db
+    to: tests/db
+    dependsOn: [db]
+  - name: events-worker
+    mode: copy
+    source: baseline
+    from: apps/events-worker
+    to: apps/events-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, membership-worker, policy-worker]
+  - name: identity-worker
+    mode: copy
+    source: baseline
+    from: apps/identity-worker
+    to: apps/identity-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, membership-worker, notifications-client, notifications-worker, policy-worker]
+  - name: identity-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/identity-worker
+    to: tests/identity-worker
+    dependsOn: [contracts, db, identity-worker, notifications-client]
+  - name: integrations-worker
+    mode: copy
+    source: baseline
+    from: apps/integrations-worker
+    to: apps/integrations-worker
+    dependsOn: [billing-worker, cloudflare-hyperdrive, contracts, db, membership-worker, policy-worker, projects-worker]
+  - name: integrations-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/integrations-worker
+    to: tests/integrations-worker
+    dependsOn: [contracts, db, integrations-worker]
+  - name: membership-worker
+    mode: copy
+    source: baseline
+    from: apps/membership-worker
+    to: apps/membership-worker
+    dependsOn: [billing-worker, cloudflare-hyperdrive, contracts, db, notifications-client, policy-worker]
+  - name: membership-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/membership-worker
+    to: tests/membership-worker
+    dependsOn: [contracts, db, membership-worker]
+  - name: metering-worker
+    mode: copy
+    source: baseline
+    from: apps/metering-worker
+    to: apps/metering-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, membership-worker, policy-worker]
+  - name: metering-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/metering-worker
+    to: tests/metering-worker
+    dependsOn: [contracts, db, metering-worker]
+  - name: notifications-client
+    mode: copy
+    source: baseline
+    from: packages/notifications-client
+    to: packages/notifications-client
+    dependsOn: [contracts]
+  - name: notifications-client-tests
+    mode: copy
+    source: baseline
+    from: tests/notifications-client
+    to: tests/notifications-client
+    dependsOn: [contracts, notifications-client]
+  - name: notifications-worker
+    mode: copy
+    source: baseline
+    from: apps/notifications-worker
+    to: apps/notifications-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, db-migrate, events-worker]
+  - name: notifications-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/notifications-worker
+    to: tests/notifications-worker
+    dependsOn: [contracts, db, notifications-worker]
+  - name: policy-engine
+    mode: copy
+    source: baseline
+    from: packages/policy-engine
+    to: packages/policy-engine
+    dependsOn: [contracts]
+  - name: policy-engine-tests
+    mode: copy
+    source: baseline
+    from: tests/policy-engine
+    to: tests/policy-engine
+    dependsOn: [contracts, policy-engine]
+  - name: policy-worker
+    mode: copy
+    source: baseline
+    from: apps/policy-worker
+    to: apps/policy-worker
+    dependsOn: [contracts, policy-engine]
+  - name: policy-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/policy-worker
+    to: tests/policy-worker
+    dependsOn: [contracts, policy-engine, policy-worker]
+  - name: projects-worker
+    mode: copy
+    source: baseline
+    from: apps/projects-worker
+    to: apps/projects-worker
+    dependsOn: [billing-worker, cloudflare-hyperdrive, contracts, db, membership-worker, policy-worker]
+  - name: projects-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/projects-worker
+    to: tests/projects-worker
+    dependsOn: [contracts, db, projects-worker]
+  - name: sdk
+    mode: copy
+    source: baseline
+    from: packages/sdk
+    to: packages/sdk
+    dependsOn: [contracts]
+  - name: secrets-sync-tests
+    mode: copy
+    source: baseline
+    from: tests/secrets-sync
+    to: tests/secrets-sync
+  - name: shared
+    mode: copy
+    source: baseline
+    from: packages/shared
+    to: packages/shared
+  - name: supabase
+    mode: copy
+    source: baseline
+    from: infra/terraform/supabase
+    to: infra/terraform/supabase
+    dependsOn: [bootstrap]
+  - name: testing
+    mode: copy
+    source: baseline
+    from: packages/testing
+    to: packages/testing
+    dependsOn: [contracts, db]
+  - name: web-console-next
+    mode: copy
+    source: baseline
+    from: apps/web-console-next
+    to: apps/web-console-next
+    dependsOn: [api-edge, contracts, sdk]
+  - name: web-console-next-tests
+    mode: copy
+    source: baseline
+    from: tests/web-console-next
+    to: tests/web-console-next
+    dependsOn: [contracts, web-console-next]
+  - name: webhook-verifier
+    mode: copy
+    source: baseline
+    from: packages/webhook-verifier
+    to: packages/webhook-verifier
+  - name: webhooks-worker
+    mode: copy
+    source: baseline
+    from: apps/webhooks-worker
+    to: apps/webhooks-worker
+    dependsOn: [cloudflare-hyperdrive, contracts, db, membership-worker, policy-worker]
+
+  # ── Component-less workspace test packages (no component.yaml; ride their
+  #    subject per the tests-follow-subject rule in components.mjs). ──────────
+  - name: events-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/events-worker
+    to: tests/events-worker
+    dependsOn: [events-worker]
+  - name: webhooks-worker-tests
+    mode: copy
+    source: baseline
+    from: tests/webhooks-worker
+    to: tests/webhooks-worker
+    dependsOn: [webhooks-worker]
+
+  # ── Non-component workspace scaffolding (copied verbatim). ─────────────────
+  #
+  # There is deliberately NO composition-stack module. The execution contracts
+  # are not vendored: `intent.yaml` (copied below) declares
+  #   kind: oci → oci://ghcr.io/sourceplane/stack-tectonic:<version>
+  # so an instantiated repo resolves the SAME published catalog the baseline
+  # does, pinned to the same version, with nothing to drift. Composition changes
+  # are made in sourceplane/stack-tectonic, released there, and adopted by
+  # bumping the pinned tag — in the fork exactly as in the baseline.
+  - name: tooling
+    mode: copy
+    source: baseline
+    from: tooling
+    to: tooling
+  - name: ai-context
+    mode: copy
+    source: baseline
+    from: ai
+    to: ai
+  - name: agents
+    mode: copy
+    source: baseline
+    from: agents
+    to: agents
+  - name: github-workflows
+    mode: copy
+    source: baseline
+    from: .github
+    to: .github
+  - name: vscode
+    mode: copy
+    source: baseline
+    from: .vscode
+    to: .vscode
+
+  # ── Root files (single-file copies). intent.yaml, package.json et al. carry
+  #    instance identity; they are copied verbatim and rewritten in place by the
+  #    `rebrand` hook (its rename map is the authority, not a per-file template).
+  - name: root-intent
+    mode: copy
+    source: baseline
+    from: intent.yaml
+    to: intent.yaml
+  - name: root-package-json
+    mode: copy
+    source: baseline
+    from: package.json
+    to: package.json
+  - name: root-pnpm-workspace
+    mode: copy
+    source: baseline
+    from: pnpm-workspace.yaml
+    to: pnpm-workspace.yaml
+  - name: root-pnpm-lock
+    mode: copy
+    source: baseline
+    from: pnpm-lock.yaml
+    to: pnpm-lock.yaml
+  - name: root-turbo
+    mode: copy
+    source: baseline
+    from: turbo.json
+    to: turbo.json
+  - name: root-kiox
+    mode: copy
+    source: baseline
+    from: kiox.yaml
+    to: kiox.yaml
+  - name: root-kiox-lock
+    mode: copy
+    source: baseline
+    from: kiox.lock
+    to: kiox.lock
+  - name: root-gitignore
+    mode: copy
+    source: baseline
+    from: .gitignore
+    to: .gitignore
+  - name: root-readme
+    mode: copy
+    source: baseline
+    from: README.md
+    to: README.md
+  - name: root-forking
+    mode: copy
+    source: baseline
+    from: FORKING.md
+    to: FORKING.md
+
+  # ── Instance-identity values file (template) — consumed by the rebrand hook.
+  #    This is the only place blueprint inputs touch the tree at scaffold time;
+  #    everything else is a verbatim copy the hook rewrites.
+  - name: rebrand-values
+    mode: template
+    files:
+      ".rebrand/values.json": |
+        {
+          "repoName": "{{ .repoName }}",
+          "productName": "{{ .productName }}",
+          "productDomain": "{{ .productDomain }}"{{ if .pascalName }},
+          "pascalName": "{{ .pascalName }}"{{ end }}{{ if .brandSlug }},
+          "brandSlug": "{{ .brandSlug }}"{{ end }}{{ if .cliBin }},
+          "cliBin": "{{ .cliBin }}"{{ end }}{{ if .apiBaseUrl }},
+          "apiBaseUrl": "{{ .apiBaseUrl }}"{{ end }},
+          "workersDevSubdomain": "{{ .workersDevSubdomain }}"{{ if .salesEmail }},
+          "salesEmail": "{{ .salesEmail }}"{{ end }},
+          "orunWorkspace": "{{ .orunWorkspace }}"
+        }
+
+
+# ── PHASES ────────────────────────────────────────────────────────────────
+# An operational overlay over the module DAG: named, ordered stages that impose
+# placement barriers (all of a phase placed before the next) — the fork tool's
+# batch structure (foundation → infra → workers → edge → console → domain),
+# now first-class. The DAG still orders modules within/across phases; a
+# dependency may never cross a phase barrier forward (orun validates this).
+# cloudflare-domain trails console because it wires the deployed console's
+# custom domain. Phases may carry their own hooks; per-phase verify gates +
+# manual approval + resumable runs are the planned follow-on — for a one-shot
+# instantiation the pnpm/rebrand hooks below run once at the end.
+phases:
+  - name: foundation
+    modules: [cli, contracts, contracts-tests, db, db-tests, notifications-client, notifications-client-tests, policy-engine, policy-engine-tests, sdk, shared, testing, webhook-verifier]
+  - name: infrastructure
+    modules: [bootstrap, cloudflare-hyperdrive, cloudflare-kv, db-migrate, supabase]
+  - name: workers
+    modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, secrets-sync-tests, webhooks-worker, webhooks-worker-tests]
+  - name: edge
+    modules: [api-edge, api-edge-tests]
+  - name: console
+    modules: [web-console-next, web-console-next-tests]
+  - name: domain
+    modules: [cloudflare-domain]
+  - name: workspace
+    description: Root manifests, tooling, compositions, and the rebrand values file.
+    modules: [agents, ai-context, github-workflows, rebrand-values, root-forking, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling, vscode]
+
+# ── HOOKS ─────────────────────────────────────────────────────────────────
+# Declared, ecosystem-specific, run OUTSIDE the template sandbox and opt-in
+# (`orun new --run-hooks`). orun executes the declared argv; it names no
+# ecosystem itself (invariant 8). These assume a git checkout — the operator
+# runs `git init && git add -A && git commit` first (rebrand.mjs reads
+# `git ls-files` and insists on a clean tree; --allow-dirty relaxes the latter).
+#
+# The Cloudflare service-binding two-pass (tooling/bootstrap/cycle-break.mjs
+# --strip / --restore for the {billing,membership,events,notifications} cluster)
+# is a DEPLOY-time hook, not a scaffold step — see FORKING.md §5 — so it is not
+# listed here.
+hooks:
+  postInstantiate:
+    # rebrand.mjs enumerates the tree with `git ls-files`, so the scaffolded
+    # output must be a git repo with a populated index BEFORE it runs. Hooks
+    # execute inside `orun new`, so the operator has no window to `git init`
+    # first — doing it here is what makes `--run-hooks` a genuine one-shot
+    # instead of failing with "fatal: not a git repository".
+    #
+    # `git add -A` only stages; nothing is committed. The operator still makes
+    # the first commit, and reviews the rebrand diff before doing so.
+    - id: git-init
+      run: ["git", "init", "-q"]
+    - id: git-stage
+      run: ["git", "add", "-A"]
+    - id: rebrand
+      run: ["node", "tooling/rebrand/rebrand.mjs", "--values", ".rebrand/values.json", "--allow-dirty"]
+    # Re-tenant the fork. rebrand.mjs classifies the orun state backend as
+    # org-owned and deliberately leaves it untouched, so intent.yaml would keep
+    # the BASELINE's `workspace:` — the fork's CI would then claim another
+    # tenant's workspace on every remote op. Hook argv is not templated, so the
+    # value travels through .rebrand/values.json, which IS a rendered template.
+    - id: orun-workspace
+      run:
+        - node
+        - -e
+        - |
+          const fs = require("fs");
+          const values = JSON.parse(fs.readFileSync(".rebrand/values.json", "utf8"));
+          const ws = String(values.orunWorkspace || "").trim() || "ws_SET_ME";
+          const before = fs.readFileSync("intent.yaml", "utf8");
+          const after = before.replace(/^(\s*workspace:\s*).*$/m, "$1" + ws);
+          if (after === before) {
+            console.error("orun-workspace: no `workspace:` line in intent.yaml — refusing to guess");
+            process.exit(1);
+          }
+          fs.writeFileSync("intent.yaml", after);
+          console.log(
+            ws === "ws_SET_ME"
+              ? "orun-workspace: wrote placeholder ws_SET_ME — set your Orun Cloud workspace before enabling remote state"
+              : "orun-workspace: intent.yaml workspace -> " + ws,
+          );
+    # Re-stage so `git ls-files` and `rebrand --verify` see the rewritten tree.
+    - id: git-restage
+      run: ["git", "add", "-A"]
+    - id: rebrand-verify
+      run: ["node", "tooling/rebrand/rebrand.mjs", "--verify"]
+    - id: pnpm-lockfile
+      run: ["pnpm", "install", "--lockfile-only"]
