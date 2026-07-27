@@ -1,0 +1,91 @@
+#!/usr/bin/env python3
+"""Derive one blueprint per phase from a phased monolithic Blueprint.
+
+Why this is not just a file split:
+
+  * `dependsOn` an undeclared module is a hard validation error
+    (internal/scaffold/blueprint.go:290), so every cross-phase edge must be
+    pruned. That is safe precisely BECAUSE the phases are run in order — the
+    barrier the monolith enforced declaratively becomes the run sequence.
+  * Hooks need the complete tree (rebrand enumerates via `git ls-files`), so
+    only the final phase carries `hooks.postInstantiate`.
+  * `inputs`, `sources` and `ignore` are replicated verbatim into every phase:
+    each run resolves the baseline independently and must ignore the same
+    build artifacts.
+"""
+import sys, yaml, pathlib, os
+
+src = pathlib.Path(sys.argv[1])
+outdir = pathlib.Path(sys.argv[2])
+bp = yaml.safe_load(src.read_text())
+
+# A `kind: dir` source path is resolved relative to the BLUEPRINT's own
+# directory, not the cwd. The split files live somewhere else, so every dir
+# source has to be re-based or `path: .` would point at the blueprints folder.
+src_dir = src.resolve().parent
+out_dir_abs = outdir.resolve()
+rebased = []
+for s in bp.get("sources", []):
+    if s.get("kind") == "dir" and "path" in s:
+        target = (src_dir / s["path"]).resolve()
+        s["path"] = os.path.relpath(target, out_dir_abs)
+        rebased.append(f'{s["name"]} → {s["path"]}')
+
+phases = bp.get("phases") or []
+if not phases:
+    sys.exit("blueprint declares no phases — nothing to split")
+
+by_name = {m["name"]: m for m in bp["modules"]}
+outdir.mkdir(parents=True, exist_ok=True)
+
+written = []
+for i, ph in enumerate(phases, start=1):
+    members = list(ph["modules"])
+    member_set = set(members)
+    missing = [m for m in members if m not in by_name]
+    if missing:
+        sys.exit(f"phase {ph['name']} names unknown module(s): {missing}")
+
+    mods = []
+    pruned = 0
+    for name in members:
+        m = dict(by_name[name])
+        if "dependsOn" in m:
+            keep = [d for d in m["dependsOn"] if d in member_set]
+            pruned += len(m["dependsOn"]) - len(keep)
+            if keep:
+                m["dependsOn"] = keep
+            else:
+                m.pop("dependsOn")
+        mods.append(m)
+
+    doc = {
+        "apiVersion": bp["apiVersion"],
+        "kind": bp["kind"],
+        "metadata": {
+            "name": f"{bp['metadata']['name']}-{ph['name']}",
+            "description": (
+                f"Phase {i}/{len(phases)} ({ph['name']}) of {bp['metadata']['name']}. "
+                f"Cross-phase dependsOn edges are pruned; ordering is enforced by "
+                f"running the phases in sequence into the same --out."
+            ),
+        },
+        "inputs": bp.get("inputs", {}),
+        "sources": bp["sources"],
+        "ignore": bp.get("ignore", []),
+        "modules": mods,
+        "phases": [{"name": ph["name"], "modules": members}],
+    }
+    # Hooks run against a complete tree, so they belong to the last phase only.
+    if i == len(phases) and bp.get("hooks"):
+        doc["hooks"] = bp["hooks"]
+
+    path = outdir / f"{i:02d}-{ph['name']}.yaml"
+    path.write_text(yaml.safe_dump(doc, sort_keys=False, width=100))
+    written.append((path.name, len(mods), pruned, "hooks" if "hooks" in doc else "-"))
+
+w = max(len(n) for n, *_ in written)
+print(f"{'file'.ljust(w)}  modules  pruned-edges  hooks")
+for n, c, p, h in written:
+    print(f"{n.ljust(w)}  {c:>7}  {p:>12}  {h}")
+print(f"\n{len(written)} phase blueprint(s) → {outdir}")

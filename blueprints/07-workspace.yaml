@@ -1,0 +1,216 @@
+apiVersion: orun.dev/v1
+kind: Blueprint
+metadata:
+  name: lumen-baseline-workspace
+  description: Phase 7/7 (workspace) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
+    is enforced by running the phases in sequence into the same --out.
+inputs:
+  repoName:
+    type: string
+    pattern: ^[a-z][a-z0-9-]*$
+    required: true
+    description: "Repo slug (e.g. acme-cloud) \u2014 intent metadata.name, Supabase/Hyperdrive project\
+      \ names, OIDC roles."
+  productName:
+    type: string
+    required: true
+    description: Human display name (e.g. "Acme Cloud").
+  productDomain:
+    type: string
+    required: true
+    description: "Product domain (e.g. acme.dev) \u2014 BASE_DOMAIN, console custom domains, OAuth origins."
+  pascalName:
+    type: string
+    default: ''
+    description: SDK class identifier (default derived from productName by rebrand.mjs).
+  brandSlug:
+    type: string
+    default: ''
+    description: Cloudflare worker resource prefix (default repoName).
+  cliBin:
+    type: string
+    default: ''
+    description: CLI binary name + env-var prefix source (default repoName).
+  apiBaseUrl:
+    type: string
+    default: ''
+    description: CLI default API base (default https://api.<productDomain>).
+  workersDevSubdomain:
+    type: string
+    default: your-workers-subdomain
+    description: workers.dev subdomain for app-config seams.
+  salesEmail:
+    type: string
+    default: ''
+    description: Optional sales mailbox retarget; empty keeps the baseline mailbox.
+  orunWorkspace:
+    type: string
+    default: ''
+    description: "Orun Cloud workspace ID (ws_\u2026) for this instance's remote state. rebrand.mjs treats\
+      \ the orun state backend as org-owned and leaves it alone, so without this the fork inherits the\
+      \ BASELINE's workspace and its CI would claim another tenant's workspace. Left empty, the scaffold\
+      \ writes a placeholder that fails loudly rather than silently cross-tenanting."
+sources:
+- name: baseline
+  kind: dir
+  path: ..
+ignore:
+- dist
+- coverage
+- .turbo
+- .next
+- .wrangler
+- .open-next
+- wrangler.jsonc
+- '*.tsbuildinfo'
+modules:
+- name: agents
+  mode: copy
+  source: baseline
+  from: agents
+  to: agents
+- name: ai-context
+  mode: copy
+  source: baseline
+  from: ai
+  to: ai
+- name: github-workflows
+  mode: copy
+  source: baseline
+  from: .github
+  to: .github
+- name: rebrand-values
+  mode: template
+  files:
+    .rebrand/values.json: "{\n  \"repoName\": \"{{ .repoName }}\",\n  \"productName\": \"{{ .productName\
+      \ }}\",\n  \"productDomain\": \"{{ .productDomain }}\"{{ if .pascalName }},\n  \"pascalName\": \"\
+      {{ .pascalName }}\"{{ end }}{{ if .brandSlug }},\n  \"brandSlug\": \"{{ .brandSlug }}\"{{ end }}{{\
+      \ if .cliBin }},\n  \"cliBin\": \"{{ .cliBin }}\"{{ end }}{{ if .apiBaseUrl }},\n  \"apiBaseUrl\"\
+      : \"{{ .apiBaseUrl }}\"{{ end }},\n  \"workersDevSubdomain\": \"{{ .workersDevSubdomain }}\"{{ if\
+      \ .salesEmail }},\n  \"salesEmail\": \"{{ .salesEmail }}\"{{ end }},\n  \"orunWorkspace\": \"{{\
+      \ .orunWorkspace }}\"\n}\n"
+- name: root-forking
+  mode: copy
+  source: baseline
+  from: FORKING.md
+  to: FORKING.md
+- name: root-gitignore
+  mode: copy
+  source: baseline
+  from: .gitignore
+  to: .gitignore
+- name: root-intent
+  mode: copy
+  source: baseline
+  from: intent.yaml
+  to: intent.yaml
+- name: root-kiox
+  mode: copy
+  source: baseline
+  from: kiox.yaml
+  to: kiox.yaml
+- name: root-kiox-lock
+  mode: copy
+  source: baseline
+  from: kiox.lock
+  to: kiox.lock
+- name: root-package-json
+  mode: copy
+  source: baseline
+  from: package.json
+  to: package.json
+- name: root-pnpm-lock
+  mode: copy
+  source: baseline
+  from: pnpm-lock.yaml
+  to: pnpm-lock.yaml
+- name: root-pnpm-workspace
+  mode: copy
+  source: baseline
+  from: pnpm-workspace.yaml
+  to: pnpm-workspace.yaml
+- name: root-readme
+  mode: copy
+  source: baseline
+  from: README.md
+  to: README.md
+- name: root-turbo
+  mode: copy
+  source: baseline
+  from: turbo.json
+  to: turbo.json
+- name: tooling
+  mode: copy
+  source: baseline
+  from: tooling
+  to: tooling
+- name: vscode
+  mode: copy
+  source: baseline
+  from: .vscode
+  to: .vscode
+phases:
+- name: workspace
+  modules:
+  - agents
+  - ai-context
+  - github-workflows
+  - rebrand-values
+  - root-forking
+  - root-gitignore
+  - root-intent
+  - root-kiox
+  - root-kiox-lock
+  - root-package-json
+  - root-pnpm-lock
+  - root-pnpm-workspace
+  - root-readme
+  - root-turbo
+  - tooling
+  - vscode
+hooks:
+  postInstantiate:
+  - id: git-init
+    run:
+    - git
+    - init
+    - -q
+  - id: git-stage
+    run:
+    - git
+    - add
+    - -A
+  - id: rebrand
+    run:
+    - node
+    - tooling/rebrand/rebrand.mjs
+    - --values
+    - .rebrand/values.json
+    - --allow-dirty
+  - id: orun-workspace
+    run:
+    - node
+    - -e
+    - "const fs = require(\"fs\");\nconst values = JSON.parse(fs.readFileSync(\".rebrand/values.json\"\
+      , \"utf8\"));\nconst ws = String(values.orunWorkspace || \"\").trim() || \"ws_SET_ME\";\nconst before\
+      \ = fs.readFileSync(\"intent.yaml\", \"utf8\");\nconst after = before.replace(/^(\\s*workspace:\\\
+      s*).*$/m, \"$1\" + ws);\nif (after === before) {\n  console.error(\"orun-workspace: no `workspace:`\
+      \ line in intent.yaml \u2014 refusing to guess\");\n  process.exit(1);\n}\nfs.writeFileSync(\"intent.yaml\"\
+      , after);\nconsole.log(\n  ws === \"ws_SET_ME\"\n    ? \"orun-workspace: wrote placeholder ws_SET_ME\
+      \ \u2014 set your Orun Cloud workspace before enabling remote state\"\n    : \"orun-workspace: intent.yaml\
+      \ workspace -> \" + ws,\n);\n"
+  - id: git-restage
+    run:
+    - git
+    - add
+    - -A
+  - id: rebrand-verify
+    run:
+    - node
+    - tooling/rebrand/rebrand.mjs
+    - --verify
+  - id: pnpm-lockfile
+    run:
+    - pnpm
+    - install
+    - --lockfile-only
