@@ -92,13 +92,19 @@ jobs:
       # job when it terminally failed in a prior attempt (no-op on first
       # attempts) — together they make `gh run rerun --failed` a true resume.
       - run: |
+          # --retry only on re-run attempts: on a fresh attempt a failed
+          # upstream is a genuine failure and dependents must fail fast; on a
+          # resume (gh run rerun --failed) the upstream's own retry lane will
+          # re-open it, so lanes wait out the race instead.
+          retry_flag=""
+          if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then retry_flag="--retry"; fi
           orun run \
             --plan plan.json \
             --runner github-actions \
             --remote-state \
             --job "${{ matrix.job-id }}" \
             --exec-id "${{ github.run_id }}" \
-            --retry
+            $retry_flag
         env:
           # GITHUB_TOKEN is the only credential CI holds — GitHub-issued and
           # ephemeral. Every provider credential (Cloudflare token + account
