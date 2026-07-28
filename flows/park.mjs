@@ -82,10 +82,29 @@ if (mode === "park") {
   }
   console.log(`${parked} component(s) parked`);
 } else if (mode === "unpark") {
-  const names = process.argv.slice(3);
+  let names = process.argv.slice(3);
   if (names.length === 0) {
-    console.error("unpark: name at least one component");
+    console.error("unpark: name at least one component (or --all)");
     process.exit(2);
+  }
+  // `unpark --all`: everything stashed, except components parked by design.
+  // cloudflare-domain stays parked until its zone exists in the Cloudflare
+  // account (see the restore note in its component.yaml) — the single-run
+  // bootstrap must not trip over an absent zone.
+  const KEEP_PARKED = new Set(["cloudflare-domain"]);
+  if (names.length === 1 && names[0] === "--all") {
+    names = fs.existsSync(STASH_DIR)
+      ? fs
+          .readdirSync(STASH_DIR)
+          .filter((f) => f.endsWith(".yaml"))
+          .map((f) => f.replace(/\.yaml$/, ""))
+          .filter((nm) => !KEEP_PARKED.has(nm))
+          .sort()
+      : [];
+    if (names.length === 0) {
+      console.log("unpark --all: nothing stashed (already unparked)");
+      process.exit(0);
+    }
   }
   for (const nm of names) {
     const stash = path.join(STASH_DIR, `${nm}.yaml`);
@@ -116,6 +135,6 @@ if (mode === "park") {
     console.log(`${parked ? "parked" : "live  "}  ${name}`);
   }
 } else {
-  console.error("usage: park.mjs park | unpark <name>… | status");
+  console.error("usage: park.mjs park | unpark <name>…|--all | status");
   process.exit(2);
 }
