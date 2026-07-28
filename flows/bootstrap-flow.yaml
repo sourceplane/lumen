@@ -74,7 +74,8 @@ steps:
   # CURRENT active connections — the create is skipped for healthy keys).
   - name: create-secrets
     needs: [preflight]
-    run: ["/bin/sh", "-c", "flows/create-secrets.sh {{ inputs.org }}"]
+    # Steps execute in .orun/wfruns/<exec>/ — resolve the repo root first.
+    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/create-secrets.sh {{ inputs.org }}"]
     timeout: 5m
 
   # ── Single-run deploy ────────────────────────────────────────────────────
@@ -92,6 +93,7 @@ steps:
       - -c
       - |
         set -e
+        cd "$(git rev-parse --show-toplevel)"
         git checkout main -q && git pull -q
         out="$(node flows/park.mjs unpark --all)"
         echo "$out"
@@ -107,7 +109,7 @@ steps:
 
   - name: converge
     needs: [deploy-all]
-    run: ["/bin/sh", "-c", "flows/converge.sh '' 3"]
+    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/converge.sh '' 3"]
     timeout: 120m
 
   # Second (final) push: put the stripped service bindings back — every worker
@@ -119,6 +121,7 @@ steps:
       - -c
       - |
         set -e
+        cd "$(git rev-parse --show-toplevel)"
         git checkout main -q && git pull -q
         node tooling/bootstrap/cycle-break.mjs --restore
         if git diff --quiet; then
