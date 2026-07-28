@@ -80,13 +80,18 @@ jobs:
       - uses: sourceplane/orun-action@v1.2.0
         with:
           version: v2.45.0
+      # exec-id is the RUN id alone (no attempt suffix): a `gh run rerun
+      # --failed` then RESUMES the same orun execution — jobs that succeeded in
+      # a prior attempt stay completed, so re-run lanes' cross-job dependencies
+      # are already satisfied instead of waiting forever on lanes that are not
+      # re-running (the partial-rerun deadlock).
       - run: |
           orun run \
             --plan plan.json \
             --runner github-actions \
             --remote-state \
             --job "${{ matrix.job-id }}" \
-            --exec-id "${{ github.run_id }}-${{ github.run_attempt }}"
+            --exec-id "${{ github.run_id }}"
         env:
           # GITHUB_TOKEN is the only credential CI holds — GitHub-issued and
           # ephemeral. Every provider credential (Cloudflare token + account
