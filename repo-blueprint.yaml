@@ -334,6 +334,11 @@ modules:
     from: packages/sdk
     to: packages/sdk
     dependsOn: [contracts]
+  - name: flows
+    mode: copy
+    source: baseline
+    from: flows
+    to: flows
   - name: shared
     mode: copy
     source: baseline
@@ -525,7 +530,7 @@ phases:
     modules: [cloudflare-domain]
   - name: workspace
     description: Root manifests, tooling, compositions, and the rebrand values file.
-    modules: [agents, ai-context, github-workflows, rebrand-values, root-forking, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling, vscode]
+    modules: [agents, ai-context, flows, github-workflows, rebrand-values, root-forking, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling, vscode]
 
 # ── HOOKS ─────────────────────────────────────────────────────────────────
 # Declared, ecosystem-specific, run OUTSIDE the template sandbox and opt-in

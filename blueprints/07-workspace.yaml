@@ -74,6 +74,11 @@ modules:
   source: baseline
   from: ai
   to: ai
+- name: flows
+  mode: copy
+  source: baseline
+  from: flows
+  to: flows
 - name: github-workflows
   mode: copy
   source: baseline
@@ -154,6 +159,7 @@ phases:
   modules:
   - agents
   - ai-context
+  - flows
   - github-workflows
   - rebrand-values
   - root-forking
