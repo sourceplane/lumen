@@ -47,13 +47,14 @@ orun workflow run flows/bootstrap-flow.yaml --set org=<org>
 
   | # | batch | components |
   |---|---|---|
-  | 1 | infra-foundation | bootstrap, cloudflare-kv |
-  | 2 | data | supabase, db-migrate, cloudflare-hyperdrive |
-  | 3 | workers-a | policy, membership, events, projects |
-  | 4 | workers-b | identity, config, webhooks, notifications, metering, admin |
-  | 5 | workers-c | billing, integrations |
-  | 6 | edge | api-edge |
-  | 7 | console | web-console-next |
+  | 1 | infra-foundation | cloudflare-kv |
+  | 2 | data-a | supabase (its secretOutputs lease-publish the DB creds the next batch reads) |
+  | 3 | data-b | db-migrate, cloudflare-hyperdrive |
+  | 4 | workers-a | policy, membership, events, projects |
+  | 5 | workers-b | identity, config, webhooks, notifications, metering, admin |
+  | 6 | workers-c | billing, integrations |
+  | 7 | edge | api-edge |
+  | 8 | console | web-console-next |
 
   `cloudflare-domain` stays parked until the `lumen.app` zone exists in the
   Cloudflare account.

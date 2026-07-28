@@ -31,7 +31,7 @@ compositions:
     # a commit here. Bumping the tag is the deliberate upgrade step.
     - name: stack-tectonic
       kind: oci
-      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.16.0
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.18.0
   resolution:
     precedence:
       - stack-tectonic
@@ -88,8 +88,6 @@ environments:
         - local-development
     parameterDefaults:
       terraform:
-        awsRegion: us-east-1
-        awsAccountId: "306024784101"
         lane: verify
         namespace: sourceplane
         namespacePrefix: dev-
@@ -99,7 +97,6 @@ environments:
     policies:
       requireApproval: "false"
     env:
-      AWS_REGION: us-east-1
       BASE_DOMAIN: lumen.app
 
   stage:
@@ -109,8 +106,6 @@ environments:
         - github-push-main
     parameterDefaults:
       terraform:
-        awsRegion: us-east-1
-        awsAccountId: "306024784101"
         lane: verify
         namespace: sourceplane
         namespacePrefix: stg-
@@ -120,7 +115,6 @@ environments:
     policies:
       requireApproval: "false"
     env:
-      AWS_REGION: us-east-1
       BASE_DOMAIN: lumen.app
 
   prod:
@@ -133,8 +127,6 @@ environments:
         - environment: stage
     parameterDefaults:
       terraform:
-        awsRegion: us-east-1
-        awsAccountId: "306024784101"
         lane: verify
         namespace: sourceplane
         namespacePrefix: prod-
@@ -144,5 +136,4 @@ environments:
     policies:
       requireApproval: "false"
     env:
-      AWS_REGION: us-east-1
       BASE_DOMAIN: lumen.app

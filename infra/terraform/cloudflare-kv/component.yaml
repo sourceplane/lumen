@@ -19,9 +19,9 @@ spec:
     stackName: cloudflare-kv
     terraformDir: terraform
     terraformVersion: "1.15.3"
-
-  env:
-    AWS_EC2_METADATA_DISABLED: "true"
+    # SEC-JOB: the wiring document (KV namespace id/title) is lease-published
+    # post-apply; api-edge deploys read it back as WIRING_CLOUDFLARE_KV_<ENV>.
+    secretOutputs: "WIRING_CLOUDFLARE_KV=wiring"
 
   # The Cloudflare Terraform provider authenticates via the CLOUDFLARE_API_TOKEN
   # env var, resolved by orun from the project-rung brokered secret (fresh per

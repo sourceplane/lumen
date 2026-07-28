@@ -36,9 +36,6 @@ spec:
     # variable itself already defaults to "" in
     # `terraform/variables.tf`, so absence here is safe for dev.
 
-  env:
-    AWS_EC2_METADATA_DISABLED: "true"
-
   dependsOn:
     - component: web-console-next
 

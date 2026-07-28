@@ -12,6 +12,13 @@ spec:
   dependsOn:
     - component: events-worker
     - component: db-migrate
+  # BF6 wiring documents from orun secrets (SEC-JOB): lease-published by
+  # the infra components; wire-live renders the wrangler template from
+  # these instead of Secrets Manager documents.
+  secretEnv:
+    WIRING_CLOUDFLARE_HYPERDRIVE_STAGE: "secret://lumen/lumen/stage/WIRING_CLOUDFLARE_HYPERDRIVE"
+    WIRING_CLOUDFLARE_HYPERDRIVE_PROD: "secret://lumen/lumen/prod/WIRING_CLOUDFLARE_HYPERDRIVE"
+
   subscribe:
     environments:
       - name: dev
@@ -36,8 +43,6 @@ spec:
     # BF6b: deploy-time wiring — wrangler.jsonc is rendered, never committed.
     # Verify lanes render from wiring.fixture.json (offline); deploy lanes
     # resolve real IDs from the Secrets Manager wiring manifest (BF5).
-    awsAccountId: "306024784101"
-    awsRegion: us-east-1
     orgName: sourceplane
     owner: sourceplane
     repo: lumen

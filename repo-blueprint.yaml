@@ -146,11 +146,6 @@ modules:
     from: tests/billing-worker
     to: tests/billing-worker
     dependsOn: [billing-worker, contracts, db]
-  - name: bootstrap
-    mode: copy
-    source: baseline
-    from: infra/terraform/bootstrap
-    to: infra/terraform/bootstrap
   - name: cli
     mode: copy
     source: baseline
@@ -519,7 +514,7 @@ phases:
   - name: foundation
     modules: [cli, contracts, contracts-tests, db, db-tests, notifications-client, notifications-client-tests, policy-engine, policy-engine-tests, sdk, shared, testing, webhook-verifier]
   - name: infrastructure
-    modules: [bootstrap, cloudflare-hyperdrive, cloudflare-kv, db-migrate, supabase]
+    modules: [cloudflare-hyperdrive, cloudflare-kv, db-migrate, supabase]
   - name: workers
     modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, webhooks-worker, webhooks-worker-tests]
   - name: edge

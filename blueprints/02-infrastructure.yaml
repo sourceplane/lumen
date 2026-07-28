@@ -64,11 +64,6 @@ ignore:
 - wrangler.jsonc
 - '*.tsbuildinfo'
 modules:
-- name: bootstrap
-  mode: copy
-  source: baseline
-  from: infra/terraform/bootstrap
-  to: infra/terraform/bootstrap
 - name: cloudflare-hyperdrive
   mode: copy
   source: baseline
@@ -93,12 +88,9 @@ modules:
   source: baseline
   from: infra/terraform/supabase
   to: infra/terraform/supabase
-  dependsOn:
-  - bootstrap
 phases:
 - name: infrastructure
   modules:
-  - bootstrap
   - cloudflare-hyperdrive
   - cloudflare-kv
   - db-migrate

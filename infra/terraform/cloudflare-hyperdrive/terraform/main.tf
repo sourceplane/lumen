@@ -1,17 +1,11 @@
 terraform {
   required_version = ">= 1.15.0"
 
-  backend "s3" {
-    encrypt              = true
-    use_lockfile         = true
-    workspace_key_prefix = "env"
-  }
+  # State lives on the platform (SB1): the runner exports TF_HTTP_* per job, so
+  # this block stays empty — no S3 bucket, no AWS role, no workspaces.
+  backend "http" {}
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "~> 4.30"
@@ -21,30 +15,12 @@ terraform {
 
 # --- Providers ---
 
-provider "aws" {
-  region = var.awsRegion
-
-  default_tags {
-    tags = {
-      ManagedBy   = "terraform"
-      Repository  = "${var.owner}/${var.repo}"
-      Component   = var.component
-      Environment = var.environment
-    }
-  }
-}
-
 # Authenticates via the CLOUDFLARE_API_TOKEN env var (provider-native): the
 # token is an orun-managed secret resolved into the job env at run time, so it
 # never transits Terraform variables.
 provider "cloudflare" {}
 
 # --- Variables (standard Orun parameters) ---
-
-variable "awsRegion" {
-  type    = string
-  default = "us-east-1"
-}
 
 variable "cloudflare_account_id" {
   type        = string
@@ -108,29 +84,33 @@ variable "terraformVersion" {
   default = "1.15.3"
 }
 
-# --- Data sources ---
+# --- Supabase origin (from orun secrets, not Secrets Manager) ---
+#
+# The supabase component wires its outputs into the workspace's project/{{env}}
+# secret rung (wireSecrets → SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD); this
+# component declares them in secretEnv as TF_VAR_supabase_project_ref /
+# TF_VAR_supabase_db_password. Host/port/db/user derive from the project ref —
+# the same derivation the old Secrets Manager payload carried.
 
-# Fetch Supabase connection details from AWS Secrets Manager
-# Written by the supabase component
-data "aws_secretsmanager_secret_version" "supabase" {
-  secret_id = "${var.orgName}/${var.repo}/supabase/${var.environment}"
+variable "supabase_project_ref" {
+  type        = string
+  description = "Supabase project reference (from SUPABASE_PROJECT_REF secret)"
+}
+
+variable "supabase_db_password" {
+  type        = string
+  sensitive   = true
+  description = "Supabase database password (from SUPABASE_DB_PASSWORD secret)"
 }
 
 locals {
-  supabase_secret = jsondecode(data.aws_secretsmanager_secret_version.supabase.secret_string)
-
-  database_host = local.supabase_secret.database_host
-  database_port = tonumber(local.supabase_secret.database_port)
-  database_name = local.supabase_secret.database_name
-  database_user = local.supabase_secret.database_user
+  database_host = "db.${var.supabase_project_ref}.supabase.co"
+  database_port = 5432
+  database_name = "postgres"
+  database_user = "postgres"
 
   hyperdrive_name = "${var.namespacePrefix}lumen-${var.environment}"
 }
-
-# --- Fetch Cloudflare account ID from env or variable ---
-# In Orun CI, CLOUDFLARE_ACCOUNT_ID is available as an env var
-# We pass it through as a TF_VAR_cloudflareAccountId
-# For local testing, it can be hardcoded or passed via -var
 
 # --- Create Hyperdrive resource ---
 
@@ -144,7 +124,7 @@ resource "cloudflare_hyperdrive_config" "postgres" {
     port     = local.database_port
     database = local.database_name
     user     = local.database_user
-    password = local.supabase_secret.database_password
+    password = var.supabase_db_password
   }
 
   caching = {
@@ -152,36 +132,24 @@ resource "cloudflare_hyperdrive_config" "postgres" {
   }
 }
 
-# --- Wiring manifest (BF5) ---
-# Publish the consumable outputs of this component at the conventional
-# `<org>/<repo>/<component>/<env>` Secrets Manager path so downstream consumers
-# (BF6 deploy-time wiring) resolve resource IDs from here instead of committed
-# literals. Stable secret container + rotating version, mirroring the supabase
-# component's pattern.
+# --- Wiring manifest (BF5, via orun secrets) ---
+#
+# The consumable outputs of this component are published by the composition's
+# wire-secrets step as the WIRING_CLOUDFLARE_HYPERDRIVE secret on the
+# project/{{env}} rung; worker deploys read it back as
+# WIRING_CLOUDFLARE_HYPERDRIVE_<ENV> secretEnv and render committed
+# @@wiring(...)@@ tokens from it (BF6). Same document shape the Secrets
+# Manager path carried.
 
-resource "aws_secretsmanager_secret" "wiring" {
-  name        = "${var.orgName}/${var.repo}/${var.component}/${var.environment}"
-  description = "Wiring outputs of the cloudflare-hyperdrive component (consumed by Worker deploy-time binding resolution)"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "wiring" {
-  secret_id = aws_secretsmanager_secret.wiring.id
-  secret_string = jsonencode({
+output "wiring" {
+  description = "Wiring document for downstream deploy-time binding resolution (pushed to orun secrets)"
+  value = jsonencode({
     hyperdrive_id   = cloudflare_hyperdrive_config.postgres.id
     hyperdrive_name = cloudflare_hyperdrive_config.postgres.name
   })
 }
 
 # --- Outputs (non-secret) ---
-
-output "wiring_secret_arn" {
-  description = "ARN of the wiring-manifest secret for this component/environment"
-  value       = aws_secretsmanager_secret.wiring.arn
-}
 
 output "hyperdrive_id" {
   description = "Cloudflare Hyperdrive config ID"
@@ -197,28 +165,4 @@ output "hyperdrive_connection_string" {
   description = "Hyperdrive-formatted connection string for Workers (to be used in bindings)"
   # Note: actual connection string is built at binding time; this is the resource ID
   value = "hyperdrive://${cloudflare_hyperdrive_config.postgres.id}"
-}
-
-output "database_host" {
-  description = "Database host (from Supabase secrets)"
-  value       = local.database_host
-  sensitive   = true
-}
-
-output "database_port" {
-  description = "Database port (from Supabase secrets)"
-  value       = local.database_port
-  sensitive   = true
-}
-
-output "database_name" {
-  description = "Database name (from Supabase secrets)"
-  value       = local.database_name
-  sensitive   = true
-}
-
-output "database_user" {
-  description = "Database user (from Supabase secrets)"
-  value       = local.database_user
-  sensitive   = true
 }

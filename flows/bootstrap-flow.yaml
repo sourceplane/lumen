@@ -18,7 +18,6 @@ metadata:
 #   - Cloudflare + Supabase connected in the workspace (console → Integrations)
 #   - This repo allow-listed for CI OIDC (console → Git Repos; `orun cloud
 #     check` verifies — the CLI cannot grant it, the console can)
-#   - AWS OIDC roles + state-bucket prefix for THIS repo slug (aws-admin)
 inputs:
   org:
     type: string
@@ -62,14 +61,21 @@ steps:
   #    merge's main convergence run — the deploy — to be green). ──
   - name: batch-infra-foundation
     needs: [create-secrets]
-    run: ["/bin/sh", "-c", "flows/batch.sh infra-foundation bootstrap cloudflare-kv"]
+    run: ["/bin/sh", "-c", "flows/batch.sh infra-foundation cloudflare-kv"]
     timeout: 45m
-  - name: batch-data
+  # Split data batches: supabase must APPLY (its secretOutputs lease-publish
+  # SUPABASE_PROJECT_REF/DB_PASSWORD/DB_URL) before db-migrate and hyperdrive
+  # can even PLAN — their secretEnv refs resolve at job start.
+  - name: batch-data-a
     needs: [batch-infra-foundation]
-    run: ["/bin/sh", "-c", "flows/batch.sh data supabase db-migrate cloudflare-hyperdrive"]
+    run: ["/bin/sh", "-c", "flows/batch.sh data-a supabase"]
+    timeout: 45m
+  - name: batch-data-b
+    needs: [batch-data-a]
+    run: ["/bin/sh", "-c", "flows/batch.sh data-b db-migrate cloudflare-hyperdrive"]
     timeout: 60m
   - name: batch-workers-a
-    needs: [batch-data]
+    needs: [batch-data-b]
     run: ["/bin/sh", "-c", "flows/batch.sh workers-a policy-worker membership-worker events-worker projects-worker"]
     timeout: 60m
   - name: batch-workers-b

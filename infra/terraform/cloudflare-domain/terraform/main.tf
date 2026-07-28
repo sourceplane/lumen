@@ -1,17 +1,11 @@
 terraform {
   required_version = ">= 1.15.0"
 
-  backend "s3" {
-    encrypt              = true
-    use_lockfile         = true
-    workspace_key_prefix = "env"
-  }
+  # State lives on the platform (SB1): the runner exports TF_HTTP_* per job, so
+  # this block stays empty — no S3 bucket, no AWS role, no workspaces.
+  backend "http" {}
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "~> 4.52"
@@ -21,30 +15,12 @@ terraform {
 
 # --- Providers ---
 
-provider "aws" {
-  region = var.awsRegion
-
-  default_tags {
-    tags = {
-      ManagedBy   = "terraform"
-      Repository  = "${var.owner}/${var.repo}"
-      Component   = var.component
-      Environment = var.environment
-    }
-  }
-}
-
 # Authenticates via the CLOUDFLARE_API_TOKEN env var (provider-native): the
 # token is an orun-managed secret resolved into the job env at run time, so it
 # never transits Terraform variables.
 provider "cloudflare" {}
 
 # --- Variables (standard Orun parameters) ---
-
-variable "awsRegion" {
-  type    = string
-  default = "us-east-1"
-}
 
 variable "cloudflare_account_id" {
   type        = string

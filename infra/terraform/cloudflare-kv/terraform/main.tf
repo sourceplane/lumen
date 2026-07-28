@@ -1,17 +1,11 @@
 terraform {
   required_version = ">= 1.15.0"
 
-  backend "s3" {
-    encrypt              = true
-    use_lockfile         = true
-    workspace_key_prefix = "env"
-  }
+  # State lives on the platform (SB1): the runner exports TF_HTTP_* per job, so
+  # this block stays empty — no S3 bucket, no AWS role, no workspaces.
+  backend "http" {}
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "~> 4.30"
@@ -21,30 +15,12 @@ terraform {
 
 # --- Providers ---
 
-provider "aws" {
-  region = var.awsRegion
-
-  default_tags {
-    tags = {
-      ManagedBy   = "terraform"
-      Repository  = "${var.owner}/${var.repo}"
-      Component   = var.component
-      Environment = var.environment
-    }
-  }
-}
-
 # Authenticates via the CLOUDFLARE_API_TOKEN env var (provider-native): the
 # token is an orun-managed secret resolved into the job env at run time, so it
 # never transits Terraform variables.
 provider "cloudflare" {}
 
 # --- Variables (standard Orun parameters) ---
-
-variable "awsRegion" {
-  type    = string
-  default = "us-east-1"
-}
 
 variable "cloudflare_account_id" {
   type        = string
@@ -130,36 +106,21 @@ resource "cloudflare_workers_kv_namespace" "api_edge_idempotency" {
   title      = local.idempotency_namespace_title
 }
 
-# --- Wiring manifest (BF5) ---
-# Publish the consumable outputs of this component at the conventional
-# `<org>/<repo>/<component>/<env>` Secrets Manager path so downstream consumers
-# (BF6 deploy-time wiring) resolve resource IDs from here instead of committed
-# literals. Stable secret container + rotating version, mirroring the supabase
-# component's pattern.
+# --- Wiring manifest (BF5, via orun secrets) ---
+# The consumable outputs are published by the composition's wire-secrets step
+# as the WIRING_CLOUDFLARE_KV secret on the project/{{env}} rung; worker
+# deploys read it back as WIRING_CLOUDFLARE_KV_<ENV> secretEnv (BF6). Same
+# document shape the Secrets Manager path carried.
 
-resource "aws_secretsmanager_secret" "wiring" {
-  name        = "${var.orgName}/${var.repo}/${var.component}/${var.environment}"
-  description = "Wiring outputs of the cloudflare-kv component (consumed by Worker deploy-time binding resolution)"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "wiring" {
-  secret_id = aws_secretsmanager_secret.wiring.id
-  secret_string = jsonencode({
+output "wiring" {
+  description = "Wiring document for downstream deploy-time binding resolution (pushed to orun secrets)"
+  value = jsonencode({
     api_edge_idempotency_kv_id    = cloudflare_workers_kv_namespace.api_edge_idempotency.id
     api_edge_idempotency_kv_title = cloudflare_workers_kv_namespace.api_edge_idempotency.title
   })
 }
 
 # --- Outputs (non-secret) ---
-
-output "wiring_secret_arn" {
-  description = "ARN of the wiring-manifest secret for this component/environment"
-  value       = aws_secretsmanager_secret.wiring.arn
-}
 
 output "api_edge_idempotency_kv_id" {
   description = "Cloudflare Workers KV namespace ID for api-edge idempotency replay store"

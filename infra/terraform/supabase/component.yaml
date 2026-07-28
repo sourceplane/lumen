@@ -3,7 +3,7 @@ kind: Component
 
 metadata:
   name: supabase
-  description: Provisions Supabase projects for stage and prod and stores credentials in AWS Secrets Manager
+  description: Provisions Supabase projects for stage and prod and wires credentials into orun secrets
   labels:
     domain: infra
     scope: database
@@ -13,11 +13,6 @@ spec:
   lifecycle: production
   owner: platform
   domain: infra
-
-  # Supabase provisioning writes credentials to AWS Secrets Manager and stores
-  # Terraform state in S3; both are proven by `bootstrap` first.
-  dependsOn:
-    - component: bootstrap
 
   parameters:
     orgName: sourceplane
@@ -30,9 +25,9 @@ spec:
     # SUPABASE_ORG_ID CI secret (see .github/workflows/ci.yml). Keeping it out of
     # parameters also prevents the param→TF_VAR loop from overriding the secret.
     supabaseRegion: ap-southeast-1
-
-  env:
-    AWS_EC2_METADATA_DISABLED: "true"
+    # SEC-JOB: post-apply, these outputs are queued on the runner's sink and
+    # lease-published onto the project/{{env}} rung by the runner.
+    secretOutputs: "SUPABASE_PROJECT_REF=project_ref,SUPABASE_DB_PASSWORD=database_password,SUPABASE_DB_URL=connection_uri"
 
   # Both values resolve from orun secrets (project rung, brokered from the
   # Supabase integration): a short-lived Management-API access token minted
