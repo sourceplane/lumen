@@ -3,19 +3,25 @@ kind: Workflow
 metadata:
   name: bootstrap-flow
 # Full first-boot of this product against its Orun Cloud workspace (the
-# `workspace:` in intent.yaml): verify CLI auth, repo allow-listing, and provider
-# integrations; create the five provider secrets from those integrations
-# (brokered — no value is ever typed or seen); then deploy the platform in
-# dependency-ordered batches, one PR each, requiring the PR checks AND the
-# merge's main convergence run green before the next batch starts.
+# `workspace:` in intent.yaml), in ONE convergence run: verify CLI auth, repo
+# allow-listing, and provider integrations (waiting while the operator clicks
+# the two OAuth consents if needed); create the five provider secrets from
+# those integrations (brokered — no value is ever typed or seen); un-park the
+# ENTIRE deployable fleet in a single main push with the service-binding
+# feedback edges stripped; ride the one main convergence run to green (the
+# platform DAG orders supabase → db-migrate/hyperdrive → workers → edge →
+# console, and job-output secrets publish/resolve inside the run) — resuming
+# it through transient failures; then restore the feedback bindings with a
+# second push and verify the live endpoints.
 #
 # Run it from the repo root:   orun workflow run flows/bootstrap-flow.yaml
-# Operator prerequisites (once, documented in flows/README.md):
+# Operator prerequisites (once, documented in flows/README.md and BOOTSTRAP.md):
 #   - orun auth login --device            (approve at app.orun.dev/cli/device;
 #                                          a browser session in the workspace —
 #                                          the Chrome extension works when the
 #                                          operator is an agent)
-#   - Cloudflare + Supabase connected in the workspace (console → Integrations)
+#   - Cloudflare + Supabase connected in the workspace (console → Integrations;
+#     preflight WAITS for these, so they can be clicked while the flow runs)
 #   - This repo allow-listed for CI OIDC (console → Git Repos; `orun cloud
 #     check` verifies — the CLI cannot grant it, the console can)
 inputs:
@@ -43,62 +49,90 @@ steps:
           echo "repo not allow-listed for {{ inputs.org }}: allow it in the console (Git Repos) — the CLI cannot grant this" >&2
           exit 1
         }
-        echo "── integrations (ACTIVE connections required)"
-        list="$(orun integrations list --org "{{ inputs.org }}" --json)"
+        echo "── integrations (ACTIVE connections; polling up to 10m so consents can be clicked now)"
         active() {
-          printf '%s' "$list" | python3 -c "import json,sys; rows=json.load(sys.stdin); sys.exit(0 if any(r.get('provider')=='$1' and r.get('status')=='active' for r in rows) else 1)"
+          orun integrations list --org "{{ inputs.org }}" --json |
+            python3 -c "import json,sys; rows=json.load(sys.stdin); sys.exit(0 if any(r.get('provider')=='$1' and r.get('status')=='active' for r in rows) else 1)"
         }
-        active cloudflare || { echo "no ACTIVE Cloudflare connection in {{ inputs.org }}: console → Integrations → Cloudflare → Connect (paste an Account API token per the in-console recipe)" >&2; exit 1; }
-        active supabase   || { echo "no ACTIVE Supabase connection in {{ inputs.org }}: console → Integrations → Supabase → Connect (OAuth; pick the organization that should own this product's projects)" >&2; exit 1; }
-    timeout: 2m
+        deadline=$(( $(date +%s) + 600 ))
+        while :; do
+          missing=""
+          active cloudflare || missing="cloudflare"
+          active supabase   || missing="${missing:+$missing }supabase"
+          [ -z "$missing" ] && break
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "still missing ACTIVE connection(s) after 10m: $missing — connect at https://app.orun.dev/orgs/{{ inputs.org }}/integrations (Cloudflare: paste an Account API token per the in-console recipe; Supabase: OAuth, pick the organization that should own this product's projects)" >&2
+            exit 1
+          fi
+          echo "waiting for connection(s): $missing → https://app.orun.dev/orgs/{{ inputs.org }}/integrations"
+          sleep 20
+        done
+        echo "preflight ok"
+    timeout: 12m
 
+  # Brokered provider secrets (idempotent: self-heals orphans against the
+  # CURRENT active connections — the create is skipped for healthy keys).
   - name: create-secrets
     needs: [preflight]
     run: ["/bin/sh", "-c", "flows/create-secrets.sh {{ inputs.org }}"]
     timeout: 5m
 
-  # ── Deploy batches (dependency order; each waits for PR checks AND the
-  #    merge's main convergence run — the deploy — to be green). ──
-  - name: batch-infra-foundation
+  # ── Single-run deploy ────────────────────────────────────────────────────
+  # One main push un-parks the whole fleet (cloudflare-domain stays parked —
+  # its zone must exist first) with the service-binding feedback edges
+  # stripped (tooling/bootstrap/cycle-break.mjs), so first-boot workers can
+  # deploy in DAG order without referencing not-yet-existing services. The
+  # merge's convergence run IS the deploy: terraform applies lease-publish
+  # their outputs (SUPABASE_*, WIRING_*) and downstream lanes resolve them at
+  # claim time, inside the same run.
+  - name: deploy-all
     needs: [create-secrets]
-    run: ["/bin/sh", "-c", "flows/batch.sh infra-foundation cloudflare-kv"]
-    timeout: 45m
-  # Split data batches: supabase must APPLY (its secretOutputs lease-publish
-  # SUPABASE_PROJECT_REF/DB_PASSWORD/DB_URL) before db-migrate and hyperdrive
-  # can even PLAN — their secretEnv refs resolve at job start.
-  - name: batch-data-a
-    needs: [batch-infra-foundation]
-    run: ["/bin/sh", "-c", "flows/batch.sh data-a supabase"]
-    timeout: 45m
-  - name: batch-data-b
-    needs: [batch-data-a]
-    run: ["/bin/sh", "-c", "flows/batch.sh data-b db-migrate cloudflare-hyperdrive"]
+    run:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        git checkout main -q && git pull -q
+        node flows/park.mjs unpark --all
+        node tooling/bootstrap/cycle-break.mjs --strip
+        if git diff --quiet && git diff --cached --quiet; then
+          echo "deploy-all: fleet already unparked — nothing to push"
+          exit 0
+        fi
+        git add -A
+        git commit -q -m "bootstrap: enable full fleet (single-run deploy, feedback edges stripped)" \
+          -m "Un-parks every deployable component except cloudflare-domain and strips the service-binding feedback edges; this push's main convergence run deploys the entire platform in dependency order."
+        git push -q origin main
+    timeout: 5m
+
+  - name: converge
+    needs: [deploy-all]
+    run: ["/bin/sh", "-c", "flows/converge.sh '' 3"]
+    timeout: 120m
+
+  # Second (final) push: put the stripped service bindings back — every worker
+  # they point at now exists — and require that convergence green too.
+  - name: restore-bindings
+    needs: [converge]
+    run:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        git checkout main -q && git pull -q
+        node tooling/bootstrap/cycle-break.mjs --restore
+        if git diff --quiet; then
+          echo "restore-bindings: nothing stripped — already restored"
+          exit 0
+        fi
+        git add -A
+        git commit -qm "bootstrap: restore service-binding feedback edges (final wiring)"
+        git push -q origin main
+        flows/converge.sh '' 2
     timeout: 60m
-  - name: batch-workers-a
-    needs: [batch-data-b]
-    run: ["/bin/sh", "-c", "flows/batch.sh workers-a policy-worker membership-worker events-worker projects-worker"]
-    timeout: 60m
-  - name: batch-workers-b
-    needs: [batch-workers-a]
-    run: ["/bin/sh", "-c", "flows/batch.sh workers-b identity-worker config-worker webhooks-worker notifications-worker metering-worker admin-worker"]
-    timeout: 90m
-  - name: batch-workers-c
-    needs: [batch-workers-b]
-    run: ["/bin/sh", "-c", "flows/batch.sh workers-c billing-worker integrations-worker"]
-    timeout: 60m
-  - name: batch-edge
-    needs: [batch-workers-c]
-    run: ["/bin/sh", "-c", "flows/batch.sh edge api-edge"]
-    timeout: 45m
-  - name: batch-console
-    needs: [batch-edge]
-    run: ["/bin/sh", "-c", "flows/batch.sh console web-console-next"]
-    timeout: 45m
-  # cloudflare-domain stays parked: its zone (lumen.app) must exist in the
-  # Cloudflare account first — see the restore note in its component.yaml.
 
   - name: verify-live
-    needs: [batch-console]
+    needs: [restore-bindings]
     run:
       - /bin/sh
       - -c
