@@ -93,10 +93,15 @@ steps:
       - |
         set -e
         git checkout main -q && git pull -q
-        node flows/park.mjs unpark --all
+        out="$(node flows/park.mjs unpark --all)"
+        echo "$out"
+        if printf '%s' "$out" | grep -q "nothing stashed"; then
+          echo "deploy-all: fleet already live — leaving bindings untouched"
+          exit 0
+        fi
         node tooling/bootstrap/cycle-break.mjs --strip
         if git diff --quiet && git diff --cached --quiet; then
-          echo "deploy-all: fleet already unparked — nothing to push"
+          echo "deploy-all: nothing to push"
           exit 0
         fi
         git add -A
