@@ -90,11 +90,26 @@ ignore:
   # happens to have built — and a fork would ship with the BASELINE's rendered
   # config baked in.
   #
-  # wrangler.jsonc is the important one: it is rendered from
+  # For the TEMPLATED workers, wrangler.jsonc is rendered from
   # wrangler.template.jsonc at deploy time and carries resolved values
   # (baseline domains, and per BF6 the deploy-time binding IDs that must never
-  # be committed). Only the committed *.template.jsonc belongs in a fork.
-  - wrangler.jsonc
+  # be committed) — those renders are ignored EXPLICITLY, per app. The two
+  # legacy non-templated workers (policy-worker, web-console-next) COMMIT
+  # their wrangler.jsonc as the real config; a global ignore silently dropped
+  # them from forks (their verify lanes then failed `test -f`), which is why
+  # this list names paths instead of a pattern.
+  - apps/admin-worker/wrangler.jsonc
+  - apps/api-edge/wrangler.jsonc
+  - apps/billing-worker/wrangler.jsonc
+  - apps/config-worker/wrangler.jsonc
+  - apps/events-worker/wrangler.jsonc
+  - apps/identity-worker/wrangler.jsonc
+  - apps/integrations-worker/wrangler.jsonc
+  - apps/membership-worker/wrangler.jsonc
+  - apps/metering-worker/wrangler.jsonc
+  - apps/notifications-worker/wrangler.jsonc
+  - apps/projects-worker/wrangler.jsonc
+  - apps/webhooks-worker/wrangler.jsonc
   - "*.tsbuildinfo"
 
 # ── MODULES ───────────────────────────────────────────────────────────────
