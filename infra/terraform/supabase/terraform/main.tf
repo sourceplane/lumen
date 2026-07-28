@@ -9,8 +9,12 @@ terraform {
 
   required_providers {
     supabase = {
-      source  = "supabase/supabase"
-      version = "~> 1.0"
+      source = "supabase/supabase"
+      # Pinned below 1.6: from 1.6.0 the provider reads /billing/addons on
+      # every project create/read, and Supabase does not serve billing
+      # endpoints to OAuth tokens yet ("does not support oauth access") —
+      # which is exactly the credential the platform brokers.
+      version = "~> 1.5.1"
     }
     random = {
       source  = "hashicorp/random"

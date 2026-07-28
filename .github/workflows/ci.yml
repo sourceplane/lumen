@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.45.0
+          version: v2.48.0
       - env:
           # Surface the best-effort catalog auto-sync (execution.state.autopushCatalog).
           # A successful push prints "✓ pushed catalog …"; ORUN_VERBOSE also makes
@@ -63,6 +63,10 @@ jobs:
     if: ${{ needs.plan.outputs.job-matrix != '[]' && needs.plan.outputs.job-matrix != '' }}
     strategy:
       fail-fast: false
+      # Stagger the fan-out: every lane hits the lease-bound resolve at job
+      # start, and an unbounded herd saturated it twice. The orun DAG already
+      # serializes dependents, so capped parallelism costs little wall-clock.
+      max-parallel: 8
       matrix:
         include: ${{ fromJson(needs.plan.outputs.job-matrix) }}
     name: ${{ matrix.job-name }}
@@ -79,19 +83,22 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.45.0
+          version: v2.48.0
       # exec-id is the RUN id alone (no attempt suffix): a `gh run rerun
       # --failed` then RESUMES the same orun execution — jobs that succeeded in
       # a prior attempt stay completed, so re-run lanes' cross-job dependencies
       # are already satisfied instead of waiting forever on lanes that are not
-      # re-running (the partial-rerun deadlock).
+      # re-running (the partial-rerun deadlock). --retry re-opens THIS lane's
+      # job when it terminally failed in a prior attempt (no-op on first
+      # attempts) — together they make `gh run rerun --failed` a true resume.
       - run: |
           orun run \
             --plan plan.json \
             --runner github-actions \
             --remote-state \
             --job "${{ matrix.job-id }}" \
-            --exec-id "${{ github.run_id }}"
+            --exec-id "${{ github.run_id }}" \
+            --retry
         env:
           # GITHUB_TOKEN is the only credential CI holds — GitHub-issued and
           # ephemeral. Every provider credential (Cloudflare token + account
