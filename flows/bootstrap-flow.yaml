@@ -93,16 +93,16 @@ steps:
       - |
         set -e
         git checkout main -q && git pull -q
-        node flows/park.mjs unpark --all
-        node tooling/bootstrap/cycle-break.mjs --strip
-        if git diff --quiet && git diff --cached --quiet; then
-          echo "deploy-all: fleet already unparked — nothing to push"
+        out="$(node flows/park.mjs unpark --all)"
+        echo "$out"
+        if printf '%s' "$out" | grep -q "nothing stashed"; then
+          echo "deploy-all: fleet already live — leaving bindings untouched"
           exit 0
         fi
-        git add -A
-        git commit -q -m "bootstrap: enable full fleet (single-run deploy, feedback edges stripped)" \
-          -m "Un-parks every deployable component except cloudflare-domain and strips the service-binding feedback edges; this push's main convergence run deploys the entire platform in dependency order."
-        git push -q origin main
+        node tooling/bootstrap/cycle-break.mjs --strip
+        flows/push-main.sh deploy-all \
+          "bootstrap: enable full fleet (single-run deploy, feedback edges stripped)" \
+          "Un-parks every deployable component except cloudflare-domain and strips the service-binding feedback edges; this push's main convergence run deploys the entire platform in dependency order."
     timeout: 5m
 
   - name: converge
@@ -125,9 +125,8 @@ steps:
           echo "restore-bindings: nothing stripped — already restored"
           exit 0
         fi
-        git add -A
-        git commit -qm "bootstrap: restore service-binding feedback edges (final wiring)"
-        git push -q origin main
+        flows/push-main.sh restore-bindings \
+          "bootstrap: restore service-binding feedback edges (final wiring)"
         flows/converge.sh '' 2
     timeout: 60m
 
