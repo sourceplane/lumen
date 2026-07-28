@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.39.0
+          version: v2.48.0
       - env:
           # Surface the best-effort catalog auto-sync (execution.state.autopushCatalog).
           # A successful push prints "✓ pushed catalog …"; ORUN_VERBOSE also makes
@@ -63,6 +63,10 @@ jobs:
     if: ${{ needs.plan.outputs.job-matrix != '[]' && needs.plan.outputs.job-matrix != '' }}
     strategy:
       fail-fast: false
+      # Stagger the fan-out: every lane hits the lease-bound resolve at job
+      # start, and an unbounded herd saturated it twice. The orun DAG already
+      # serializes dependents, so capped parallelism costs little wall-clock.
+      max-parallel: 8
       matrix:
         include: ${{ fromJson(needs.plan.outputs.job-matrix) }}
     name: ${{ matrix.job-name }}
@@ -79,33 +83,30 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.39.0
+          version: v2.48.0
+      # exec-id is the RUN id alone (no attempt suffix): a `gh run rerun
+      # --failed` then RESUMES the same orun execution — jobs that succeeded in
+      # a prior attempt stay completed, so re-run lanes' cross-job dependencies
+      # are already satisfied instead of waiting forever on lanes that are not
+      # re-running (the partial-rerun deadlock). --retry re-opens THIS lane's
+      # job when it terminally failed in a prior attempt (no-op on first
+      # attempts) — together they make `gh run rerun --failed` a true resume.
       - run: |
           orun run \
             --plan plan.json \
             --runner github-actions \
             --remote-state \
             --job "${{ matrix.job-id }}" \
-            --exec-id "${{ github.run_id }}-${{ github.run_attempt }}"
+            --exec-id "${{ github.run_id }}" \
+            --retry
         env:
+          # GITHUB_TOKEN is the only credential CI holds — GitHub-issued and
+          # ephemeral. Every provider credential (Cloudflare token + account
+          # id, Supabase management token + org id) is an orun-managed secret:
+          # brokered fresh per run from the workspace's integrations, resolved
+          # lease-bound by the jobs that declare it (profile secretBindings or
+          # component secretEnv), and log-redacted. Nothing provider-shaped is
+          # stored in GitHub.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # CLOUDFLARE_API_TOKEN is now an orun-managed brokered secret
-          # (secret://lumen/lumen/<env>/CLOUDFLARE_API_TOKEN, minted fresh per
-          # run from the Cloudflare integration): worker deploys receive it via
-          # the deploy profile's secretBindings, cloudflare-kv via its
-          # component secretEnv — the resolved value overrides this ambient one.
-          # The ambient copy remains ONLY for cloudflare-hyperdrive and
-          # cloudflare-domain, whose Terraform needs Hyperdrive/DNS permissions
-          # the workers-deploy broker template does not mint yet. Remove it when
-          # those two components migrate.
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          SUPABASE_API_KEY: ${{ secrets.SUPABASE_API_KEY }}
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_API_KEY }}
-          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Supabase org id is environment/account-specific, so it comes from a
-          # CI secret rather than a committed component parameter. Used by the
-          # supabase terraform component as var.supabaseOrgId.
-          TF_VAR_supabaseOrgId: ${{ secrets.SUPABASE_ORG_ID }}
           DOCKER_CONFIG: /home/runner/.docker

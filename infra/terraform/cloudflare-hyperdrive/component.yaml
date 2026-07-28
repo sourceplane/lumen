@@ -24,10 +24,24 @@ spec:
     stackName: cloudflare-hyperdrive
     terraformDir: terraform
     terraformVersion: "1.15.3"
+    # SEC-JOB: the wiring document (hyperdrive id/name) is lease-published
+    # post-apply; worker deploys read it back as WIRING_CLOUDFLARE_HYPERDRIVE_<ENV>.
+    secretOutputs: "WIRING_CLOUDFLARE_HYPERDRIVE=wiring"
 
-  env:
-    AWS_EC2_METADATA_DISABLED: "true"
-
+  # All three values resolve from orun secrets (project rung, brokered from
+  # the Cloudflare integration): the provider credential is minted fresh per
+  # run from the hyperdrive-edit template (Workers Hyperdrive Write — the
+  # workers-deploy token deliberately cannot touch Hyperdrive), and the
+  # account id is a non-secret connection fact (account-id template).
+  # Component-level because plan-only lanes refresh against the live API too.
+  secretEnv:
+    CLOUDFLARE_API_TOKEN: "secret://lumen/lumen/{{ .environment }}/CLOUDFLARE_HYPERDRIVE_TOKEN"
+    CLOUDFLARE_ACCOUNT_ID: "secret://lumen/lumen/{{ .environment }}/CLOUDFLARE_ACCOUNT_ID"
+    TF_VAR_cloudflare_account_id: "secret://lumen/lumen/{{ .environment }}/CLOUDFLARE_ACCOUNT_ID"
+    # Supabase origin, lease-published by the supabase component's
+    # secretOutputs — the replacement for the Secrets Manager data source.
+    TF_VAR_supabase_project_ref: "secret://lumen/lumen/{{ .environment }}/SUPABASE_PROJECT_REF"
+    TF_VAR_supabase_db_password: "secret://lumen/lumen/{{ .environment }}/SUPABASE_DB_PASSWORD"
 
   subscribe:
     environments:

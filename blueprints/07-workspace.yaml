@@ -61,7 +61,18 @@ ignore:
 - .next
 - .wrangler
 - .open-next
-- wrangler.jsonc
+- apps/admin-worker/wrangler.jsonc
+- apps/api-edge/wrangler.jsonc
+- apps/billing-worker/wrangler.jsonc
+- apps/config-worker/wrangler.jsonc
+- apps/events-worker/wrangler.jsonc
+- apps/identity-worker/wrangler.jsonc
+- apps/integrations-worker/wrangler.jsonc
+- apps/membership-worker/wrangler.jsonc
+- apps/metering-worker/wrangler.jsonc
+- apps/notifications-worker/wrangler.jsonc
+- apps/projects-worker/wrangler.jsonc
+- apps/webhooks-worker/wrangler.jsonc
 - '*.tsbuildinfo'
 modules:
 - name: agents
@@ -74,6 +85,11 @@ modules:
   source: baseline
   from: ai
   to: ai
+- name: flows
+  mode: copy
+  source: baseline
+  from: flows
+  to: flows
 - name: github-workflows
   mode: copy
   source: baseline
@@ -154,6 +170,7 @@ phases:
   modules:
   - agents
   - ai-context
+  - flows
   - github-workflows
   - rebrand-values
   - root-forking

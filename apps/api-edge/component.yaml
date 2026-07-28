@@ -22,6 +22,15 @@ spec:
     - component: membership-worker
     - component: metering-worker
     - component: notifications-worker
+  # BF6 wiring documents from orun secrets (SEC-JOB): lease-published by
+  # the infra components; wire-live renders the wrangler template from
+  # these instead of Secrets Manager documents.
+  secretEnv:
+    WIRING_CLOUDFLARE_HYPERDRIVE_STAGE: "secret://lumen/lumen/stage/WIRING_CLOUDFLARE_HYPERDRIVE"
+    WIRING_CLOUDFLARE_HYPERDRIVE_PROD: "secret://lumen/lumen/prod/WIRING_CLOUDFLARE_HYPERDRIVE"
+    WIRING_CLOUDFLARE_KV_STAGE: "secret://lumen/lumen/stage/WIRING_CLOUDFLARE_KV"
+    WIRING_CLOUDFLARE_KV_PROD: "secret://lumen/lumen/prod/WIRING_CLOUDFLARE_KV"
+
   subscribe:
     environments:
       - name: dev
@@ -56,8 +65,6 @@ spec:
     wiringComponents: "cloudflare-hyperdrive,cloudflare-kv"
     wiringEnvs: "stage,prod"
     wiringFixture: wiring.fixture.json
-    awsAccountId: "306024784101"
-    awsRegion: us-east-1
     orgName: sourceplane
     owner: sourceplane
     repo: lumen

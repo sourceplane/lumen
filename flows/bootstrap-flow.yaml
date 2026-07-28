@@ -1,0 +1,122 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: bootstrap-flow
+# Full first-boot of this product against its Orun Cloud workspace (the
+# `workspace:` in intent.yaml): verify CLI auth, repo allow-listing, and provider
+# integrations; create the five provider secrets from those integrations
+# (brokered — no value is ever typed or seen); then deploy the platform in
+# dependency-ordered batches, one PR each, requiring the PR checks AND the
+# merge's main convergence run green before the next batch starts.
+#
+# Run it from the repo root:   orun workflow run flows/bootstrap-flow.yaml
+# Operator prerequisites (once, documented in flows/README.md):
+#   - orun auth login --device            (approve at app.orun.dev/cli/device;
+#                                          a browser session in the workspace —
+#                                          the Chrome extension works when the
+#                                          operator is an agent)
+#   - Cloudflare + Supabase connected in the workspace (console → Integrations)
+#   - This repo allow-listed for CI OIDC (console → Git Repos; `orun cloud
+#     check` verifies — the CLI cannot grant it, the console can)
+inputs:
+  org:
+    type: string
+    default: "lumen"
+    description: >-
+      Workspace slug/id the secrets and runs resolve against. A fork MUST pass
+      its own workspace org (--set org=<slug>); the baseline default fails
+      loudly at preflight for any operator without access to it.
+steps:
+  - name: preflight
+    run:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "── auth"
+        orun auth status | grep -q "User:" || {
+          echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device (browser session in the workspace; the Chrome extension can approve it for agent operators)" >&2
+          exit 1
+        }
+        echo "── repo allow-list"
+        orun cloud check --org "{{ inputs.org }}" || {
+          echo "repo not allow-listed for {{ inputs.org }}: allow it in the console (Git Repos) — the CLI cannot grant this" >&2
+          exit 1
+        }
+        echo "── integrations (ACTIVE connections required)"
+        list="$(orun integrations list --org "{{ inputs.org }}" --json)"
+        active() {
+          printf '%s' "$list" | python3 -c "import json,sys; rows=json.load(sys.stdin); sys.exit(0 if any(r.get('provider')=='$1' and r.get('status')=='active' for r in rows) else 1)"
+        }
+        active cloudflare || { echo "no ACTIVE Cloudflare connection in {{ inputs.org }}: console → Integrations → Cloudflare → Connect (paste an Account API token per the in-console recipe)" >&2; exit 1; }
+        active supabase   || { echo "no ACTIVE Supabase connection in {{ inputs.org }}: console → Integrations → Supabase → Connect (OAuth; pick the organization that should own this product's projects)" >&2; exit 1; }
+    timeout: 2m
+
+  - name: create-secrets
+    needs: [preflight]
+    run: ["/bin/sh", "-c", "flows/create-secrets.sh {{ inputs.org }}"]
+    timeout: 5m
+
+  # ── Deploy batches (dependency order; each waits for PR checks AND the
+  #    merge's main convergence run — the deploy — to be green). ──
+  - name: batch-infra-foundation
+    needs: [create-secrets]
+    run: ["/bin/sh", "-c", "flows/batch.sh infra-foundation cloudflare-kv"]
+    timeout: 45m
+  # Split data batches: supabase must APPLY (its secretOutputs lease-publish
+  # SUPABASE_PROJECT_REF/DB_PASSWORD/DB_URL) before db-migrate and hyperdrive
+  # can even PLAN — their secretEnv refs resolve at job start.
+  - name: batch-data-a
+    needs: [batch-infra-foundation]
+    run: ["/bin/sh", "-c", "flows/batch.sh data-a supabase"]
+    timeout: 45m
+  - name: batch-data-b
+    needs: [batch-data-a]
+    run: ["/bin/sh", "-c", "flows/batch.sh data-b db-migrate cloudflare-hyperdrive"]
+    timeout: 60m
+  - name: batch-workers-a
+    needs: [batch-data-b]
+    run: ["/bin/sh", "-c", "flows/batch.sh workers-a policy-worker membership-worker events-worker projects-worker"]
+    timeout: 60m
+  - name: batch-workers-b
+    needs: [batch-workers-a]
+    run: ["/bin/sh", "-c", "flows/batch.sh workers-b identity-worker config-worker webhooks-worker notifications-worker metering-worker admin-worker"]
+    timeout: 90m
+  - name: batch-workers-c
+    needs: [batch-workers-b]
+    run: ["/bin/sh", "-c", "flows/batch.sh workers-c billing-worker integrations-worker"]
+    timeout: 60m
+  - name: batch-edge
+    needs: [batch-workers-c]
+    run: ["/bin/sh", "-c", "flows/batch.sh edge api-edge"]
+    timeout: 45m
+  - name: batch-console
+    needs: [batch-edge]
+    run: ["/bin/sh", "-c", "flows/batch.sh console web-console-next"]
+    timeout: 45m
+  # cloudflare-domain stays parked: its zone (lumen.app) must exist in the
+  # Cloudflare account first — see the restore note in its component.yaml.
+
+  - name: verify-live
+    needs: [batch-console]
+    run:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        ok=0; fail=0
+        for url in \
+          https://lumen-api-edge-stage.rahulvarghesepullely.workers.dev/health \
+          https://lumen-api-edge-prod.rahulvarghesepullely.workers.dev/health \
+          https://lumen-web-console-next-stage.rahulvarghesepullely.workers.dev \
+          https://lumen-web-console-next-prod.rahulvarghesepullely.workers.dev; do
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$url" || echo 000)"
+          if [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then
+            echo "✓ $url → $code"; ok=$((ok+1))
+          else
+            echo "✕ $url → $code" >&2; fail=$((fail+1))
+          fi
+        done
+        [ "$fail" -eq 0 ] || { echo "$fail endpoint(s) unhealthy" >&2; exit 1; }
+        echo "bootstrap complete: $ok live endpoints"
+    timeout: 5m

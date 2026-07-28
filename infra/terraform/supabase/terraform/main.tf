@@ -1,20 +1,20 @@
 terraform {
   required_version = ">= 1.15.0"
 
-  backend "s3" {
-    encrypt              = true
-    use_lockfile         = true
-    workspace_key_prefix = "env"
-  }
+  # State lives on the platform (SB1): the runner exports TF_HTTP_* per job
+  # (address = …/state/tfstate/{component}/{env}, run token as password), so
+  # this block stays empty — no S3 bucket, no AWS role, no workspaces (the
+  # environment is in the address).
+  backend "http" {}
 
   required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
     supabase = {
-      source  = "supabase/supabase"
-      version = "~> 1.0"
+      source = "supabase/supabase"
+      # Pinned below 1.6: from 1.6.0 the provider reads /billing/addons on
+      # every project create/read, and Supabase does not serve billing
+      # endpoints to OAuth tokens yet ("does not support oauth access") —
+      # which is exactly the credential the platform brokers.
+      version = "~> 1.5.1"
     }
     random = {
       source  = "hashicorp/random"
@@ -25,28 +25,12 @@ terraform {
 
 # --- Providers ---
 
-provider "aws" {
-  region = var.awsRegion
-
-  default_tags {
-    tags = {
-      ManagedBy   = "terraform"
-      Repository  = "${var.owner}/${var.repo}"
-      Component   = var.component
-      Environment = var.environment
-    }
-  }
-}
-
-# Authenticates via SUPABASE_ACCESS_TOKEN env var (mapped from SUPABASE_API_KEY in CI)
+# Authenticates via the SUPABASE_ACCESS_TOKEN env var (provider-native): a
+# short-lived Management-API token minted per run from the workspace's
+# Supabase integration, resolved into the job env by orun.
 provider "supabase" {}
 
 # --- Variables (standard Orun parameters) ---
-
-variable "awsRegion" {
-  type    = string
-  default = "us-east-1"
-}
 
 variable "orgName" {
   type    = string
@@ -104,10 +88,10 @@ variable "terraformVersion" {
 }
 
 # Supabase target identity. supabaseRegion comes from the component's
-# `spec.parameters`; supabaseOrgId is account-specific and injected as
-# TF_VAR_supabaseOrgId from the SUPABASE_ORG_ID CI secret (see
-# .github/workflows/ci.yml). Both are required (no default) so a missing value
-# fails plan loudly instead of silently pointing at the wrong org or region.
+# `spec.parameters`; supabaseOrgId is injected as TF_VAR_supabaseOrgId from the
+# workspace's SUPABASE_ORG_ID secret (org-id connection fact). Both are
+# required (no default) so a missing value fails plan loudly instead of
+# silently pointing at the wrong org or region.
 variable "supabaseOrgId" {
   type = string
 }
@@ -122,18 +106,6 @@ locals {
   supabase_org_id = var.supabaseOrgId
   supabase_region = var.supabaseRegion
   project_name    = "lumen-${var.environment}"
-  secret_name     = "${var.orgName}/lumen/supabase/${var.environment}"
-
-  supabase_secret_payload = {
-    project_ref       = supabase_project.this.id
-    project_url       = "https://${supabase_project.this.id}.supabase.co"
-    database_host     = "db.${supabase_project.this.id}.supabase.co"
-    database_port     = "5432"
-    database_name     = "postgres"
-    database_user     = "postgres"
-    database_password = random_password.db_password.result
-    connection_uri    = "postgresql://postgres:${random_password.db_password.result}@db.${supabase_project.this.id}.supabase.co:5432/postgres"
-  }
 }
 
 # --- Generate database password ---
@@ -154,34 +126,13 @@ resource "supabase_project" "this" {
   region            = local.supabase_region
 }
 
-# --- Store credentials in AWS Secrets Manager ---
-
-resource "aws_secretsmanager_secret" "supabase" {
-  name                    = local.secret_name
-  description             = "Supabase project credentials for ${local.project_name}"
-  recovery_window_in_days = 30
-
-  tags = {
-    Project     = local.project_name
-    Environment = var.environment
-  }
-
-  lifecycle {
-    # Keep the named secret as a stable container. Credential changes must create
-    # a new aws_secretsmanager_secret_version rather than replacing the secret,
-    # because AWS prevents immediate reuse of a deleted secret name during the
-    # recovery window.
-    prevent_destroy = true
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "supabase" {
-  secret_id      = aws_secretsmanager_secret.supabase.id
-  secret_string  = jsonencode(local.supabase_secret_payload)
-  version_stages = ["AWSCURRENT"]
-}
-
-# --- Outputs (non-secret only) ---
+# --- Outputs ---
+#
+# Credentials leave this module ONLY through the composition's wire-secrets
+# step (component.yaml `wireSecrets`), which pushes each named output into the
+# workspace's project/{{env}} secret rung via `orun secrets set` (value over
+# stdin, never argv). Consumers (cloudflare-hyperdrive, db-migrate, workers)
+# read the same keys back as secretEnv references. No Secrets Manager.
 
 output "project_ref" {
   description = "Supabase project reference ID"
@@ -198,13 +149,14 @@ output "project_url" {
   value       = "https://${supabase_project.this.id}.supabase.co"
 }
 
-output "secret_arn" {
-  description = "ARN of the AWS Secrets Manager secret storing credentials"
-  value       = aws_secretsmanager_secret.supabase.arn
+output "database_password" {
+  description = "Generated database password (sensitive; wired to orun secrets)"
+  value       = random_password.db_password.result
+  sensitive   = true
 }
 
-output "database_password" {
-  description = "Generated database password (sensitive)"
-  value       = random_password.db_password.result
+output "connection_uri" {
+  description = "Direct Postgres connection URI (sensitive; wired to orun secrets)"
+  value       = "postgresql://postgres:${random_password.db_password.result}@db.${supabase_project.this.id}.supabase.co:5432/postgres"
   sensitive   = true
 }

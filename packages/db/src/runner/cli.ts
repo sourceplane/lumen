@@ -3,15 +3,13 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { manifest } from "../manifest.js";
 import { runMigrations } from "./runner.js";
-import { loadSecret } from "./secrets.js";
+import { loadSecretFromEnv } from "./secrets.js";
 import { SupabaseApiAdapter } from "./supabase-api-adapter.js";
 import type { MigrationAdapter, RunMode } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = resolve(__dirname, "../migrations");
 
-const SECRET_PREFIX = "sourceplane/lumen/supabase";
-const AWS_REGION = process.env["AWS_REGION"] ?? "us-east-1";
 const SUPABASE_ACCESS_TOKEN = process.env["SUPABASE_ACCESS_TOKEN"];
 
 function usage(): never {
@@ -26,8 +24,8 @@ function usage(): never {
     `  --env <stage|prod>       target environment (required)\n` +
     `\n` +
     `Environment:\n` +
-    `  AWS_REGION               AWS region for Secrets Manager (default: us-east-1)\n` +
-    `  SUPABASE_ACCESS_TOKEN    Supabase management API token (required for apply)\n`,
+    `  SUPABASE_ACCESS_TOKEN    Supabase management API token (required for apply)\n` +
+    `  SUPABASE_PROJECT_REF     Supabase project ref (required for apply; wired from orun secrets)\n`,
   );
   process.exit(1);
 }
@@ -80,9 +78,8 @@ async function resolveAdapter(
     throw new Error("SUPABASE_ACCESS_TOKEN is required for apply mode");
   }
 
-  const secretName = `${SECRET_PREFIX}/${env}`;
-  process.stderr.write(`Loading credentials from Secrets Manager: ${secretName}\n`);
-  const secret = await loadSecret(secretName, AWS_REGION);
+  process.stderr.write(`Loading credentials from the wired environment (orun secrets)\n`);
+  const secret = loadSecretFromEnv();
 
   return new SupabaseApiAdapter(secret.project_ref, SUPABASE_ACCESS_TOKEN);
 }

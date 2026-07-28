@@ -90,11 +90,26 @@ ignore:
   # happens to have built — and a fork would ship with the BASELINE's rendered
   # config baked in.
   #
-  # wrangler.jsonc is the important one: it is rendered from
+  # For the TEMPLATED workers, wrangler.jsonc is rendered from
   # wrangler.template.jsonc at deploy time and carries resolved values
   # (baseline domains, and per BF6 the deploy-time binding IDs that must never
-  # be committed). Only the committed *.template.jsonc belongs in a fork.
-  - wrangler.jsonc
+  # be committed) — those renders are ignored EXPLICITLY, per app. The two
+  # legacy non-templated workers (policy-worker, web-console-next) COMMIT
+  # their wrangler.jsonc as the real config; a global ignore silently dropped
+  # them from forks (their verify lanes then failed `test -f`), which is why
+  # this list names paths instead of a pattern.
+  - apps/admin-worker/wrangler.jsonc
+  - apps/api-edge/wrangler.jsonc
+  - apps/billing-worker/wrangler.jsonc
+  - apps/config-worker/wrangler.jsonc
+  - apps/events-worker/wrangler.jsonc
+  - apps/identity-worker/wrangler.jsonc
+  - apps/integrations-worker/wrangler.jsonc
+  - apps/membership-worker/wrangler.jsonc
+  - apps/metering-worker/wrangler.jsonc
+  - apps/notifications-worker/wrangler.jsonc
+  - apps/projects-worker/wrangler.jsonc
+  - apps/webhooks-worker/wrangler.jsonc
   - "*.tsbuildinfo"
 
 # ── MODULES ───────────────────────────────────────────────────────────────
@@ -146,11 +161,6 @@ modules:
     from: tests/billing-worker
     to: tests/billing-worker
     dependsOn: [billing-worker, contracts, db]
-  - name: bootstrap
-    mode: copy
-    source: baseline
-    from: infra/terraform/bootstrap
-    to: infra/terraform/bootstrap
   - name: cli
     mode: copy
     source: baseline
@@ -334,11 +344,11 @@ modules:
     from: packages/sdk
     to: packages/sdk
     dependsOn: [contracts]
-  - name: secrets-sync-tests
+  - name: flows
     mode: copy
     source: baseline
-    from: tests/secrets-sync
-    to: tests/secrets-sync
+    from: flows
+    to: flows
   - name: shared
     mode: copy
     source: baseline
@@ -519,9 +529,9 @@ phases:
   - name: foundation
     modules: [cli, contracts, contracts-tests, db, db-tests, notifications-client, notifications-client-tests, policy-engine, policy-engine-tests, sdk, shared, testing, webhook-verifier]
   - name: infrastructure
-    modules: [bootstrap, cloudflare-hyperdrive, cloudflare-kv, db-migrate, supabase]
+    modules: [cloudflare-hyperdrive, cloudflare-kv, db-migrate, supabase]
   - name: workers
-    modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, secrets-sync-tests, webhooks-worker, webhooks-worker-tests]
+    modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, webhooks-worker, webhooks-worker-tests]
   - name: edge
     modules: [api-edge, api-edge-tests]
   - name: console
@@ -530,7 +540,7 @@ phases:
     modules: [cloudflare-domain]
   - name: workspace
     description: Root manifests, tooling, compositions, and the rebrand values file.
-    modules: [agents, ai-context, github-workflows, rebrand-values, root-forking, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling, vscode]
+    modules: [agents, ai-context, flows, github-workflows, rebrand-values, root-forking, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling, vscode]
 
 # ── HOOKS ─────────────────────────────────────────────────────────────────
 # Declared, ecosystem-specific, run OUTSIDE the template sandbox and opt-in
