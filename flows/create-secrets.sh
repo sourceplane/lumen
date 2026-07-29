@@ -3,7 +3,11 @@
 # integrations — brokered/fact templates only, so NO credential value is ever
 # typed, seen, or stored here. Idempotent: keys that already exist are kept.
 #
-#   flows/create-secrets.sh <org>
+#   flows/create-secrets.sh <org> [--dry-run|true]
+#
+# Dry run (second arg "--dry-run" or "true"): report per-key what WOULD
+# happen (kept / recreated / created) against the current connections and
+# exit without creating, revoking, or rotating anything.
 #
 # | Key                         | Provider   | Template          | What resolves |
 # |-----------------------------|------------|-------------------|---------------|
@@ -14,7 +18,9 @@
 # | SUPABASE_ORG_ID             | supabase   | org-id            | connection fact (non-secret)      |
 set -euo pipefail
 
-org="${1:?usage: create-secrets.sh <org>}"
+org="${1:?usage: create-secrets.sh <org> [--dry-run|true]}"
+dry_run=0
+case "${2:-}" in --dry-run|true) dry_run=1 ;; esac
 
 connections="$(orun integrations list --org "$org" --json)"
 conn_for() {
@@ -54,8 +60,18 @@ create() { # key provider connection template
   case "$(state "$1")" in
     ok)      echo "✓ $1 exists and is healthy — kept"; return ;;
     orphaned)
+      if [ "$dry_run" = "1" ]; then
+        echo "DRY RUN: ↻ $1 is orphaned — would revoke and recreate against $3 ($2/$4)"
+        return
+      fi
       echo "↻ $1 is orphaned (its connection was revoked) — recreating against the current connection"
       orun secrets revoke "$1" --org "$org" --project --yes 2>/dev/null || orun secrets revoke "$1" --org "$org" --project 2>/dev/null || true
+      ;;
+    absent)
+      if [ "$dry_run" = "1" ]; then
+        echo "DRY RUN: + $1 would be created against $3 ($2/$4)"
+        return
+      fi
       ;;
   esac
   orun integrations "$2" secret create "$1" --org "$org" --connection "$3" --template "$4" --project
@@ -68,5 +84,9 @@ create CLOUDFLARE_ACCOUNT_ID       cloudflare "$cf" account-id
 create SUPABASE_ACCESS_TOKEN       supabase   "$sb" management-access
 create SUPABASE_ORG_ID             supabase   "$sb" org-id
 
+if [ "$dry_run" = "1" ]; then
+  echo "DRY RUN: no secrets were created, revoked, or rotated."
+  exit 0
+fi
 echo "secrets ready:"
 orun secrets list --org "$org" --project

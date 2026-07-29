@@ -25,6 +25,15 @@ metadata:
 #   - This repo allow-listed for CI OIDC (console → Git Repos; `orun cloud
 #     check` verifies — the CLI cannot grant it, the console can)
 inputs:
+  dryrun:
+    type: string
+    default: "false"
+    description: >-
+      "true" previews every step without changing anything: connections and
+      secret health are read and reported, the unpark/strip diff is shown and
+      reverted, no push happens, converge only reports the latest main run,
+      and verify-live reports endpoint codes without failing. Run:
+      orun workflow run flows/bootstrap-flow.yaml --set org=<slug> --set dryrun=true
   org:
     type: string
     default: "lumen"
@@ -75,7 +84,7 @@ steps:
   - name: create-secrets
     needs: [preflight]
     # Steps execute in .orun/wfruns/<exec>/ — resolve the repo root first.
-    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/create-secrets.sh {{ inputs.org }}"]
+    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/create-secrets.sh {{ inputs.org }} \"{{ inputs.dryrun }}\""]
     timeout: 5m
 
   # ── Single-run deploy ────────────────────────────────────────────────────
@@ -102,6 +111,14 @@ steps:
           exit 0
         fi
         node tooling/bootstrap/cycle-break.mjs --strip
+        if [ "{{ inputs.dryrun }}" = "true" ]; then
+          echo "DRY RUN: this change would be pushed to main (then reverted locally):"
+          git status --short
+          git diff --stat | tail -3
+          git checkout -q -- .
+          echo "DRY RUN: working tree reverted — nothing pushed"
+          exit 0
+        fi
         flows/push-main.sh deploy-all \
           "bootstrap: enable full fleet (single-run deploy, feedback edges stripped)" \
           "Un-parks every deployable component except cloudflare-domain and strips the service-binding feedback edges; this push's main convergence run deploys the entire platform in dependency order."
@@ -109,7 +126,19 @@ steps:
 
   - name: converge
     needs: [deploy-all]
-    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/converge.sh '' 3"]
+    run:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        cd "$(git rev-parse --show-toplevel)"
+        if [ "{{ inputs.dryrun }}" = "true" ]; then
+          echo "DRY RUN: would wait for the main convergence run (resume budget 3); latest main run:"
+          gh run list --branch main --limit 1 --json databaseId,status,conclusion \
+            --jq '.[0]|"  run \(.databaseId): \(.status) \(.conclusion // "-")"'
+          exit 0
+        fi
+        flows/converge.sh '' 3
     timeout: 120m
 
   # Second (final) push: put the stripped service bindings back — every worker
@@ -122,6 +151,11 @@ steps:
       - |
         set -e
         cd "$(git rev-parse --show-toplevel)"
+        if [ "{{ inputs.dryrun }}" = "true" ]; then
+          echo "DRY RUN: stripped-edge state (would restore and push if any):"
+          node tooling/bootstrap/cycle-break.mjs --check
+          exit 0
+        fi
         git checkout main -q && git pull -q
         node tooling/bootstrap/cycle-break.mjs --restore
         if git diff --quiet; then
@@ -153,6 +187,10 @@ steps:
             echo "✕ $url → $code" >&2; fail=$((fail+1))
           fi
         done
+        if [ "{{ inputs.dryrun }}" = "true" ]; then
+          echo "DRY RUN: $ok healthy, $fail unhealthy (not failing the step)"
+          exit 0
+        fi
         [ "$fail" -eq 0 ] || { echo "$fail endpoint(s) unhealthy" >&2; exit 1; }
         echo "bootstrap complete: $ok live endpoints"
     timeout: 5m

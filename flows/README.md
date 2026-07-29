@@ -36,6 +36,13 @@ The workflow preflights each of these; the two console steps can be clicked
 orun workflow run flows/bootstrap-flow.yaml --set org=<org>
 ```
 
+Add `--set dryrun=true` to preview the whole flow with zero side effects:
+secret actions are reported instead of executed, the unpark/strip diff is
+shown and reverted (nothing pushed), converge only reports the latest main
+run, and verify-live reports endpoint codes without failing the step.
+`orun workflow validate flows/bootstrap-flow.yaml` checks the file itself;
+`orun workflow view` renders the DAG.
+
 - **preflight** — auth, allow-list, then POLLS for ACTIVE Cloudflare +
   Supabase connections (up to 10m, printing the console URL) so the OAuth
   consents can be granted while the flow runs.
