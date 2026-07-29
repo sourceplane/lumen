@@ -47,7 +47,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"
@@ -75,7 +78,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"
@@ -103,7 +109,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"
@@ -130,7 +139,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"
@@ -158,7 +170,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"
@@ -187,7 +202,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"

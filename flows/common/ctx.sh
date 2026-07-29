@@ -17,7 +17,8 @@ ctx_out="${3:-}"
 if [ -n "$ctx_out" ]; then
   P="$ctx_out"
 elif [ -n "$ctx_repo" ]; then
-  P="$PWD/product"
+  case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+  P="$W/product"
   if [ ! -e "$P/.git" ]; then
     echo "fetching product repo $ctx_repo"
     git clone -q --config credential.helper='!gh auth git-credential' \

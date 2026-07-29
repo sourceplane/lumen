@@ -132,7 +132,8 @@ orun workflow run github:sourceplane/lumen@<ref>//flows/phases/02-foundation/wor
 | `ORUN_TOKEN` | orun access token; preflight authenticates with it (no login flow) |
 | `GITHUB_TOKEN` | fine-grained PAT: **read** on `sourceplane/lumen` (baseline fetch); on the PRODUCT repo: **contents write** (pushes), **pull-requests write** (landings), **actions read+write** (converge watches runs and auto-resumes via `gh run rerun`), **checks read**; **repo create** on the org if phase 01 creates the repo (or pre-create it — supported) |
 | pinning | the `@<ref>` in the remote reference pins EVERYTHING — the flow fetches its baseline at that exact commit (`ORUN_FLOW_SOURCE_SHA`). Use a tag for reproducible bootstraps; `@main` for latest |
-| workdir | phases share `./baseline` and `./product` in the container cwd; re-running a phase reuses both (idempotent) |
+| workdir | phases share `baseline/` and `product/` anchored at the invocation cwd (stable across phases and re-runs — idempotent) |
+| classic-token caveat | a CLASSIC PAT or gh OAuth token additionally needs the `workflow` scope to push `.github/workflows/` (hit live); fine-grained PATs need only `contents: write` |
 | identity | commits fall back to `bootstrap-bot` when no git identity is configured |
 
 ## 4. After the baseline is live

@@ -60,7 +60,10 @@ steps:
         if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
           L="$BL"
         else
-          L="$PWD/baseline"
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
           if [ ! -e "$L/.git" ]; then
             brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
             bref="{{ inputs.baselineref }}"
@@ -73,7 +76,10 @@ steps:
           fi
         fi
         out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$PWD/product"
+        if [ -z "$out" ]; then
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          out="$W/product"
+        fi
         if [ "{{ inputs.dryrun }}" = "true" ]; then
           out="$(mktemp -d)/scaffold-preview"
           echo "DRY RUN: rendering scaffold into $out"
@@ -124,7 +130,10 @@ steps:
         set -euo pipefail
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would git init + gh repo create {{ inputs.githuborg }}/{{ inputs.reponame }} --private --push"; exit 0; }
         out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$PWD/product"
+        if [ -z "$out" ]; then
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          out="$W/product"
+        fi
         cd "$out"
         [ -d .git ] || git init -q -b main
         git config credential.helper '!gh auth git-credential'
@@ -160,7 +169,10 @@ steps:
         set -euo pipefail
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would orun cloud link --org {{ inputs.workspace }}"; exit 0; }
         out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$PWD/product"
+        if [ -z "$out" ]; then
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          out="$W/product"
+        fi
         cd "$out"
         orun cloud link --org "{{ inputs.workspace }}" || true
         orun cloud check --org "{{ inputs.workspace }}" || {
