@@ -83,7 +83,8 @@ batches.
 ## Phased bootstrap — at your own pace
 
 The same journey, split into seven independent workflows under
-`flows/phases/`, each self-contained: **apply its blueprint slice → land it
+`flows/phases/` — full guide in [flows/phases/README.md](phases/README.md),
+with a detailed README in every phase folder — each self-contained: **apply its blueprint slice → land it
 as a PR → watch the deployment convergence (auto-resumed) → verify**. Run
 one phase today and the next whenever — every phase is idempotent and
 re-runnable, and all of them share `flows/common/`.
