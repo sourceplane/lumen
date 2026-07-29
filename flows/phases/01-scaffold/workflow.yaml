@@ -101,10 +101,19 @@ steps:
         [ -d .git ] || git init -q -b main
         git add -A
         git diff --cached --quiet || git commit -q -m "scaffold: {{ inputs.reponame }} from the baseline workspace blueprint"
-        if ! git remote get-url origin >/dev/null 2>&1; then
-          gh repo create "{{ inputs.githuborg }}/{{ inputs.reponame }}" --private --source . --push
-        else
+        # Three supported states, in order: origin already wired → push;
+        # repo pre-created on GitHub (org policy may restrict creation to
+        # admins) → wire origin and push; nothing anywhere → create private
+        # repo and push. Idempotent across re-runs in every case.
+        slug="{{ inputs.githuborg }}/{{ inputs.reponame }}"
+        if git remote get-url origin >/dev/null 2>&1; then
           git push -qu origin main
+        elif gh repo view "$slug" >/dev/null 2>&1; then
+          echo "repo $slug already exists on GitHub — wiring origin and pushing"
+          git remote add origin "git@github.com:$slug.git"
+          git push -qu origin main
+        else
+          gh repo create "$slug" --private --source . --push
         fi
     timeout: 5m
 

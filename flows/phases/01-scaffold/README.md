@@ -43,11 +43,23 @@ The repo ROOT — no deployable components yet:
    are replicated inline), then `git init`, rebrand
    (`tooling/rebrand/rebrand.mjs --values .rebrand/values.json`), and the
    intent `workspace:` rewrite.
-2. **repo** — initial commit, `gh repo create <org>/<repo> --private
-   --source . --push` (or plain push when the remote already exists).
+2. **repo — THE GitHub repo creation step.** This is where the repo comes
+   to exist on the git side; no other phase touches repo creation. Three
+   states are supported, in order:
+   - `origin` already wired locally → push;
+   - the repo was **pre-created on GitHub** (org policy may restrict repo
+     creation to admins — create it empty, no README) → the step detects
+     it (`gh repo view`), wires `origin`, and pushes;
+   - nothing exists anywhere → `gh repo create <githuborg>/<reponame>
+     --private --source . --push`.
+
+   Requires `gh` authenticated with repo-creation (or at least push)
+   rights on `<githuborg>`.
 3. **link** — `orun cloud link --org <workspace>` + `orun cloud check`
    (records the numeric repo id the CI OIDC exchange resolves by, and
-   allow-lists CI).
+   allow-lists CI). Runs after **repo** because the link resolves the git
+   remote — which is also why repo creation lives in THIS phase and not
+   later: everything after phase 01 assumes a pushed, linked repo.
 
 ## Verify / done means
 

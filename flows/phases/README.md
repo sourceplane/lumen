@@ -18,7 +18,7 @@ anything else can build or deploy:
 
 | # | folder | blueprint | lands | verified by |
 |---|--------|-----------|-------|-------------|
-| 01 | [`01-scaffold`](01-scaffold/README.md) | 07-workspace | repo born: intent, CI, flows, tooling, identity | repo pushed + workspace-linked |
+| 01 | [`01-scaffold`](01-scaffold/README.md) | 07-workspace | **GitHub repo created** + repo born: intent, CI, flows, tooling, identity | repo pushed + workspace-linked |
 | 02 | [`02-foundation`](02-foundation/README.md) | 01-foundation | 13 shared packages | verify lanes green |
 | 03 | [`03-infrastructure`](03-infrastructure/README.md) | 02-infrastructure | kv, supabase, db-migrate, hyperdrive | published `WIRING_*` / `SUPABASE_*` secrets |
 | 04 | [`04-workers`](04-workers/README.md) | 03-workers | the 12-worker fleet (two landings) | convergence green, bindings restored |
