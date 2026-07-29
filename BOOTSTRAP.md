@@ -91,8 +91,9 @@ final push restoring the service bindings → live-endpoint verification.
 Prefer landing the product slice by slice — each with its own PR, deploy,
 and verification? `flows/phases/01-scaffold … 07-domain` are seven
 independent workflows (phase 01 replaces steps 2–3 above; later phases need
-only `--set out=… --set workspace=…`). See the table in
-[flows/README.md](flows/README.md). Every phase supports
+only `--set out=… --set workspace=…`). Full guide:
+[flows/phases/README.md](flows/phases/README.md), with a detailed README in
+every phase folder. Every phase supports
 `--set dryrun=true`.
 
 ## 4. After the baseline is live
