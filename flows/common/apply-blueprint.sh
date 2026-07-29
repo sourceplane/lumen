@@ -21,6 +21,34 @@ vals="$out/.rebrand/values.json"
 [ -f "$vals" ] || { echo "apply-blueprint: no $vals — run the scaffold phase (flows/phases/01-scaffold) first" >&2; exit 1; }
 getv() { python3 -c "import json;print(json.load(open('$vals')).get('$1') or '')"; }
 
+# The workspace SLUG is what `secret://<workspace>/…` refs must carry (a ws_…
+# id is not accepted there). Resolve it once from the platform and record it,
+# so every phase's rebrand renames the workspace segment correctly — and so a
+# product scaffolded before this existed self-heals on its next phase.
+if [ -z "$(getv orunWorkspaceSlug)" ]; then
+  slug="$ws"
+  case "$ws" in
+    ws_*|WS_*)
+      slug="$( (cd "$out" && orun cloud check --org "$ws" 2>/dev/null) \
+        | sed -n 's/.*allow-listed for org \([A-Za-z0-9_-]*\).*/\1/p' | head -1)"
+      ;;
+  esac
+  if [ -n "$slug" ] && [ "$slug" != "$ws" -o "${ws#ws_}" = "$ws" ]; then
+    python3 - "$vals" "$slug" <<'PY'
+import json, sys
+p, slug = sys.argv[1], sys.argv[2]
+d = json.load(open(p))
+d["orunWorkspaceSlug"] = slug
+json.dump(d, open(p, "w"), indent=2)
+open(p, "a").write("\n")
+PY
+    echo "apply-blueprint: workspace slug for secret refs = $slug"
+  else
+    echo "apply-blueprint: could not resolve the workspace SLUG for $ws — secret:// refs would name the wrong workspace. Pass a slug as --set workspace=<slug>, or set orunWorkspaceSlug in .rebrand/values.json." >&2
+    exit 1
+  fi
+fi
+
 sets=(
   --set "repoName=$(getv repoName)"
   --set "productName=$(getv productName)"
