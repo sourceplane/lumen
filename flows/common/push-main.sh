@@ -5,12 +5,12 @@
 # plain merge when the actor lacks admin bypass; in that case required checks
 # must pass first (bootstrap PRs' own lanes are plan/verify-only).
 #
-#   flows/push-main.sh <branch-suffix> <title> [body]
+#   flows/common/push-main.sh <branch-suffix> <title> [body]
 set -euo pipefail
 
 suffix="${1:?usage: push-main.sh <branch-suffix> <title> [body]}"
 title="${2:?usage: push-main.sh <branch-suffix> <title> [body]}"
-body="${3:-Automated bootstrap push (flows/push-main.sh).}"
+body="${3:-Automated bootstrap push (flows/common/push-main.sh).}"
 
 if git diff --quiet && git diff --cached --quiet; then
   echo "push-main: nothing to land"

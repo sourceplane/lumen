@@ -1,0 +1,75 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: phase-05-edge
+# Phase 5: the API edge (blueprints/04-edge.yaml). Verifies /health live on
+# stage and prod after convergence.
+# Run FROM THE BASELINE checkout:
+#   orun workflow run flows/phases/05-edge/workflow.yaml \
+#     --set out=<product-repo-path> --set workspace=<ws-id>
+inputs:
+  out:
+    type: string
+    description: Absolute path of the product repo (created by phase 01-scaffold).
+  workspace:
+    type: string
+    description: Workspace id (ws_…) or slug this product deploys against.
+  dryrun:
+    type: string
+    default: "false"
+    description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
+steps:
+  - name: preflight
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        cd "{{ inputs.out }}"
+        "$L/flows/common/preflight.sh" "{{ inputs.workspace }}"
+    timeout: 12m
+  - name: apply
+    needs: [preflight]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/04-edge.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+    timeout: 10m
+  - name: land
+    needs: [apply]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
+        "$L/flows/common/land-pr.sh" "{{ inputs.out }}" 05-edge "phase(05-edge): api-edge"
+    timeout: 30m
+  - name: converge
+    needs: [land]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would watch the main convergence run (resume budget 3)"; exit 0; }
+        cd "{{ inputs.out }}"
+        "$L/flows/common/converge.sh" '' 3
+    timeout: 45m
+  - name: verify
+    needs: [converge]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would probe api-edge /health"; exit 0; }
+        "$L/flows/common/verify-endpoints.sh" "{{ inputs.out }}" edge
+    timeout: 5m

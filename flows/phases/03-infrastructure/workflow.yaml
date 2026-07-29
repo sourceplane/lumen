@@ -1,0 +1,95 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: phase-03-infrastructure
+# Phase 3: data infrastructure (blueprints/02-infrastructure.yaml —
+# cloudflare-kv, supabase, db-migrate, cloudflare-hyperdrive). First phase
+# that DEPLOYS: preflight gates on the three provider connections, brokered
+# secrets are created, and the merge's convergence applies terraform in DAG
+# order — its outputs land as job-output secrets (SUPABASE_*, WIRING_*),
+# which the verify step asserts.
+# Run FROM THE BASELINE checkout:
+#   orun workflow run flows/phases/03-infrastructure/workflow.yaml \
+#     --set out=<product-repo-path> --set workspace=<ws-id>
+inputs:
+  out:
+    type: string
+    description: Absolute path of the product repo (created by phase 01-scaffold).
+  workspace:
+    type: string
+    description: Workspace id (ws_…) or slug this product deploys against.
+  dryrun:
+    type: string
+    default: "false"
+    description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
+steps:
+  - name: preflight
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        cd "{{ inputs.out }}"
+        "$L/flows/common/preflight.sh" "{{ inputs.workspace }}"
+    timeout: 12m
+  - name: secrets
+    needs: [preflight]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        cd "{{ inputs.out }}"
+        "$L/flows/common/create-secrets.sh" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+    timeout: 5m
+  - name: apply
+    needs: [secrets]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/02-infrastructure.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+    timeout: 10m
+  - name: land
+    needs: [apply]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
+        "$L/flows/common/land-pr.sh" "{{ inputs.out }}" 03-infrastructure "phase(03-infrastructure): kv, supabase, db-migrate, hyperdrive"
+    timeout: 30m
+  - name: converge
+    needs: [land]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would watch the main convergence run (resume budget 3)"; exit 0; }
+        cd "{{ inputs.out }}"
+        "$L/flows/common/converge.sh" '' 3
+    timeout: 60m
+  - name: verify
+    needs: [converge]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would assert published job-output secrets"; exit 0; }
+        missing=""
+        for key in WIRING_CLOUDFLARE_KV WIRING_CLOUDFLARE_HYPERDRIVE SUPABASE_PROJECT_REF; do
+          orun secrets list --org "{{ inputs.workspace }}" --env stage 2>/dev/null | grep -q "$key" || missing="$missing $key"
+        done
+        [ -z "$missing" ] || { echo "expected job-output secrets missing on stage:$missing" >&2; exit 1; }
+        echo "infrastructure verified: terraform outputs published"
+    timeout: 5m

@@ -61,7 +61,7 @@ run, and verify-live reports endpoint codes without failing the step.
   orders supabase → db-migrate/cloudflare-hyperdrive → the worker fleet →
   api-edge → web-console-next inside the ONE run; terraform applies
   lease-publish their outputs (`SUPABASE_*`, `WIRING_*`) and downstream lanes
-  resolve them at claim time. `flows/converge.sh` auto-resumes the run
+  resolve them at claim time. `flows/common/converge.sh` auto-resumes the run
   through transient failures (`gh run rerun --failed`; CI is
   exec-id + `--retry` resume-capable), budget 3 — a real regression still
   fails every resume and surfaces.
@@ -71,14 +71,53 @@ run, and verify-live reports endpoint codes without failing the step.
 - **verify-live** — curls the deployed api-edge `/health` + console endpoints
   on both environments and fails on any dead endpoint.
 
-Every step is also runnable by hand (`flows/converge.sh [run-id] [resumes]`,
-`flows/create-secrets.sh <org>`, `node flows/park.mjs unpark --all`), and a
+Every step is also runnable by hand (`flows/common/converge.sh [run-id] [resumes]`,
+`flows/common/create-secrets.sh <org>`, `node flows/common/park.mjs unpark --all`), and a
 failed flow resumes by re-running the workflow — completed steps are no-ops
 (the fleet is already un-parked, `cycle-break --strip/--restore` are
 idempotent, and secrets self-heal). `flows/batch.sh <name> <components…>`
 remains for *incremental* rollouts after the baseline is live (it PRs a batch
 and waits for checks + convergence), but the bootstrap itself no longer
 batches.
+
+## Phased bootstrap — at your own pace
+
+The same journey, split into seven independent workflows under
+`flows/phases/`, each self-contained: **apply its blueprint slice → land it
+as a PR → watch the deployment convergence (auto-resumed) → verify**. Run
+one phase today and the next whenever — every phase is idempotent and
+re-runnable, and all of them share `flows/common/`.
+
+All phase workflows run FROM THE BASELINE checkout. Phase 01 takes the
+identity inputs and writes them into the product repo
+(`.rebrand/values.json`); every later phase needs only `out` + `workspace`
+(+ optional `dryrun=true` to preview without changing anything):
+
+| # | workflow | blueprint | lands / verifies |
+|---|---|---|---|
+| 01 | `phases/01-scaffold` | 07-workspace | repo born + pushed + linked (intent, CI, flows, tooling) |
+| 02 | `phases/02-foundation` | 01-foundation | 13 shared packages; verify lanes green |
+| 03 | `phases/03-infrastructure` | 02-infrastructure | kv, supabase, db-migrate, hyperdrive; asserts published `WIRING_*`/`SUPABASE_*` |
+| 04 | `phases/04-workers` | 03-workers | 12 workers (feedback edges stripped, then restored — two landings) |
+| 05 | `phases/05-edge` | 04-edge | api-edge; `/health` live on stage+prod |
+| 06 | `phases/06-console` | 05-console | web console; console + edge live |
+| 07 | `phases/07-domain` | 06-domain | OPTIONAL — custom domain (zone must exist first) |
+
+```bash
+orun workflow run flows/phases/01-scaffold/workflow.yaml \
+  --set out=$HOME/sourceplane/acme --set workspace=ws_… \
+  --set reponame=acme --set productname="Acme Cloud" \
+  --set productdomain=acme.dev --set subdomain=<workers-dev-subdomain>
+
+orun workflow run flows/phases/02-foundation/workflow.yaml \
+  --set out=$HOME/sourceplane/acme --set workspace=ws_…
+# … and so on, at your pace.
+```
+
+Express vs phased: the single `bootstrap-flow.yaml` (above) instantiates the
+full tree parked and deploys everything in ONE convergence run; the phased
+path builds the repo incrementally — each phase's merge deploys exactly that
+slice, no parking involved. Same scripts, same guarantees.
 
 ## First-boot ordering guarantees (why one run works)
 

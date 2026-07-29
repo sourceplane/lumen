@@ -10,9 +10,9 @@
 // mechanism the baseline uses to park cloudflare-domain.)
 //
 // Usage:
-//   node flows/park.mjs park           # park every deployable component
-//   node flows/park.mjs unpark <name>… # restore named components
-//   node flows/park.mjs status         # list parked / live
+//   node flows/common/park.mjs park           # park every deployable component
+//   node flows/common/park.mjs unpark <name>… # restore named components
+//   node flows/common/park.mjs status         # list parked / live
 //
 // Verify-only components (turbo-package builds and tests) are never parked —
 // they carry no deploy profile, and their lanes are the fleet smoke-check.
@@ -72,7 +72,7 @@ if (mode === "park") {
     if (!sub || /environments:\s*\[\]/.test(sub.block)) continue;
     fs.writeFileSync(path.join(STASH_DIR, `${name}.yaml`), sub.block);
     const replacement =
-      "  # PARKED by flows/park.mjs — restored per bootstrap batch\n" +
+      "  # PARKED by flows/common/park.mjs — restored per bootstrap batch\n" +
       "  # (flows/bootstrap-flow.yaml); original block in\n" +
       `  # ${STASH_DIR}/${name}.yaml\n` +
       "  subscribe:\n    environments: []\n";

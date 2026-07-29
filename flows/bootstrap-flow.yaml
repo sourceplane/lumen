@@ -107,7 +107,7 @@ steps:
   - name: create-secrets
     needs: [preflight]
     # Steps execute in .orun/wfruns/<exec>/ — resolve the repo root first.
-    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/create-secrets.sh {{ inputs.workspace }} \"{{ inputs.dryrun }}\""]
+    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/common/create-secrets.sh {{ inputs.workspace }} \"{{ inputs.dryrun }}\""]
     timeout: 5m
 
   # ── Single-run deploy ────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ steps:
         set -e
         cd "$(git rev-parse --show-toplevel)"
         git checkout main -q && git pull -q
-        out="$(node flows/park.mjs unpark --all)"
+        out="$(node flows/common/park.mjs unpark --all)"
         echo "$out"
         if printf '%s' "$out" | grep -q "nothing stashed"; then
           echo "deploy-all: fleet already live — leaving bindings untouched"
@@ -142,7 +142,7 @@ steps:
           echo "DRY RUN: working tree reverted — nothing pushed"
           exit 0
         fi
-        flows/push-main.sh deploy-all \
+        flows/common/push-main.sh deploy-all \
           "bootstrap: enable full fleet (single-run deploy, feedback edges stripped)" \
           "Un-parks every deployable component except cloudflare-domain and strips the service-binding feedback edges; this push's main convergence run deploys the entire platform in dependency order."
     timeout: 5m
@@ -161,7 +161,7 @@ steps:
             --jq '.[0]|"  run \(.databaseId): \(.status) \(.conclusion // "-")"'
           exit 0
         fi
-        flows/converge.sh '' 3
+        flows/common/converge.sh '' 3
     timeout: 120m
 
   # Second (final) push: put the stripped service bindings back — every worker
@@ -185,9 +185,9 @@ steps:
           echo "restore-bindings: nothing stripped — already restored"
           exit 0
         fi
-        flows/push-main.sh restore-bindings \
+        flows/common/push-main.sh restore-bindings \
           "bootstrap: restore service-binding feedback edges (final wiring)"
-        flows/converge.sh '' 2
+        flows/common/converge.sh '' 2
     timeout: 60m
 
   - name: verify-live

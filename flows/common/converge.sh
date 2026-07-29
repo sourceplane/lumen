@@ -8,7 +8,7 @@
 # eviction) heals in place — a real regression still fails every resume and
 # surfaces after the budget.
 #
-#   flows/converge.sh [run-id] [max-resumes]
+#   flows/common/converge.sh [run-id] [max-resumes]
 #
 # With no run-id, waits for the newest run on main. Requires: gh authenticated.
 set -euo pipefail

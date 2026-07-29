@@ -5,7 +5,7 @@
 # The argument is the workspace id (ws_…) or slug; the CLI flag it feeds is
 # named --org for historical reasons.
 #
-#   flows/create-secrets.sh <workspace-id-or-slug> [--dry-run|true]
+#   flows/common/create-secrets.sh <workspace-id-or-slug> [--dry-run|true]
 #
 # Dry run (second arg "--dry-run" or "true"): report per-key what WOULD
 # happen (kept / recreated / created) against the current connections and
