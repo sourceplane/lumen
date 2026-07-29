@@ -50,6 +50,14 @@ orun cloud check --org <org>   # verifies the OIDC allow-list took
 orun workflow run flows/bootstrap-flow.yaml --set org=<org>
 ```
 
+To preview everything first without changing anything (no secrets created,
+no push, no deploy — reports connection/secret health, shows the exact
+unpark+strip diff and reverts it, and probes the endpoints without failing):
+
+```bash
+orun workflow run flows/bootstrap-flow.yaml --set org=<org> --set dryrun=true
+```
+
 Preflight **waits up to 10 minutes** for the two provider connections — grant
 them in the console (→ Integrations) while it polls:
 
