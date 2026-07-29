@@ -1,7 +1,7 @@
 # Phase 01 — scaffold
 
 Births the product repo from the **workspace blueprint**
-(`blueprints/07-workspace.yaml`) and connects it to its Orun Cloud
+(`flows/phases/01-scaffold/blueprint.yaml`) and connects it to its Orun Cloud
 workspace. After this phase the repo exists on GitHub, CI runs on every
 push, and every later phase can find the product's identity inside the
 repo itself.

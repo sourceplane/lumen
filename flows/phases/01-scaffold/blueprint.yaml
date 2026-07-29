@@ -53,7 +53,7 @@ inputs:
 sources:
 - name: baseline
   kind: dir
-  path: ..
+  path: ../../..
 ignore:
 - dist
 - coverage

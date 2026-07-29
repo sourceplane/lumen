@@ -1,6 +1,6 @@
 # Phase 07 — domain (OPTIONAL)
 
-Lands the **custom product domain** (`blueprints/06-domain.yaml`): DNS +
+Lands the **custom product domain** (`flows/phases/07-domain/blueprint.yaml`): DNS +
 routing terraform that puts the product on `<productdomain>` instead of
 workers.dev.
 

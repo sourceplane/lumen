@@ -1,9 +1,9 @@
 apiVersion: orun.dev/v1
 kind: Blueprint
 metadata:
-  name: lumen-baseline-domain
-  description: Phase 6/7 (domain) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
-    is enforced by running the phases in sequence into the same --out.
+  name: lumen-baseline-edge
+  description: Phase 4/7 (edge) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering is
+    enforced by running the phases in sequence into the same --out.
 inputs:
   repoName:
     type: string
@@ -53,7 +53,7 @@ inputs:
 sources:
 - name: baseline
   kind: dir
-  path: ..
+  path: ../../..
 ignore:
 - dist
 - coverage
@@ -75,12 +75,20 @@ ignore:
 - apps/webhooks-worker/wrangler.jsonc
 - '*.tsbuildinfo'
 modules:
-- name: cloudflare-domain
+- name: api-edge
   mode: copy
   source: baseline
-  from: infra/terraform/cloudflare-domain
-  to: infra/terraform/cloudflare-domain
+  from: apps/api-edge
+  to: apps/api-edge
+- name: api-edge-tests
+  mode: copy
+  source: baseline
+  from: tests/api-edge
+  to: tests/api-edge
+  dependsOn:
+  - api-edge
 phases:
-- name: domain
+- name: edge
   modules:
-  - cloudflare-domain
+  - api-edge
+  - api-edge-tests

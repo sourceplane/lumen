@@ -1,8 +1,8 @@
 apiVersion: orun.dev/v1
 kind: Blueprint
 metadata:
-  name: lumen-baseline-console
-  description: Phase 5/7 (console) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
+  name: lumen-baseline-infrastructure
+  description: Phase 2/7 (infrastructure) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
     is enforced by running the phases in sequence into the same --out.
 inputs:
   repoName:
@@ -53,7 +53,7 @@ inputs:
 sources:
 - name: baseline
   kind: dir
-  path: ..
+  path: ../../..
 ignore:
 - dist
 - coverage
@@ -75,20 +75,34 @@ ignore:
 - apps/webhooks-worker/wrangler.jsonc
 - '*.tsbuildinfo'
 modules:
-- name: web-console-next
+- name: cloudflare-hyperdrive
   mode: copy
   source: baseline
-  from: apps/web-console-next
-  to: apps/web-console-next
-- name: web-console-next-tests
-  mode: copy
-  source: baseline
-  from: tests/web-console-next
-  to: tests/web-console-next
+  from: infra/terraform/cloudflare-hyperdrive
+  to: infra/terraform/cloudflare-hyperdrive
   dependsOn:
-  - web-console-next
+  - supabase
+- name: cloudflare-kv
+  mode: copy
+  source: baseline
+  from: infra/terraform/cloudflare-kv
+  to: infra/terraform/cloudflare-kv
+- name: db-migrate
+  mode: copy
+  source: baseline
+  from: infra/db-migrate
+  to: infra/db-migrate
+  dependsOn:
+  - supabase
+- name: supabase
+  mode: copy
+  source: baseline
+  from: infra/terraform/supabase
+  to: infra/terraform/supabase
 phases:
-- name: console
+- name: infrastructure
   modules:
-  - web-console-next
-  - web-console-next-tests
+  - cloudflare-hyperdrive
+  - cloudflare-kv
+  - db-migrate
+  - supabase

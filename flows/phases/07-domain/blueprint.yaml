@@ -1,8 +1,8 @@
 apiVersion: orun.dev/v1
 kind: Blueprint
 metadata:
-  name: lumen-baseline-foundation
-  description: Phase 1/7 (foundation) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
+  name: lumen-baseline-domain
+  description: Phase 6/7 (domain) of lumen-baseline. Cross-phase dependsOn edges are pruned; ordering
     is enforced by running the phases in sequence into the same --out.
 inputs:
   repoName:
@@ -53,7 +53,7 @@ inputs:
 sources:
 - name: baseline
   kind: dir
-  path: ..
+  path: ../../..
 ignore:
 - dist
 - coverage
@@ -75,107 +75,12 @@ ignore:
 - apps/webhooks-worker/wrangler.jsonc
 - '*.tsbuildinfo'
 modules:
-- name: cli
+- name: cloudflare-domain
   mode: copy
   source: baseline
-  from: packages/cli
-  to: packages/cli
-  dependsOn:
-  - sdk
-  - webhook-verifier
-- name: contracts
-  mode: copy
-  source: baseline
-  from: packages/contracts
-  to: packages/contracts
-- name: contracts-tests
-  mode: copy
-  source: baseline
-  from: tests/contracts
-  to: tests/contracts
-  dependsOn:
-  - contracts
-  - testing
-- name: db
-  mode: copy
-  source: baseline
-  from: packages/db
-  to: packages/db
-- name: db-tests
-  mode: copy
-  source: baseline
-  from: tests/db
-  to: tests/db
-  dependsOn:
-  - db
-- name: notifications-client
-  mode: copy
-  source: baseline
-  from: packages/notifications-client
-  to: packages/notifications-client
-  dependsOn:
-  - contracts
-- name: notifications-client-tests
-  mode: copy
-  source: baseline
-  from: tests/notifications-client
-  to: tests/notifications-client
-  dependsOn:
-  - contracts
-  - notifications-client
-- name: policy-engine
-  mode: copy
-  source: baseline
-  from: packages/policy-engine
-  to: packages/policy-engine
-  dependsOn:
-  - contracts
-- name: policy-engine-tests
-  mode: copy
-  source: baseline
-  from: tests/policy-engine
-  to: tests/policy-engine
-  dependsOn:
-  - contracts
-  - policy-engine
-- name: sdk
-  mode: copy
-  source: baseline
-  from: packages/sdk
-  to: packages/sdk
-  dependsOn:
-  - contracts
-- name: shared
-  mode: copy
-  source: baseline
-  from: packages/shared
-  to: packages/shared
-- name: testing
-  mode: copy
-  source: baseline
-  from: packages/testing
-  to: packages/testing
-  dependsOn:
-  - contracts
-  - db
-- name: webhook-verifier
-  mode: copy
-  source: baseline
-  from: packages/webhook-verifier
-  to: packages/webhook-verifier
+  from: infra/terraform/cloudflare-domain
+  to: infra/terraform/cloudflare-domain
 phases:
-- name: foundation
+- name: domain
   modules:
-  - cli
-  - contracts
-  - contracts-tests
-  - db
-  - db-tests
-  - notifications-client
-  - notifications-client-tests
-  - policy-engine
-  - policy-engine-tests
-  - sdk
-  - shared
-  - testing
-  - webhook-verifier
+  - cloudflare-domain

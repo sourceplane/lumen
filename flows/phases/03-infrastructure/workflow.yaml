@@ -2,7 +2,7 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-03-infrastructure
-# Phase 3: data infrastructure (blueprints/02-infrastructure.yaml —
+# Phase 3: data infrastructure (flows/phases/03-infrastructure/blueprint.yaml —
 # cloudflare-kv, supabase, db-migrate, cloudflare-hyperdrive). First phase
 # that DEPLOYS: preflight gates on the three provider connections, brokered
 # secrets are created, and the merge's convergence applies terraform in DAG
@@ -52,7 +52,7 @@ steps:
       - |
         set -euo pipefail
         L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/02-infrastructure.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/03-infrastructure/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
     timeout: 10m
   - name: land
     needs: [apply]

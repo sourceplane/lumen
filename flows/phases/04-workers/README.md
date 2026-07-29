@@ -1,6 +1,6 @@
 # Phase 04 — workers
 
-Lands the **12-worker fleet** (`blueprints/03-workers.yaml`) in two
+Lands the **12-worker fleet** (`flows/phases/04-workers/blueprint.yaml`) in two
 landings: first with the service-binding feedback edges stripped so
 first-boot workers can deploy in DAG order, then a restore landing once
 every worker they point at exists.

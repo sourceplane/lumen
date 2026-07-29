@@ -2,7 +2,7 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-04-workers
-# Phase 4: the worker fleet (blueprints/03-workers.yaml — 12 workers + their
+# Phase 4: the worker fleet (flows/phases/04-workers/blueprint.yaml — 12 workers + their
 # test components). Two landings: the service-binding feedback edges are
 # stripped (tooling/bootstrap/cycle-break.mjs) so first-boot workers deploy
 # in DAG order, then restored once every worker they point at exists.
@@ -39,7 +39,7 @@ steps:
       - |
         set -euo pipefail
         L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/03-workers.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/04-workers/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
         [ "{{ inputs.dryrun }}" = "true" ] && exit 0
         cd "{{ inputs.out }}"
         node tooling/bootstrap/cycle-break.mjs --strip

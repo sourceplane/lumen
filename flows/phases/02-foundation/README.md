@@ -1,6 +1,6 @@
 # Phase 02 — foundation
 
-Lands the **13 shared packages** (`blueprints/01-foundation.yaml`) that
+Lands the **13 shared packages** (`flows/phases/02-foundation/blueprint.yaml`) that
 everything later builds on. Nothing deploys and no provider connection is
 needed — the PR's verify lanes (turbo builds + tests) are the whole gate.
 

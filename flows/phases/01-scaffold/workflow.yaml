@@ -3,7 +3,7 @@ kind: Workflow
 metadata:
   name: phase-01-scaffold
 # Phase 1 of the paced bootstrap: birth the product repo from the workspace
-# blueprint (blueprints/07-workspace.yaml — intent, CI, flows, tooling,
+# blueprint (flows/phases/01-scaffold/blueprint.yaml — intent, CI, flows, tooling,
 # .rebrand/values.json), push it to GitHub, and link it to the workspace.
 # Every later phase reads the identity from the repo's own
 # .rebrand/values.json, so this is the only phase that takes identity inputs.
@@ -62,7 +62,7 @@ steps:
         # No --run-hooks: the blueprint's hook chain is replicated below
         # (git init/stage, rebrand, intent workspace rewrite) so the phased
         # path controls each piece.
-        orun new --blueprint blueprints/07-workspace.yaml --out "$out" \
+        orun new --blueprint flows/phases/01-scaffold/blueprint.yaml --out "$out" \
           --set "repoName={{ inputs.reponame }}" \
           --set "productName={{ inputs.productname }}" \
           --set "productDomain={{ inputs.productdomain }}" \

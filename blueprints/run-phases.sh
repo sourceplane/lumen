@@ -28,20 +28,27 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+root="$(cd "$here/.." && pwd)"
 out="${1:?usage: run-phases.sh <out-dir> [--set k=v ...]}"
 shift
 
-# Portable array fill — macOS ships bash 3.2, which has no `mapfile`.
+# The phase blueprints live IN their phase folders (flows/phases/<n>/
+# blueprint.yaml — co-located with each phase's workflow and README). For
+# the express full-tree instantiation they are applied in BLUEPRINT
+# dependency order — content phases first, the workspace/root scaffold
+# LAST, because it is the phase that carries hooks and hooks need the
+# complete tree. (The phased path runs the scaffold FIRST instead and
+# replicates the hooks inline — see flows/phases/README.md.)
 phases=()
-for f in "$here"/[0-9][0-9]-*.yaml; do
-  [ -e "$f" ] || continue
+for d in 02-foundation 03-infrastructure 04-workers 05-edge 06-console 07-domain 01-scaffold; do
+  f="$root/flows/phases/$d/blueprint.yaml"
+  [ -e "$f" ] || { echo "missing phase blueprint: $f" >&2; exit 1; }
   phases+=("$f")
 done
-[ "${#phases[@]}" -gt 0 ] || { echo "no phase blueprints in $here" >&2; exit 1; }
 
 for i in "${!phases[@]}"; do
   bp="${phases[$i]}"
-  stem="$(basename "$bp" .yaml)"
+  stem="$(basename "$(dirname "$bp")")"
   last=$(( i == ${#phases[@]} - 1 ))
 
   hooks=()

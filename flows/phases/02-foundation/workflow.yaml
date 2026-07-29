@@ -2,7 +2,7 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-02-foundation
-# Phase 2: the package foundation (blueprints/01-foundation.yaml — the 13
+# Phase 2: the package foundation (flows/phases/02-foundation/blueprint.yaml — the 13
 # shared packages and their test components). Verify-only lanes; nothing
 # deploys yet, so no provider connections are needed.
 # Run FROM THE BASELINE checkout:
@@ -27,7 +27,7 @@ steps:
       - |
         set -euo pipefail
         L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/01-foundation.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/02-foundation/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
     timeout: 10m
   - name: land
     needs: [apply]
