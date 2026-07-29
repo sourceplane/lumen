@@ -8,15 +8,23 @@ metadata:
 # Every later phase reads the identity from the repo's own
 # .rebrand/values.json, so this is the only phase that takes identity inputs.
 #
-# Run FROM THE BASELINE checkout:
-#   orun workflow run flows/phases/01-scaffold/workflow.yaml \
-#     --set out=$HOME/sourceplane/acme --set workspace=ws_… \
-#     --set reponame=acme --set productname="Acme Cloud" \
+# Run from the baseline checkout (local mode: --set out=<path>), or from
+# ANYWHERE — a fresh container included — by remote ref (headless mode:
+# out defaults to ./product; needs GITHUB_TOKEN + ORUN_TOKEN in the env):
+#   orun workflow run github:sourceplane/lumen@<ref>//flows/phases/01-scaffold/workflow.yaml \
+#     --set workspace=ws_… --set reponame=acme --set productname="Acme Cloud" \
 #     --set productdomain=acme.dev --set subdomain=<workers-dev-subdomain>
+# The baseline content is fetched at the SAME commit the flow came from
+# (ORUN_FLOW_SOURCE_SHA), so one remote reference pins everything.
 inputs:
   out:
     type: string
-    description: Absolute path where the product repo is created.
+    default: ""
+    description: Path where the product repo is created. Empty = ./product (headless default).
+  baselineref:
+    type: string
+    default: ""
+    description: Baseline git ref to fetch when no local checkout exists. Empty = the commit this flow was fetched from, else main.
   workspace:
     type: string
     description: Workspace id (ws_…) or slug this product deploys against.
@@ -42,13 +50,30 @@ inputs:
     description: '"true" renders the scaffold into a temp dir and reports, creating nothing.'
 steps:
   - name: blueprint
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        cd "$(git rev-parse --show-toplevel)"
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          L="$PWD/baseline"
+          if [ ! -e "$L/.git" ]; then
+            brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+            bref="{{ inputs.baselineref }}"
+            [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L"
+            git -C "$L" remote add origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper='!gh auth git-credential' fetch -q --depth 1 origin "$bref"
+            git -C "$L" checkout -q FETCH_HEAD
+          fi
+        fi
         out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$PWD/product"
         if [ "{{ inputs.dryrun }}" = "true" ]; then
           out="$(mktemp -d)/scaffold-preview"
           echo "DRY RUN: rendering scaffold into $out"
@@ -62,7 +87,7 @@ steps:
         # No --run-hooks: the blueprint's hook chain is replicated below
         # (git init/stage, rebrand, intent workspace rewrite) so the phased
         # path controls each piece.
-        orun new --blueprint flows/phases/01-scaffold/blueprint.yaml --out "$out" \
+        orun new --blueprint "$L/flows/phases/01-scaffold/blueprint.yaml" --out "$out" \
           --set "repoName={{ inputs.reponame }}" \
           --set "productName={{ inputs.productname }}" \
           --set "productDomain={{ inputs.productdomain }}" \
@@ -91,14 +116,22 @@ steps:
 
   - name: repo
     needs: [blueprint]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would git init + gh repo create {{ inputs.githuborg }}/{{ inputs.reponame }} --private --push"; exit 0; }
-        cd "{{ inputs.out }}"
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$PWD/product"
+        cd "$out"
         [ -d .git ] || git init -q -b main
+        git config credential.helper '!gh auth git-credential'
+        if ! git config user.email >/dev/null 2>&1 && ! git config --global user.email >/dev/null 2>&1; then
+          git config user.email "bootstrap-bot@users.noreply.github.com"
+          git config user.name "bootstrap-bot"
+        fi
         git add -A
         git diff --cached --quiet || git commit -q -m "scaffold: {{ inputs.reponame }} from the baseline workspace blueprint"
         # Three supported states, in order: origin already wired → push;
@@ -110,7 +143,7 @@ steps:
           git push -qu origin main
         elif gh repo view "$slug" >/dev/null 2>&1; then
           echo "repo $slug already exists on GitHub — wiring origin and pushing"
-          git remote add origin "git@github.com:$slug.git"
+          git remote add origin "https://github.com/$slug"
           git push -qu origin main
         else
           gh repo create "$slug" --private --source . --push
@@ -119,13 +152,16 @@ steps:
 
   - name: link
     needs: [repo]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would orun cloud link --org {{ inputs.workspace }}"; exit 0; }
-        cd "{{ inputs.out }}"
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$PWD/product"
+        cd "$out"
         orun cloud link --org "{{ inputs.workspace }}" || true
         orun cloud check --org "{{ inputs.workspace }}" || {
           echo "repo not allow-listed for {{ inputs.workspace }} — grant it in the console (Git Repos) and re-run this phase" >&2

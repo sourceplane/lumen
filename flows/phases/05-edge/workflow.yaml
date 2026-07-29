@@ -2,74 +2,172 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-05-edge
-# Phase 5: the API edge (flows/phases/05-edge/blueprint.yaml). Verifies /health live on
-# stage and prod after convergence.
-# Run FROM THE BASELINE checkout:
-#   orun workflow run flows/phases/05-edge/workflow.yaml \
-#     --set out=<product-repo-path> --set workspace=<ws-id>
+# Phase 5: the API edge (this folder's blueprint.yaml). Verifies /health
+# live on stage and prod after convergence.
+# Run from the baseline checkout (local mode: --set out=<product-path>), or
+# from ANYWHERE — a fresh container included — by remote ref (headless mode:
+# --set repo=<owner/name>; needs GITHUB_TOKEN + ORUN_TOKEN in the env):
+#   orun workflow run github:sourceplane/lumen@<ref>//flows/phases/05-edge/workflow.yaml \
+#     --set workspace=<ws-id> --set repo=<owner/name>
+# The baseline content is fetched at the SAME commit the flow came from
+# (ORUN_FLOW_SOURCE_SHA), so one remote reference pins everything.
 inputs:
-  out:
-    type: string
-    description: Absolute path of the product repo (created by phase 01-scaffold).
   workspace:
     type: string
     description: Workspace id (ws_…) or slug this product deploys against.
+  out:
+    type: string
+    default: ""
+    description: Product repo path (local checkout mode). Leave empty in headless mode.
+  repo:
+    type: string
+    default: ""
+    description: Product repo as owner/name — headless mode clones it (requires GITHUB_TOKEN/GH_TOKEN).
+  baselineref:
+    type: string
+    default: ""
+    description: Baseline git ref to fetch when no local checkout exists. Empty = the commit this flow was fetched from (ORUN_FLOW_SOURCE_SHA), else main.
   dryrun:
     type: string
     default: "false"
     description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
 steps:
   - name: preflight
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        L="$(git rev-parse --show-toplevel)"
-        cd "{{ inputs.out }}"
-        "$L/flows/common/preflight.sh" "{{ inputs.workspace }}"
-    timeout: 12m
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          L="$PWD/baseline"
+          if [ ! -e "$L/.git" ]; then
+            brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+            bref="{{ inputs.baselineref }}"
+            [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L"
+            git -C "$L" remote add origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper='!gh auth git-credential' fetch -q --depth 1 origin "$bref"
+            git -C "$L" checkout -q FETCH_HEAD
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
+        cd "$P"
+        "$L/flows/common/preflight.sh" "$ws"
+    timeout: 15m
   - name: apply
     needs: [preflight]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/05-edge/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
-    timeout: 10m
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          L="$PWD/baseline"
+          if [ ! -e "$L/.git" ]; then
+            brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+            bref="{{ inputs.baselineref }}"
+            [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L"
+            git -C "$L" remote add origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper='!gh auth git-credential' fetch -q --depth 1 origin "$bref"
+            git -C "$L" checkout -q FETCH_HEAD
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/05-edge/blueprint.yaml "$P" "$ws" "{{ inputs.dryrun }}"
+    timeout: 15m
   - name: land
     needs: [apply]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        L="$(git rev-parse --show-toplevel)"
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          L="$PWD/baseline"
+          if [ ! -e "$L/.git" ]; then
+            brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+            bref="{{ inputs.baselineref }}"
+            [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L"
+            git -C "$L" remote add origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper='!gh auth git-credential' fetch -q --depth 1 origin "$bref"
+            git -C "$L" checkout -q FETCH_HEAD
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
-        "$L/flows/common/land-pr.sh" "{{ inputs.out }}" 05-edge "phase(05-edge): api-edge"
+        "$L/flows/common/land-pr.sh" "$P" 05-edge "phase(05-edge): api-edge"
     timeout: 30m
   - name: converge
     needs: [land]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        L="$(git rev-parse --show-toplevel)"
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          L="$PWD/baseline"
+          if [ ! -e "$L/.git" ]; then
+            brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+            bref="{{ inputs.baselineref }}"
+            [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L"
+            git -C "$L" remote add origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper='!gh auth git-credential' fetch -q --depth 1 origin "$bref"
+            git -C "$L" checkout -q FETCH_HEAD
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would watch the main convergence run (resume budget 3)"; exit 0; }
-        cd "{{ inputs.out }}"
+        cd "$P"
         "$L/flows/common/converge.sh" '' 3
     timeout: 45m
   - name: verify
     needs: [converge]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
     run:
       - /bin/bash
       - -c
       - |
         set -euo pipefail
-        L="$(git rev-parse --show-toplevel)"
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          L="$PWD/baseline"
+          if [ ! -e "$L/.git" ]; then
+            brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+            bref="{{ inputs.baselineref }}"
+            [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L"
+            git -C "$L" remote add origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper='!gh auth git-credential' fetch -q --depth 1 origin "$bref"
+            git -C "$L" checkout -q FETCH_HEAD
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would probe api-edge /health"; exit 0; }
-        "$L/flows/common/verify-endpoints.sh" "{{ inputs.out }}" edge
+        "$L/flows/common/verify-endpoints.sh" "$P" edge
     timeout: 5m
