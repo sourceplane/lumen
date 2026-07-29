@@ -11,10 +11,18 @@ set -euo pipefail
 ws="${1:?usage: preflight.sh <workspace-id-or-slug>}"
 
 echo "── auth"
-orun auth status | grep -q "User:" || {
-  echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device" >&2
-  exit 1
-}
+# Headless mode (ORUN_TOKEN set): the CLI authenticates from the env var and
+# there is no stored session for auth status to show — the integrations
+# probe below is the real auth check. Interactive mode still requires a
+# login so the failure message stays actionable.
+if [ -n "${ORUN_TOKEN:-}" ]; then
+  echo "auth: ORUN_TOKEN (headless)"
+else
+  orun auth status | grep -q "User:" || {
+    echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device (or set ORUN_TOKEN for headless runs)" >&2
+    exit 1
+  }
+fi
 
 echo "── integrations (ACTIVE github+cloudflare+supabase; polling up to 10m so consents can be clicked now)"
 # One authoritative probe FIRST: if the command itself fails (stale CLI,
