@@ -24,16 +24,15 @@ The workflow preflights each of these; the two console steps can be clicked
    the in-console recipe; the same account may already back other workspaces
    — that is supported) and **Supabase** (OAuth; pick the organization that
    should own this product's projects) in the console → Integrations.
-3. **Repo allow-list** — the workspace must trust this repo's CI identity
-   (OIDC). `orun cloud check --org <org>` verifies; granting is done in the
-   console (Git Repos) — the CLI cannot grant it. `orun cloud link` must have
-   been run from a clone with a GitHub remote (it records the numeric repo id
-   the OIDC exchange resolves by).
+3. **Repo allow-list** — handled by preflight itself: when `orun cloud
+   check` fails it runs `orun cloud link` (git remote + the workspace's
+   GitHub integration) and re-checks. Only if that still fails does the
+   console (Git Repos) need a manual grant.
 
 ## The workflow
 
 ```bash
-orun workflow run flows/bootstrap-flow.yaml --set org=<org>
+orun workflow run flows/bootstrap-flow.yaml --set workspace=<ws-id>
 ```
 
 Add `--set dryrun=true` to preview the whole flow with zero side effects:
@@ -43,9 +42,9 @@ run, and verify-live reports endpoint codes without failing the step.
 `orun workflow validate flows/bootstrap-flow.yaml` checks the file itself;
 `orun workflow view` renders the DAG.
 
-- **preflight** — auth, allow-list, then POLLS for ACTIVE Cloudflare +
-  Supabase connections (up to 10m, printing the console URL) so the OAuth
-  consents can be granted while the flow runs.
+- **preflight** — auth; POLLS for ACTIVE GitHub + Cloudflare + Supabase
+  connections (up to 10m) so consents can be granted while the flow runs;
+  then the repo allow-list, self-healing via `orun cloud link` when missing.
 - **create-secrets** — five project-rung secrets from the integrations
   (workers-deploy / hyperdrive-edit / account-id / management-access /
   org-id). Brokered and fact templates only: no value is ever typed or seen.

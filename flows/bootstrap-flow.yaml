@@ -34,13 +34,14 @@ inputs:
       reverted, no push happens, converge only reports the latest main run,
       and verify-live reports endpoint codes without failing. Run:
       orun workflow run flows/bootstrap-flow.yaml --set org=<slug> --set dryrun=true
-  org:
+  workspace:
     type: string
     default: "lumen"
     description: >-
-      Workspace slug/id the secrets and runs resolve against. A fork MUST pass
-      its own workspace org (--set org=<slug>); the baseline default fails
-      loudly at preflight for any operator without access to it.
+      Workspace id (ws_…) or slug the secrets and runs resolve against. A
+      fork MUST pass its own workspace (--set workspace=<ws-id>); the
+      baseline default fails loudly at preflight for any operator without
+      access to it.
 steps:
   - name: preflight
     run:
@@ -48,34 +49,40 @@ steps:
       - -c
       - |
         set -e
+        cd "$(git rev-parse --show-toplevel)"
         echo "── auth"
         orun auth status | grep -q "User:" || {
           echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device (browser session in the workspace; the Chrome extension can approve it for agent operators)" >&2
           exit 1
         }
-        echo "── repo allow-list"
-        orun cloud check --org "{{ inputs.org }}" || {
-          echo "repo not allow-listed for {{ inputs.org }}: allow it in the console (Git Repos) — the CLI cannot grant this" >&2
-          exit 1
-        }
-        echo "── integrations (ACTIVE connections; polling up to 10m so consents can be clicked now)"
+        echo "── integrations (ACTIVE github+cloudflare+supabase; polling up to 10m so consents can be clicked now)"
         active() {
-          orun integrations list --org "{{ inputs.org }}" --json |
+          orun integrations list --org "{{ inputs.workspace }}" --json |
             python3 -c "import json,sys; rows=json.load(sys.stdin); sys.exit(0 if any(r.get('provider')=='$1' and r.get('status')=='active' for r in rows) else 1)"
         }
         deadline=$(( $(date +%s) + 600 ))
         while :; do
           missing=""
-          active cloudflare || missing="cloudflare"
+          active github     || missing="github"
+          active cloudflare || missing="${missing:+$missing }cloudflare"
           active supabase   || missing="${missing:+$missing }supabase"
           [ -z "$missing" ] && break
           if [ "$(date +%s)" -ge "$deadline" ]; then
-            echo "still missing ACTIVE connection(s) after 10m: $missing — connect at https://app.orun.dev/orgs/{{ inputs.org }}/integrations (Cloudflare: paste an Account API token per the in-console recipe; Supabase: OAuth, pick the organization that should own this product's projects)" >&2
+            echo "still missing ACTIVE connection(s) after 10m: $missing — connect them in the console (Integrations). Cloudflare: paste an Account API token per the in-console recipe; Supabase: OAuth, pick the organization that should own this product's projects; GitHub: install the app on this repo's org." >&2
             exit 1
           fi
-          echo "waiting for connection(s): $missing → https://app.orun.dev/orgs/{{ inputs.org }}/integrations"
+          echo "waiting for connection(s): $missing → console → Integrations ({{ inputs.workspace }})"
           sleep 20
         done
+        echo "── repo allow-list (self-heals via cloud link)"
+        if ! orun cloud check --org "{{ inputs.workspace }}"; then
+          echo "not allow-listed yet — running \`orun cloud link\` (uses the git remote + the workspace's GitHub integration)"
+          orun cloud link --org "{{ inputs.workspace }}" || true
+          orun cloud check --org "{{ inputs.workspace }}" || {
+            echo "repo still not allow-listed for {{ inputs.workspace }}: grant it in the console (Git Repos)" >&2
+            exit 1
+          }
+        fi
         echo "preflight ok"
     timeout: 12m
 
@@ -84,7 +91,7 @@ steps:
   - name: create-secrets
     needs: [preflight]
     # Steps execute in .orun/wfruns/<exec>/ — resolve the repo root first.
-    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/create-secrets.sh {{ inputs.org }} \"{{ inputs.dryrun }}\""]
+    run: ["/bin/sh", "-c", "cd \"$(git rev-parse --show-toplevel)\" && flows/create-secrets.sh {{ inputs.workspace }} \"{{ inputs.dryrun }}\""]
     timeout: 5m
 
   # ── Single-run deploy ────────────────────────────────────────────────────

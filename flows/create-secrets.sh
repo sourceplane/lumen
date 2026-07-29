@@ -2,8 +2,10 @@
 # Create this product's five provider secrets from the workspace's
 # integrations — brokered/fact templates only, so NO credential value is ever
 # typed, seen, or stored here. Idempotent: keys that already exist are kept.
+# The argument is the workspace id (ws_…) or slug; the CLI flag it feeds is
+# named --org for historical reasons.
 #
-#   flows/create-secrets.sh <org> [--dry-run|true]
+#   flows/create-secrets.sh <workspace-id-or-slug> [--dry-run|true]
 #
 # Dry run (second arg "--dry-run" or "true"): report per-key what WOULD
 # happen (kept / recreated / created) against the current connections and
@@ -18,7 +20,7 @@
 # | SUPABASE_ORG_ID             | supabase   | org-id            | connection fact (non-secret)      |
 set -euo pipefail
 
-org="${1:?usage: create-secrets.sh <org> [--dry-run|true]}"
+org="${1:?usage: create-secrets.sh <workspace-id-or-slug> [--dry-run|true]}"
 dry_run=0
 case "${2:-}" in --dry-run|true) dry_run=1 ;; esac
 

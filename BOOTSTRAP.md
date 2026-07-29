@@ -40,22 +40,31 @@ component starts **parked** (`flows/subscriptions/`).
 
 ```bash
 orun auth login --device       # approve at app.orun.dev/cli/device
-orun cloud link                # links <workspace>/<repo> AND allow-lists CI
-orun cloud check --org <org>   # verifies the OIDC allow-list took
 ```
+
+That is all — the workflow's preflight self-heals the repo link/allow-list
+(`orun cloud link`, driven by the git remote and the workspace's GitHub
+integration) and waits for the provider consents.
 
 ## 3. Run the workflow
 
+With a workspace id, an authenticated CLI, and the three integrations
+connected (GitHub, Cloudflare, Supabase), this ONE command handles
+everything — the repo allow-list self-heals via `orun cloud link`, secrets
+are brokered, and the whole fleet deploys in one convergence run:
+
 ```bash
-orun workflow run flows/bootstrap-flow.yaml --set org=<org>
+orun workflow run flows/bootstrap-flow.yaml --set workspace=<ws-id>
 ```
+
+`workspace` accepts the workspace id (`ws_…`) or its slug.
 
 To preview everything first without changing anything (no secrets created,
 no push, no deploy — reports connection/secret health, shows the exact
 unpark+strip diff and reverts it, and probes the endpoints without failing):
 
 ```bash
-orun workflow run flows/bootstrap-flow.yaml --set org=<org> --set dryrun=true
+orun workflow run flows/bootstrap-flow.yaml --set workspace=<ws-id> --set dryrun=true
 ```
 
 Preflight **waits up to 10 minutes** for the two provider connections — grant
