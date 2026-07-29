@@ -56,9 +56,25 @@ steps:
           exit 1
         }
         echo "── integrations (ACTIVE github+cloudflare+supabase; polling up to 10m so consents can be clicked now)"
+        # One authoritative probe FIRST: if the command itself fails (stale
+        # CLI missing flags, revoked session, bad workspace id), fail loudly
+        # with its stderr — never misread a broken command as "not connected
+        # yet" and poll forever.
+        if ! probe="$(orun integrations list --org "{{ inputs.workspace }}" --json 2>&1)"; then
+          echo "orun integrations list failed — fix this before anything can poll:" >&2
+          echo "$probe" >&2
+          echo "(common causes: an old orun earlier in PATH — check \`which -a orun\`, need >= v2.49.2; or the CLI session expired — \`orun auth login\`)" >&2
+          exit 1
+        fi
         active() {
-          orun integrations list --org "{{ inputs.workspace }}" --json |
-            python3 -c "import json,sys; rows=json.load(sys.stdin); sys.exit(0 if any(r.get('provider')=='$1' and r.get('status')=='active' for r in rows) else 1)"
+          orun integrations list --org "{{ inputs.workspace }}" --json 2>/dev/null |
+            python3 -c "
+        import json,sys
+        try:
+            rows=json.load(sys.stdin)
+        except Exception:
+            sys.exit(1)
+        sys.exit(0 if any(r.get('provider')=='$1' and r.get('status')=='active' for r in rows) else 1)"
         }
         deadline=$(( $(date +%s) + 600 ))
         while :; do
