@@ -16,7 +16,7 @@ git checkout main -q
 git pull -q
 git checkout -qb "bootstrap/${batch}"
 
-node flows/park.mjs unpark "$@"
+node flows/common/park.mjs unpark "$@"
 
 git add -A
 git commit -qm "bootstrap(${batch}): enable ${*}

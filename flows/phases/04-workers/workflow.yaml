@@ -1,0 +1,84 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: phase-04-workers
+# Phase 4: the worker fleet (blueprints/03-workers.yaml — 12 workers + their
+# test components). Two landings: the service-binding feedback edges are
+# stripped (tooling/bootstrap/cycle-break.mjs) so first-boot workers deploy
+# in DAG order, then restored once every worker they point at exists.
+# Run FROM THE BASELINE checkout:
+#   orun workflow run flows/phases/04-workers/workflow.yaml \
+#     --set out=<product-repo-path> --set workspace=<ws-id>
+inputs:
+  out:
+    type: string
+    description: Absolute path of the product repo (created by phase 01-scaffold).
+  workspace:
+    type: string
+    description: Workspace id (ws_…) or slug this product deploys against.
+  dryrun:
+    type: string
+    default: "false"
+    description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
+steps:
+  - name: preflight
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        cd "{{ inputs.out }}"
+        "$L/flows/common/preflight.sh" "{{ inputs.workspace }}"
+    timeout: 12m
+  - name: apply
+    needs: [preflight]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/03-workers.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        [ "{{ inputs.dryrun }}" = "true" ] && exit 0
+        cd "{{ inputs.out }}"
+        node tooling/bootstrap/cycle-break.mjs --strip
+        git add -A
+    timeout: 10m
+  - name: land
+    needs: [apply]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
+        "$L/flows/common/land-pr.sh" "{{ inputs.out }}" 04-workers "phase(04-workers): worker fleet (feedback edges stripped)"
+    timeout: 30m
+  - name: converge
+    needs: [land]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would watch the main convergence run (resume budget 3)"; exit 0; }
+        cd "{{ inputs.out }}"
+        "$L/flows/common/converge.sh" '' 3
+    timeout: 90m
+  - name: restore
+    needs: [converge]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        L="$(git rev-parse --show-toplevel)"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would restore feedback bindings"; exit 0; }
+        cd "{{ inputs.out }}"
+        node tooling/bootstrap/cycle-break.mjs --restore
+        "$L/flows/common/land-pr.sh" "{{ inputs.out }}" 04-workers-restore "phase(04-workers): restore service-binding feedback edges"
+        "$L/flows/common/converge.sh" '' 2
+    timeout: 60m

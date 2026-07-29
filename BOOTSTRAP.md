@@ -74,7 +74,7 @@ them in the console (→ Integrations) while it polls:
 - **Supabase**: OAuth consent; pick the organization that owns this product's
   projects. Scopes live on the OAuth app itself — changing them later
   **revokes every existing connection of that app across all workspaces**
-  (secrets go `orphaned`; re-connect + `flows/create-secrets.sh <org>`
+  (secrets go `orphaned`; re-connect + `flows/common/create-secrets.sh <org>`
   self-heals).
 
 Then the flow runs unattended: brokered secrets → one main push un-parking
@@ -86,10 +86,19 @@ final push restoring the service bindings → live-endpoint verification.
 `flows/README.md` documents each step and the ordering guarantees;
 `ai/context/fork-from-baseline.md` records the fork provenance.
 
+## 3b. Or: bootstrap in phases, at your own pace
+
+Prefer landing the product slice by slice — each with its own PR, deploy,
+and verification? `flows/phases/01-scaffold … 07-domain` are seven
+independent workflows (phase 01 replaces steps 2–3 above; later phases need
+only `--set out=… --set workspace=…`). See the table in
+[flows/README.md](flows/README.md). Every phase supports
+`--set dryrun=true`.
+
 ## 4. After the baseline is live
 
 - **Custom domain**: create the product zone in Cloudflare, then un-park
-  `cloudflare-domain` (`node flows/park.mjs unpark cloudflare-domain`, PR it —
+  `cloudflare-domain` (`node flows/common/park.mjs unpark cloudflare-domain`, PR it —
   or `flows/batch.sh domain cloudflare-domain`).
 - **Runtime secrets** (OAuth client secrets, billing keys, …): seed with
   `orun secrets set <KEY> --org <org> --env <env>`; the next deploy pushes
@@ -102,11 +111,11 @@ final push restoring the service bindings → live-endpoint verification.
 | Symptom | Cause → fix |
 |---|---|
 | Preflight times out on connections | Consent not granted yet — console → Integrations, then re-run the flow (idempotent). |
-| Secrets listed `orphaned` | Their connection was revoked/replaced (e.g. OAuth app scopes changed). Re-connect the provider; `flows/create-secrets.sh <org>` recreates against the ACTIVE connection. |
+| Secrets listed `orphaned` | Their connection was revoked/replaced (e.g. OAuth app scopes changed). Re-connect the provider; `flows/common/create-secrets.sh <org>` recreates against the ACTIVE connection. |
 | Supabase lane: `does not support oauth access` on `/billing/addons` | Provider ≥ 1.6.0 sneaked in — the roots pin `~> 1.5.1`; keep the pin. |
 | Supabase lane: duplicate project name | The org already has `<repo>-<env>` (a half-torn-down previous attempt). Adoption imports it automatically when it's the *same* product re-bootstrapping; otherwise delete the stray project. |
 | Terraform: resource already exists (10014 etc.) with empty platform state | `adopt.tf` handles this by importing at plan time — present in kv / hyperdrive / supabase roots. Roots without adoption must be state-migrated or the resource deleted. |
-| Convergence run fails, lanes look transient | `flows/converge.sh <run-id>` resumes it (`gh run rerun --failed` = true resume: exec-id + `--retry`). The flow already does this ×3. |
+| Convergence run fails, lanes look transient | `flows/common/converge.sh <run-id>` resumes it (`gh run rerun --failed` = true resume: exec-id + `--retry`). The flow already does this ×3. |
 | Worker verify lane: missing `WIRING_*` / `SUPABASE_*` secret | Its terraform upstream hasn't applied (check that lane first) — inside one convergence run the DAG guarantees order; across manual partial runs it does not. |
 | CLI login dies with 429 `rate_limited` | Fixed ≥ v2.48.1 (redeem honors Retry-After). Upgrade the CLI. |
 | Many lanes queued, none claiming | Runner-pool starvation — `max-parallel: 8` in ci.yml is deliberate (resolve-herd); patience, or check the run isn't superseded. |
