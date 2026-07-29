@@ -2,7 +2,7 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-06-console
-# Phase 6: the web console (blueprints/05-console.yaml). Verifies the console
+# Phase 6: the web console (flows/phases/06-console/blueprint.yaml). Verifies the console
 # and the edge it fronts, live on stage and prod.
 # Run FROM THE BASELINE checkout:
 #   orun workflow run flows/phases/06-console/workflow.yaml \
@@ -37,7 +37,7 @@ steps:
       - |
         set -euo pipefail
         L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/05-console.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/06-console/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
     timeout: 10m
   - name: land
     needs: [apply]

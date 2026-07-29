@@ -1,6 +1,6 @@
 # Phase 05 — edge
 
-Lands the **API edge** (`blueprints/04-edge.yaml`) — the single public
+Lands the **API edge** (`flows/phases/05-edge/blueprint.yaml`) — the single public
 entry point fronting the worker fleet — and proves it live.
 
 ## What it lands

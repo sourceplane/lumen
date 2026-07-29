@@ -1,6 +1,6 @@
 # Phase 06 — console
 
-Lands the **web console** (`blueprints/05-console.yaml`) — the product UI
+Lands the **web console** (`flows/phases/06-console/blueprint.yaml`) — the product UI
 served from Workers assets — and proves both it and the edge it talks to
 live.
 

@@ -2,7 +2,7 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-07-domain
-# Phase 7 (OPTIONAL): the custom product domain (blueprints/06-domain.yaml).
+# Phase 7 (OPTIONAL): the custom product domain (flows/phases/07-domain/blueprint.yaml).
 # Prerequisite: the product zone must already exist in the Cloudflare
 # account — run this phase only once it does.
 # Run FROM THE BASELINE checkout:
@@ -38,7 +38,7 @@ steps:
       - |
         set -euo pipefail
         L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/06-domain.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/07-domain/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
     timeout: 10m
   - name: land
     needs: [apply]

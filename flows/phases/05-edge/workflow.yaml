@@ -2,7 +2,7 @@ apiVersion: orun.dev/v1
 kind: Workflow
 metadata:
   name: phase-05-edge
-# Phase 5: the API edge (blueprints/04-edge.yaml). Verifies /health live on
+# Phase 5: the API edge (flows/phases/05-edge/blueprint.yaml). Verifies /health live on
 # stage and prod after convergence.
 # Run FROM THE BASELINE checkout:
 #   orun workflow run flows/phases/05-edge/workflow.yaml \
@@ -37,7 +37,7 @@ steps:
       - |
         set -euo pipefail
         L="$(git rev-parse --show-toplevel)"
-        "$L/flows/common/apply-blueprint.sh" "$L" blueprints/04-edge.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
+        "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/05-edge/blueprint.yaml "{{ inputs.out }}" "{{ inputs.workspace }}" "{{ inputs.dryrun }}"
     timeout: 10m
   - name: land
     needs: [apply]

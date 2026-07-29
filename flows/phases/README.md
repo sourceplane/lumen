@@ -12,19 +12,22 @@ here); the product repo is wherever `out` points.
 
 ## Execution order
 
-The phase number is the EXECUTION order, not the blueprint file number —
-the root scaffold (blueprint `07-workspace.yaml`) must exist before
-anything else can build or deploy:
+The phase number is the EXECUTION order — the root scaffold (phase 01,
+historically the "workspace" blueprint) must exist before anything else
+can build or deploy:
 
-| # | folder | blueprint | lands | verified by |
-|---|--------|-----------|-------|-------------|
-| 01 | [`01-scaffold`](01-scaffold/README.md) | 07-workspace | **GitHub repo created** + repo born: intent, CI, flows, tooling, identity | repo pushed + workspace-linked |
-| 02 | [`02-foundation`](02-foundation/README.md) | 01-foundation | 13 shared packages | verify lanes green |
-| 03 | [`03-infrastructure`](03-infrastructure/README.md) | 02-infrastructure | kv, supabase, db-migrate, hyperdrive | published `WIRING_*` / `SUPABASE_*` secrets |
-| 04 | [`04-workers`](04-workers/README.md) | 03-workers | the 12-worker fleet (two landings) | convergence green, bindings restored |
-| 05 | [`05-edge`](05-edge/README.md) | 04-edge | api-edge | `/health` 200 on stage+prod |
-| 06 | [`06-console`](06-console/README.md) | 05-console | web console | console + edge live |
-| 07 | [`07-domain`](07-domain/README.md) | 06-domain | custom domain (OPTIONAL) | convergence green |
+Each phase folder is fully self-contained: `README.md` + `workflow.yaml`
++ its `blueprint.yaml` (the slice it applies).
+
+| # | folder | lands | verified by |
+|---|--------|-------|-------------|
+| 01 | [`01-scaffold`](01-scaffold/README.md) | **GitHub repo created** + repo born: intent, CI, flows, tooling, identity | repo pushed + workspace-linked |
+| 02 | [`02-foundation`](02-foundation/README.md) | 13 shared packages | verify lanes green |
+| 03 | [`03-infrastructure`](03-infrastructure/README.md) | kv, supabase, db-migrate, hyperdrive | published `WIRING_*` / `SUPABASE_*` secrets |
+| 04 | [`04-workers`](04-workers/README.md) | the 12-worker fleet (two landings) | convergence green, bindings restored |
+| 05 | [`05-edge`](05-edge/README.md) | api-edge | `/health` 200 on stage+prod |
+| 06 | [`06-console`](06-console/README.md) | web console | console + edge live |
+| 07 | [`07-domain`](07-domain/README.md) | custom domain (OPTIONAL) | convergence green |
 
 ## Inputs
 

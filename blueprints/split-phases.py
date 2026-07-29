@@ -80,9 +80,27 @@ for i, ph in enumerate(phases, start=1):
     if i == len(phases) and bp.get("hooks"):
         doc["hooks"] = bp["hooks"]
 
-    path = outdir / f"{i:02d}-{ph['name']}.yaml"
+    # Phase folders under flows/phases/ are named by EXECUTION order (the
+    # workspace/root phase runs FIRST there, as "01-scaffold"), while this
+    # split enumerates BLUEPRINT order. Map known phase names to their
+    # folders; unknown names fall back to flat NN-name.yaml in outdir.
+    PHASE_FOLDERS = {
+        "workspace": "01-scaffold",
+        "foundation": "02-foundation",
+        "infrastructure": "03-infrastructure",
+        "workers": "04-workers",
+        "edge": "05-edge",
+        "console": "06-console",
+        "domain": "07-domain",
+    }
+    folder = PHASE_FOLDERS.get(ph["name"])
+    if folder:
+        path = outdir / folder / "blueprint.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        path = outdir / f"{i:02d}-{ph['name']}.yaml"
     path.write_text(yaml.safe_dump(doc, sort_keys=False, width=100))
-    written.append((path.name, len(mods), pruned, "hooks" if "hooks" in doc else "-"))
+    written.append((str(path.relative_to(outdir)), len(mods), pruned, "hooks" if "hooks" in doc else "-"))
 
 w = max(len(n) for n, *_ in written)
 print(f"{'file'.ljust(w)}  modules  pruned-edges  hooks")
