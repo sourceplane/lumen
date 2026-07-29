@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Instantiate the Lumen baseline one phase at a time.
+# EXPRESS instantiation: apply every phase blueprint into one --out, in one
+# go, producing the FULL product tree. This is the scaffolding half of the
+# express path (flows/bootstrap-flow.yaml deploys what this creates).
+#
+# The paced alternative is flows/phases/ — seven workflows that each apply
+# ONE slice and deploy it (see flows/phases/README.md). Same blueprints,
+# different pacing: this script applies them all before anything deploys.
 #
 # Each phase is its own Blueprint (see split-phases.py). They accumulate into a
 # single --out because orun's writeTree is additive (MkdirAll + WriteFile per
@@ -17,10 +23,10 @@
 #     phase carrying a hooks: block.
 #
 # Usage:
-#   blueprints/run-phases.sh <out-dir> [--set k=v ...]
+#   flows/common/instantiate-all.sh <out-dir> [--set k=v ...]
 #
 # Example:
-#   blueprints/run-phases.sh ~/sourceplane/acme-cloud \
+#   flows/common/instantiate-all.sh ~/sourceplane/acme-cloud \
 #     --set repoName=acme-cloud \
 #     --set productName="Acme Cloud" \
 #     --set productDomain=acme.dev \
@@ -28,8 +34,8 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-root="$(cd "$here/.." && pwd)"
-out="${1:?usage: run-phases.sh <out-dir> [--set k=v ...]}"
+root="$(cd "$here/../.." && pwd)"
+out="${1:?usage: instantiate-all.sh <out-dir> [--set k=v ...]}"
 shift
 
 # The phase blueprints live IN their phase folders (flows/phases/<n>/

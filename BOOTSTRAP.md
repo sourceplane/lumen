@@ -24,8 +24,17 @@ minutes.
 ## 1. Instantiate the repo from the blueprint
 
 ```bash
-blueprints/run-phases.sh   # from the baseline checkout; see blueprints/
+flows/common/instantiate-all.sh ~/sourceplane/acme \
+  --set repoName=acme \
+  --set productName="Acme Cloud" \
+  --set productDomain=acme.dev \
+  --set workersDevSubdomain=<workers-dev-subdomain> \
+  --set orunWorkspace=ws_XXXXXXXX
 ```
+
+Run it from the baseline checkout. It applies every phase blueprint
+(`flows/phases/<n>/blueprint.yaml`) into one output tree — the express
+alternative to running the phases one at a time.
 
 Rebrand values (`tooling/rebrand/values.example.json`): `repoName`,
 `productName`, `productDomain`, and `workersDevSubdomain`. Keeping the

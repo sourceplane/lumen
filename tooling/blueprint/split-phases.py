@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """Derive one blueprint per phase from a phased monolithic Blueprint.
 
+  Usage:  python3 tooling/blueprint/split-phases.py repo-blueprint.yaml flows/phases
+
+  Regenerate the phase blueprints after editing repo-blueprint.yaml (the
+  baseline as a Blueprint of itself). Known phase names are written to
+  flows/phases/<NN-folder>/blueprint.yaml, co-located with each phase's
+  workflow and README.
+
 Why this is not just a file split:
 
   * `dependsOn` an undeclared module is a hard validation error
@@ -23,13 +30,27 @@ bp = yaml.safe_load(src.read_text())
 # directory, not the cwd. The split files live somewhere else, so every dir
 # source has to be re-based or `path: .` would point at the blueprints folder.
 src_dir = src.resolve().parent
-out_dir_abs = outdir.resolve()
-rebased = []
-for s in bp.get("sources", []):
-    if s.get("kind") == "dir" and "path" in s:
-        target = (src_dir / s["path"]).resolve()
-        s["path"] = os.path.relpath(target, out_dir_abs)
-        rebased.append(f'{s["name"]} → {s["path"]}')
+
+
+def rebased_sources(dest_dir):
+    """Sources with `kind: dir` paths re-based to dest_dir.
+
+    A dir source path resolves relative to the BLUEPRINT FILE's own
+    directory. Phase blueprints land in flows/phases/<folder>/, one level
+    deeper than the outdir given on the command line, so the rebase is
+    computed per phase against the file's own parent — computing it against
+    outdir would be off by exactly one level and silently point the source
+    at the wrong tree.
+    """
+    out = []
+    for s in bp.get("sources", []):
+        s = dict(s)
+        if s.get("kind") == "dir" and "path" in s:
+            target = (src_dir / s["path"]).resolve()
+            s["path"] = os.path.relpath(target, dest_dir.resolve())
+        out.append(s)
+    return out
+
 
 phases = bp.get("phases") or []
 if not phases:
@@ -71,7 +92,7 @@ for i, ph in enumerate(phases, start=1):
             ),
         },
         "inputs": bp.get("inputs", {}),
-        "sources": bp["sources"],
+        "sources": None,  # filled below, once the output path is known
         "ignore": bp.get("ignore", []),
         "modules": mods,
         "phases": [{"name": ph["name"], "modules": members}],
@@ -99,6 +120,7 @@ for i, ph in enumerate(phases, start=1):
         path.parent.mkdir(parents=True, exist_ok=True)
     else:
         path = outdir / f"{i:02d}-{ph['name']}.yaml"
+    doc["sources"] = rebased_sources(path.parent)
     path.write_text(yaml.safe_dump(doc, sort_keys=False, width=100))
     written.append((str(path.relative_to(outdir)), len(mods), pruned, "hooks" if "hooks" in doc else "-"))
 
@@ -107,3 +129,4 @@ print(f"{'file'.ljust(w)}  modules  pruned-edges  hooks")
 for n, c, p, h in written:
     print(f"{n.ljust(w)}  {c:>7}  {p:>12}  {h}")
 print(f"\n{len(written)} phase blueprint(s) → {outdir}")
+print("dir sources re-based per phase folder")

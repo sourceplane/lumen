@@ -76,9 +76,24 @@ orun workflow run flows/phases/03-infrastructure/workflow.yaml \
 | `verify-endpoints.sh` | probe api-edge `/health` / console URLs, derived from `.rebrand/values.json` |
 | `create-secrets.sh` | the five brokered provider secrets; idempotent, self-heals orphans |
 
+## Where the blueprints live
+
+Each phase folder carries its own `blueprint.yaml` — the slice it applies.
+They are derived from the baseline's monolithic `repo-blueprint.yaml`
+(Lumen as a Blueprint of itself); regenerate them after editing it:
+
+```bash
+python3 tooling/blueprint/split-phases.py repo-blueprint.yaml flows/phases
+```
+
+The split prunes cross-phase `dependsOn` edges (ordering becomes the run
+sequence), keeps hooks on the scaffold phase only, and re-bases each
+blueprint's dir source relative to its own folder.
+
 ## Relationship to the express flow
 
-`flows/bootstrap-flow.yaml` is the same journey as ONE command: full tree
+The express path is `flows/common/instantiate-all.sh` (applies every phase
+blueprint into one tree) followed by `flows/bootstrap-flow.yaml`: full tree
 instantiated parked, whole fleet un-parked in a single push, one
 convergence run. The phased path builds the repo incrementally — each
 phase's merge deploys exactly its slice, no parking involved. Same shared
