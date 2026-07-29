@@ -45,6 +45,24 @@ orun workflow run flows/phases/03-infrastructure/workflow.yaml \
   --set out=$HOME/sourceplane/acme --set workspace=ws_… [--set dryrun=true]
 ```
 
+## Headless / container mode
+
+Each workflow also runs from ANYWHERE by remote reference — a fresh
+container with two env tokens is the entire contract (see
+[BOOTSTRAP.md §3c](../../BOOTSTRAP.md)):
+
+```bash
+export ORUN_TOKEN=… GITHUB_TOKEN=…
+orun workflow run github:sourceplane/lumen@<ref>//flows/phases/03-infrastructure/workflow.yaml \
+  --set workspace=ws_… --set repo=sourceplane/acme
+```
+
+The flow fetches the baseline at the SAME commit it was fetched from
+(`ORUN_FLOW_SOURCE_SHA`) and clones the product repo (`repo` input) — one
+reference pins everything. Inside a baseline checkout the same workflows
+keep using the local tree and your `out` path: the two modes are the same
+files.
+
 ## Pacing, idempotence, resume
 
 - Run one phase today and the next whenever. Nothing expires between

@@ -105,6 +105,36 @@ only `--set out=… --set workspace=…`). Full guide:
 every phase folder. Every phase supports
 `--set dryrun=true`.
 
+## 3c. Headless / container mode (Daytona, CI, any sandbox)
+
+Every phase workflow is fully self-contained: reference it remotely, give
+it two tokens, and it fetches everything itself — the baseline at the SAME
+commit the flow came from, the product repo by name. Nothing to check out,
+nothing interactive.
+
+```bash
+# The whole container contract:
+export ORUN_TOKEN=…          # orun auth, headless
+export GITHUB_TOKEN=…        # fine-grained PAT (scopes below)
+
+orun workflow run github:sourceplane/lumen@<ref>//flows/phases/01-scaffold/workflow.yaml \
+  --set workspace=ws_… --set reponame=acme --set productname="Acme Cloud" \
+  --set productdomain=acme.dev --set subdomain=<workers-dev-subdomain>
+
+orun workflow run github:sourceplane/lumen@<ref>//flows/phases/02-foundation/workflow.yaml \
+  --set workspace=ws_… --set repo=sourceplane/acme
+# … phases 03–07 identically, at your pace. Add --set dryrun=true to preview.
+```
+
+| requirement | detail |
+|---|---|
+| image deps | `git`, `gh`, `node` (≥20), `python3`, `orun` ≥ v2.50.0 |
+| `ORUN_TOKEN` | orun access token; preflight authenticates with it (no login flow) |
+| `GITHUB_TOKEN` | fine-grained PAT: **read** on `sourceplane/lumen` (baseline fetch); on the PRODUCT repo: **contents write** (pushes), **pull-requests write** (landings), **actions read+write** (converge watches runs and auto-resumes via `gh run rerun`), **checks read**; **repo create** on the org if phase 01 creates the repo (or pre-create it — supported) |
+| pinning | the `@<ref>` in the remote reference pins EVERYTHING — the flow fetches its baseline at that exact commit (`ORUN_FLOW_SOURCE_SHA`). Use a tag for reproducible bootstraps; `@main` for latest |
+| workdir | phases share `./baseline` and `./product` in the container cwd; re-running a phase reuses both (idempotent) |
+| identity | commits fall back to `bootstrap-bot` when no git identity is configured |
+
 ## 4. After the baseline is live
 
 - **Custom domain**: create the product zone in Cloudflare, then un-park
