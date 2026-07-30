@@ -102,7 +102,7 @@ steps:
         cd "$out"
         [ -d .git ] || git init -q -b main
         git add -A
-        node tooling/rebrand/rebrand.mjs --values .rebrand/values.json --allow-dirty
+        node "$L/tooling/rebrand/rebrand.mjs" --values .rebrand/values.json --allow-dirty
         python3 - <<'PYEOF'
         import json, re
         ws = (json.load(open(".rebrand/values.json")).get("orunWorkspace") or "").strip() or "ws_SET_ME"
