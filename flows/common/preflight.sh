@@ -58,13 +58,15 @@ while :; do
   sleep 20
 done
 
-echo "── repo allow-list (self-heals via cloud link)"
-if ! orun cloud check --org "$ws"; then
-  echo "not allow-listed yet — running \`orun cloud link\` (uses the git remote + the workspace's GitHub integration)"
-  orun cloud link --org "$ws" || true
-  orun cloud check --org "$ws" || {
-    echo "repo still not allow-listed for $ws: grant it in the console (Git Repos)" >&2
-    exit 1
-  }
-fi
+echo "── repo link + allow-list (idempotent)"
+# Link FIRST, unconditionally: `orun cloud check` consults the server-side
+# allow-list and can pass while the LOCAL link cache (HOME config) is empty —
+# a fresh container HOME — leaving later project-scoped commands to die with
+# "this repo isn't connected" (hit live). Linking is an idempotent no-op when
+# already linked and also populates the cache.
+orun cloud link --org "$ws" >/dev/null 2>&1 || true
+orun cloud check --org "$ws" || {
+  echo "repo not allow-listed for $ws: grant it in the console (Git Repos)" >&2
+  exit 1
+}
 echo "preflight ok"
