@@ -156,7 +156,11 @@ steps:
         fi
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
-        "$L/flows/common/land-pr.sh" "$P" 03-infrastructure "phase(03-infrastructure): kv, supabase, db-migrate, hyperdrive"
+        # --no-wait: on a fresh product this PR's db-migrate/hyperdrive plan lanes
+# CANNOT pass — they resolve supabase's job-output secrets, which only
+# exist after the merge's main run applies supabase. The convergence step
+# right after this is the real gate (DAG-ordered applies + publishes).
+"$L/flows/common/land-pr.sh" --no-wait "$P" 03-infrastructure "phase(03-infrastructure): kv, supabase, db-migrate, hyperdrive"
     timeout: 30m
   - name: converge
     needs: [land]

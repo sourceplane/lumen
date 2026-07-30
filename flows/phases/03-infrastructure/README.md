@@ -38,7 +38,12 @@ so consents can be clicked while it waits), plus:
    keys (workers-deploy / hyperdrive-edit / account-id /
    management-access / org-id). Idempotent; orphaned keys are recreated
    against the current ACTIVE connection.
-3. **apply** → **land** → **converge** — the standard contract.
+3. **apply** → **land** → **converge** — the standard contract, with one
+   deliberate difference: the landing merges WITHOUT waiting on PR checks
+   (`land-pr.sh --no-wait`). On a fresh product the PR's db-migrate and
+   hyperdrive plan lanes are structurally red — they resolve supabase's
+   job-output secrets, which only exist once the merge's main run APPLIES
+   supabase. The convergence step is the real gate.
 4. **verify** — asserts `WIRING_CLOUDFLARE_KV`,
    `WIRING_CLOUDFLARE_HYPERDRIVE`, `SUPABASE_PROJECT_REF` exist on the
    stage env rung. Missing keys mean an apply did not publish — check that
