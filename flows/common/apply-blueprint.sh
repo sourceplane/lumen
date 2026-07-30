@@ -21,6 +21,27 @@ vals="$out/.rebrand/values.json"
 [ -f "$vals" ] || { echo "apply-blueprint: no $vals — run the scaffold phase (flows/phases/01-scaffold) first" >&2; exit 1; }
 getv() { python3 -c "import json;print(json.load(open('$vals')).get('$1') or '')"; }
 
+
+sets=(
+  --set "repoName=$(getv repoName)"
+  --set "productName=$(getv productName)"
+  --set "productDomain=$(getv productDomain)"
+  --set "workersDevSubdomain=$(getv workersDevSubdomain)"
+  --set "orunWorkspace=$ws"
+)
+for k in pascalName brandSlug cliBin apiBaseUrl salesEmail; do
+  v="$(getv "$k")"
+  [ -n "$v" ] && sets+=( --set "$k=$v" )
+done
+
+cd "$out"
+if [ -n "$(git status --porcelain)" ]; then
+  echo "apply-blueprint: $out working tree is not clean — commit/stash first" >&2
+  exit 1
+fi
+
+# (after the clean check: this may WRITE .rebrand/values.json, and the change
+# then lands with this phase's PR)
 # The workspace SLUG is what `secret://<workspace>/…` refs must carry (a ws_…
 # id is not accepted there). Resolve it once from the platform and record it,
 # so every phase's rebrand renames the workspace segment correctly — and so a
@@ -49,23 +70,6 @@ PY
   fi
 fi
 
-sets=(
-  --set "repoName=$(getv repoName)"
-  --set "productName=$(getv productName)"
-  --set "productDomain=$(getv productDomain)"
-  --set "workersDevSubdomain=$(getv workersDevSubdomain)"
-  --set "orunWorkspace=$ws"
-)
-for k in pascalName brandSlug cliBin apiBaseUrl salesEmail; do
-  v="$(getv "$k")"
-  [ -n "$v" ] && sets+=( --set "$k=$v" )
-done
-
-cd "$out"
-if [ -n "$(git status --porcelain)" ]; then
-  echo "apply-blueprint: $out working tree is not clean — commit/stash first" >&2
-  exit 1
-fi
 
 orun new --blueprint "$baseline/$bp" --out "$out" "${sets[@]}"
 if [ -f .orun/provenance.lock ]; then
