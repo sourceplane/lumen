@@ -121,7 +121,8 @@ steps:
         fi
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
-        "$L/flows/common/land-pr.sh" "$P" 05-edge "phase(05-edge): api-edge"
+        # --no-wait: same single-deploy rationale as phase 04.
+        "$L/flows/common/land-pr.sh" --no-wait "$P" 05-edge "phase(05-edge): api-edge"
     timeout: 30m
   - name: converge
     needs: [land]
