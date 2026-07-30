@@ -79,7 +79,11 @@ fi
 # Rebrand the freshly written files (tracked via the index so the sweep sees
 # them); idempotent over the rest of the tree.
 git add -A
-node tooling/rebrand/rebrand.mjs --values "$vals" --allow-dirty
+# Run the BASELINE's rebrand (the pinned commit's tool), never the product's
+# own copy — that copy is frozen at scaffold time and misses later fixes
+# (hit live: a stale product rebrand re-broke the secret-ref workspace
+# segment that the pinned baseline had already fixed).
+node "$baseline/tooling/rebrand/rebrand.mjs" --values "$vals" --allow-dirty
 git add -A
 
 if [ "$dry" = "true" ]; then
