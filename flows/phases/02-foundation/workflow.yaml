@@ -91,7 +91,10 @@ steps:
         fi
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
-        "$L/flows/common/land-pr.sh" "$P" 02-foundation "phase(02-foundation): shared packages"
+        # --no-wait: the packages come from the PINNED baseline, already verified
+        # there; the converge step re-runs the same verify lanes on main and is
+        # the real gate. Waiting on the PR lanes just runs every build twice.
+        "$L/flows/common/land-pr.sh" --no-wait "$P" 02-foundation "phase(02-foundation): shared packages"
     timeout: 30m
   - name: converge
     needs: [land]

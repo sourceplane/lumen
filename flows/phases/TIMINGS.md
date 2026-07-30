@@ -19,13 +19,13 @@ product pays today with every fix this run produced already landed.
 
 ## Improvements, in impact order
 
-1. **Stop deploying twice (biggest win, ~-20m and ~half the Actions
-   minutes).** Deploy phases run the fleet on the PR run AND again on the
-   main convergence. `land-pr.sh --no-wait` (already used by phase 03,
-   where PR lanes are structurally red) applied to phases 04–06 during
-   first boot gives one convergence per phase: projected total **~40m**.
-   The PR-lane gate matters for incremental changes on a LIVE product; on
-   first boot the convergence is the only meaningful gate.
+1. **Stop deploying twice — SHIPPED.** Every phase now lands with
+   `land-pr.sh --no-wait` (phases 02–06; 03 already had it): one
+   convergence per landing, the converge step is the gate. Projected total
+   **~40m**. Rationale: the phase content comes from the PINNED baseline,
+   already verified there; PR lanes deployed the fleet a second (and, for
+   04's restore, a third) time. The check-gated `land-pr.sh` default
+   remains for incremental changes on live products (`flows/batch.sh`).
 2. **Optionally split phase 03** into `03a` (cloudflare-kv + supabase) and
    `03b` (db-migrate + hyperdrive) if green PR gates are preferred over
    `--no-wait`: 03b's plan lanes need supabase's job-output secrets, which

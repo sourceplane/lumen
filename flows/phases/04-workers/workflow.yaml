@@ -127,7 +127,10 @@ steps:
         fi
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
-        "$L/flows/common/land-pr.sh" "$P" 04-workers "phase(04-workers): worker fleet (feedback edges stripped)"
+        # --no-wait: PR verify-deploy lanes DEPLOY the whole fleet, and the main
+        # convergence deploys it again — double work, double Actions spend
+        # (measured: ~7m of PR deploys on vela). The converge step is the gate.
+        "$L/flows/common/land-pr.sh" --no-wait "$P" 04-workers "phase(04-workers): worker fleet (feedback edges stripped)"
     timeout: 30m
   - name: converge
     needs: [land]
@@ -192,6 +195,6 @@ steps:
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would restore feedback bindings"; exit 0; }
         cd "$P"
         node tooling/bootstrap/cycle-break.mjs --restore
-        "$L/flows/common/land-pr.sh" "$P" 04-workers-restore "phase(04-workers): restore service-binding feedback edges"
+        "$L/flows/common/land-pr.sh" --no-wait "$P" 04-workers-restore "phase(04-workers): restore service-binding feedback edges"
         "$L/flows/common/converge.sh" '' 2
     timeout: 60m

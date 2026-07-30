@@ -4,8 +4,9 @@ Seven independent workflows that take a product from **nothing** to a
 **live baseline**, one slice at a time, at whatever pace you choose. Each
 phase is self-contained and follows the same contract:
 
-> **apply its blueprint slice → land it as a PR → watch the deployment
-> convergence (auto-resumed) → verify it is actually deployed.**
+> **apply its blueprint slice → land it as a PR (merged immediately —
+> the convergence is the gate) → watch the deployment convergence
+> (auto-resumed) → verify it is actually deployed.**
 
 Run every workflow **from the baseline checkout** (the blueprints live
 here); the product repo is wherever `out` points.
