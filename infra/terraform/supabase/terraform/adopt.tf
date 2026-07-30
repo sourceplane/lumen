@@ -28,8 +28,13 @@ data "external" "adopt_project" {
     fi
     resp="$(curl -fsS --retry 3 -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
       "https://api.supabase.com/v1/projects")"
-    printf '%s' "$resp" | jq -c --arg n "$name" --arg org "$SUPABASE_ORG_ID" \
-      '{id: ([.[] | select(.name == $n and .organization_id == $org) | .id] | first // "")}'
+    # The org id reaches this job as TF_VAR_supabaseOrgId (the component maps
+    # the SUPABASE_ORG_ID secret to the terraform variable); plain
+    # SUPABASE_ORG_ID exists only in older wirings. Accept either; with
+    # neither set, match by name alone.
+    org="$${TF_VAR_supabaseOrgId:-$${SUPABASE_ORG_ID:-}}"
+    printf '%s' "$resp" | jq -c --arg n "$name" --arg org "$org" \
+      '{id: ([.[] | select(.name == $n and ($org == "" or .organization_id == $org)) | .id] | first // "")}'
   EOT
   ]
   query = {
