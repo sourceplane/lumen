@@ -1,0 +1,125 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: testing-provision-workspace
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ TESTING ONLY. This flow provisions THROWAWAY prerequisites — a fresh    │
+# │ workspace, provider connections from pasted tokens, an empty repo — so  │
+# │ bootstrap runs can be exercised end-to-end without console clicks.     │
+# │ It is deliberately NOT part of the bootstrap/scaffold path and MUST    │
+# │ NOT be referenced from BOOTSTRAP.md or flows/phases/: real products    │
+# │ get their workspace and consents deliberately, by a human, in the      │
+# │ console.                                                               │
+# └─────────────────────────────────────────────────────────────────────────┘
+#
+# Requires: an authenticated orun session (or ORUN_TOKEN), gh authenticated
+# (or GITHUB_TOKEN), and the two provider tokens in ENV — never as inputs,
+# so they cannot land in argv, logs, or run state:
+#   CLOUDFLARE_API_TOKEN   Account API token (the console recipe's groups)
+#   SUPABASE_PAT           Supabase personal access token (sbp_…)
+#
+#   CLOUDFLARE_API_TOKEN=… SUPABASE_PAT=… \
+#   orun workflow run flows/testing/provision-workspace.yaml \
+#     --set name=<workspace-name> [--set reponame=<repo>] [--set githuborg=sourceplane]
+#
+# Output: the new workspace id (ws lines in the create step) — feed it to the
+# phase workflows as --set workspace=….
+inputs:
+  name:
+    type: string
+    description: Workspace display name (slug derived by the server unless slug is set).
+  slug:
+    type: string
+    default: ""
+    description: Optional explicit workspace slug.
+  reponame:
+    type: string
+    default: ""
+    description: Optional empty PRIVATE test repo to create (owner from githuborg). Empty = skip.
+  githuborg:
+    type: string
+    default: "sourceplane"
+    description: GitHub org for the test repo.
+steps:
+  - name: create-workspace
+    envInherit: [ORUN_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+        out="$(orun cloud workspace create "{{ inputs.name }}" ${SLUG:+--slug "$SLUG"})"
+        echo "$out"
+        ws="$(printf '%s' "$out" | sed -n 's/.*id:[[:space:]]*\([A-Za-z0-9_]*\).*/\1/p' | head -1)"
+        [ -n "$ws" ] || { echo "could not parse the workspace id from create output" >&2; exit 1; }
+        printf '%s' "$ws" > "$W/.provisioned-workspace"
+        echo "workspace id recorded: $ws"
+      # slug is optional; cobra needs it absent, not empty
+    env:
+      SLUG: "{{ inputs.slug }}"
+    timeout: 3m
+
+  - name: connect-cloudflare
+    needs: [create-workspace]
+    envInherit: [ORUN_TOKEN, CLOUDFLARE_API_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+        ws="$(cat "$W/.provisioned-workspace")"
+        [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo "CLOUDFLARE_API_TOKEN not in env — export it before running" >&2; exit 1; }
+        printf '%s' "$CLOUDFLARE_API_TOKEN" | orun integrations cloudflare connect --org "$ws"
+    timeout: 3m
+
+  - name: connect-supabase
+    needs: [create-workspace]
+    envInherit: [ORUN_TOKEN, SUPABASE_PAT]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+        ws="$(cat "$W/.provisioned-workspace")"
+        [ -n "${SUPABASE_PAT:-}" ] || { echo "SUPABASE_PAT not in env — export it before running" >&2; exit 1; }
+        printf '%s' "$SUPABASE_PAT" | orun integrations supabase connect --org "$ws"
+    timeout: 3m
+
+  - name: create-repo
+    needs: [create-workspace]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        rn="{{ inputs.reponame }}"
+        [ -n "$rn" ] || { echo "create-repo: no reponame — skipped"; exit 0; }
+        slug="{{ inputs.githuborg }}/$rn"
+        if gh repo view "$slug" >/dev/null 2>&1; then
+          echo "create-repo: $slug already exists — skipped"
+        else
+          gh repo create "$slug" --private
+          echo "create-repo: created $slug (empty, private)"
+        fi
+    timeout: 3m
+
+  - name: summary
+    needs: [connect-cloudflare, connect-supabase, create-repo]
+    envInherit: [ORUN_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+        ws="$(cat "$W/.provisioned-workspace")"
+        echo "── provisioned (TESTING) ──"
+        orun integrations list "$ws"
+        echo ""
+        echo "workspace: $ws"
+        echo "next (testing a bootstrap): run the phase workflows with --set workspace=$ws"
+    timeout: 3m
