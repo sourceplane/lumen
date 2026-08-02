@@ -103,7 +103,7 @@ steps:
         "$L/flows/common/apply-blueprint.sh" "$L" flows/phases/04-workers/blueprint.yaml "$P" "$ws" "{{ inputs.dryrun }}"
         [ "{{ inputs.dryrun }}" = "true" ] && exit 0
         cd "$P"
-        node tooling/bootstrap/cycle-break.mjs --strip
+        node "$L/tooling/bootstrap/cycle-break.mjs" --strip
         git add -A
     timeout: 15m
   - name: land
@@ -202,7 +202,7 @@ steps:
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would restore feedback bindings"; exit 0; }
         cd "$P"
-        node tooling/bootstrap/cycle-break.mjs --restore
+        node "$L/tooling/bootstrap/cycle-break.mjs" --restore
         "$L/flows/common/land-pr.sh" --no-wait "$P" 04-workers-restore "phase(04-workers): restore service-binding feedback edges"
         "$L/flows/common/converge.sh" '' 2
     timeout: 60m

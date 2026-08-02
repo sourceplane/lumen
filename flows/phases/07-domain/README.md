@@ -43,10 +43,6 @@ records the custom-domain URLs.
 - **Plan fails: zone not found** — the zone does not exist in this
   Cloudflare account yet, or the brokered token's account differs from the
   zone's account. Create the zone, re-run.
-- **Express-flow users**: in the single-run path this component ships
-  PARKED for exactly this reason; un-parking it there
-  (`node flows/common/park.mjs unpark cloudflare-domain`) is the
-  equivalent of running this phase.
 
 ## Example commands
 

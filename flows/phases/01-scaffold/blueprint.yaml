@@ -75,21 +75,11 @@ ignore:
 - apps/webhooks-worker/wrangler.jsonc
 - '*.tsbuildinfo'
 modules:
-- name: agents
-  mode: copy
-  source: baseline
-  from: agents
-  to: agents
 - name: ai-context
   mode: copy
   source: baseline
-  from: ai
-  to: ai
-- name: flows
-  mode: copy
-  source: baseline
-  from: flows
-  to: flows
+  from: ai/context
+  to: ai/context
 - name: github-workflows
   mode: copy
   source: baseline
@@ -105,11 +95,6 @@ modules:
       : \"{{ .apiBaseUrl }}\"{{ end }},\n  \"workersDevSubdomain\": \"{{ .workersDevSubdomain }}\"{{ if\
       \ .salesEmail }},\n  \"salesEmail\": \"{{ .salesEmail }}\"{{ end }},\n  \"orunWorkspace\": \"{{\
       \ .orunWorkspace }}\"\n}\n"
-- name: root-forking
-  mode: copy
-  source: baseline
-  from: FORKING.md
-  to: FORKING.md
 - name: root-gitignore
   mode: copy
   source: baseline
@@ -155,11 +140,21 @@ modules:
   source: baseline
   from: turbo.json
   to: turbo.json
-- name: tooling
+- name: tooling-eslint
   mode: copy
   source: baseline
-  from: tooling
-  to: tooling
+  from: tooling/eslint
+  to: tooling/eslint
+- name: tooling-tsconfig
+  mode: copy
+  source: baseline
+  from: tooling/tsconfig
+  to: tooling/tsconfig
+- name: tooling-wire
+  mode: copy
+  source: baseline
+  from: tooling/wire
+  to: tooling/wire
 - name: vscode
   mode: copy
   source: baseline
@@ -168,12 +163,9 @@ modules:
 phases:
 - name: workspace
   modules:
-  - agents
   - ai-context
-  - flows
   - github-workflows
   - rebrand-values
-  - root-forking
   - root-gitignore
   - root-intent
   - root-kiox
@@ -183,7 +175,9 @@ phases:
   - root-pnpm-workspace
   - root-readme
   - root-turbo
-  - tooling
+  - tooling-eslint
+  - tooling-tsconfig
+  - tooling-wire
   - vscode
 hooks:
   postInstantiate:

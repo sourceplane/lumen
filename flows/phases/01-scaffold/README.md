@@ -12,16 +12,24 @@ This is the only phase that takes identity inputs.
 
 The repo ROOT — no deployable components yet:
 
-- `intent.yaml` (workspace id written in), `.github/workflows/ci.yml`
+- `intent.yaml` (workspace AND project written in), `.github/workflows/ci.yml`
   (resume-capable CI: exec-id = run id, conditional `--retry`,
-  `max-parallel: 8`)
-- `flows/` (this machinery), `tooling/` (rebrand, cycle-break, wire,
-  eslint, tsconfig), `agents/`, `ai/context/`, `.vscode/`
+  `max-parallel: 8`, lane pin orun ≥ v2.52.4)
+- `tooling/` — ONLY what product builds use: `eslint`, `tsconfig`, `wire`
+- `ai/context/` — fresh, product-only agent context: `current.md`,
+  `decisions.md`, `open-risks.md`, plus the `operations.md` contract and
+  the `deployment.md` placeholder that phase 08 fills
 - `.rebrand/values.json` — the identity record every later phase reads
 - root files: `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
-  `turbo.json`, `kiox` locks, `.gitignore`, `README.md`, `FORKING.md`
+  `turbo.json`, `kiox` locks, `.gitignore`, `README.md` (product-only —
+  the forking narrative is stripped), `.vscode/`
 - empty discovery roots `apps/ infra/ packages/ tests/` (with `.gitkeep`)
   so `orun new`'s repo-scale gate and the product CI can plan from birth
+
+**What deliberately does NOT land**: this baseline's machinery — `flows/`,
+`agents/`, rebrand/fork/blueprint tooling, baseline working notes,
+provenance files. A product carries product files only and its docs never
+present it as a copy of anything.
 
 ## Inputs
 

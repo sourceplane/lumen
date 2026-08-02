@@ -1,10 +1,10 @@
-# BOOTSTRAP — fresh product from this baseline, one workflow
+# BOOTSTRAP — fresh product from this baseline, in phases
 
-How to go from **nothing** to a **fully deployed working baseline** (all
-terraform infra, the 12-worker fleet, api-edge, the console — live on
-stage+prod) with one workflow run plus two OAuth consents. Proven end-to-end
-by the `nimbus` instantiation (2026-07-28); the residual manual reruns it
-needed are engineered away (smoke retry, resume dep-grace, single-run flow).
+How to go from **nothing** to a **fully deployed, documented baseline**
+(all terraform infra, the 12-worker fleet, api-edge, the console — live on
+stage+prod) with the phased bootstrap workflows plus two OAuth consents.
+Proven end-to-end by the `nimbus`, `vela`, and `ambient` instantiations
+(the last fully headless with a workspace-scoped token).
 
 Target wall-clock: **under an hour**. The long pole is Supabase project
 creation (~5–10 min per environment); the worker fleet itself converges in
@@ -13,7 +13,7 @@ minutes.
 ## 0. What you need
 
 - GitHub org access (repo creation) and a machine with `git`, `gh`, `node`,
-  `python3`, and the `orun` CLI ≥ v2.49.0.
+  `python3`, and the `orun` CLI ≥ v2.52.4.
 - A Cloudflare account (Workers paid plan for the fleet) and its **Account
   API token** (the console's Connect recipe lists the exact permission
   groups).
@@ -21,94 +21,45 @@ minutes.
   projects) whose OAuth consent you can grant.
 - An Orun Cloud workspace for the product (`workspace:` in `intent.yaml`).
 
-## 1. Instantiate the repo from the blueprint
+## 1. Bootstrap in phases — the one flow
 
-```bash
-flows/common/instantiate-all.sh ~/sourceplane/acme \
-  --set repoName=acme \
-  --set productName="Acme Cloud" \
-  --set productDomain=acme.dev \
-  --set workersDevSubdomain=<workers-dev-subdomain> \
-  --set orunWorkspace=ws_XXXXXXXX
-```
-
-Run it from the baseline checkout. It applies every phase blueprint
-(`flows/phases/<n>/blueprint.yaml`) into one output tree — the express
-alternative to running the phases one at a time.
-
-Rebrand values (`tooling/rebrand/values.example.json`): `repoName`,
-`productName`, `productDomain`, and `workersDevSubdomain`. Keeping the
-baseline's workers.dev subdomain is fine when the fork shares the Cloudflare
-account — worker names are brand-prefixed, and the rebrand sweep accepts a
-kept subdomain (it only flags the subdomain when you *changed* it).
-
-The first CI push runs only the offline verify fleet: every deployable
-component starts **parked** (`flows/subscriptions/`).
-
-## 2. Link the workspace
-
-```bash
-orun auth login --device       # approve at app.orun.dev/cli/device
-```
-
-That is all — the workflow's preflight self-heals the repo link/allow-list
-(`orun cloud link`, driven by the git remote and the workspace's GitHub
-integration) and waits for the provider consents.
-
-## 3. Run the workflow
-
-With a workspace id, an authenticated CLI, and the three integrations
-connected (GitHub, Cloudflare, Supabase), this ONE command handles
-everything — the repo allow-list self-heals via `orun cloud link`, secrets
-are brokered, and the whole fleet deploys in one convergence run:
-
-```bash
-orun workflow run flows/bootstrap-flow.yaml --set workspace=<ws-id>
-```
-
-`workspace` accepts the workspace id (`ws_…`) or its slug.
-
-To preview everything first without changing anything (no secrets created,
-no push, no deploy — reports connection/secret health, shows the exact
-unpark+strip diff and reverts it, and probes the endpoints without failing):
-
-```bash
-orun workflow run flows/bootstrap-flow.yaml --set workspace=<ws-id> --set dryrun=true
-```
-
-Preflight **waits up to 10 minutes** for the two provider connections — grant
-them in the console (→ Integrations) while it polls:
-
-- **Cloudflare**: paste the Account API token (in-console recipe).
-- **Supabase**: OAuth consent; pick the organization that owns this product's
-  projects. Scopes live on the OAuth app itself — changing them later
-  **revokes every existing connection of that app across all workspaces**
-  (secrets go `orphaned`; re-connect + `flows/common/create-secrets.sh <org>`
-  self-heals).
-
-Then the flow runs unattended: brokered secrets → one main push un-parking
-the whole fleet (feedback service-bindings stripped) → **one convergence
-run** deploying everything in DAG order (supabase → db-migrate + hyperdrive →
-workers → api-edge → console), auto-resumed through transient failures → a
-final push restoring the service bindings → live-endpoint verification.
-
-`flows/README.md` documents each step and the ordering guarantees;
-`ai/context/fork-from-baseline.md` records the fork provenance.
-
-## 3b. Or: bootstrap in phases, at your own pace
-
-Prefer landing the product slice by slice — each with its own PR, deploy,
-and verification? `flows/phases/01-scaffold … 08-docs` are eight
-independent workflows (phase 01 replaces steps 2–3 above; later phases need
-only `--set out=… --set workspace=…`; phase 08 closes the loop by
-recording the verified live deployment into the product's own docs —
-`ai/context/deployment.md` + the README section — so agents reading the
-repo, e.g. through the Orun MCP surface, get the full picture). Full guide:
-[flows/phases/README.md](flows/phases/README.md), with a detailed README in
-every phase folder. Every phase supports
+`flows/phases/01-scaffold … 08-docs` are eight independent workflows that
+take a product from nothing to a live, documented baseline. Each phase is
+idempotent (re-running a completed phase is a no-op that re-verifies) and
+follows one contract: **apply its slice → land it → watch the convergence
+→ verify the outcome**. Full guide: [flows/phases/README.md](flows/phases/README.md),
+with a detailed README in every phase folder; every phase supports
 `--set dryrun=true`.
 
-## 3c. Headless / container mode (Daytona, CI, any sandbox)
+```bash
+# local mode, from this checkout — phase 01 takes the identity once:
+orun workflow run flows/phases/01-scaffold/workflow.yaml \
+  --set workspace=ws_XXXXXXXX --set reponame=acme \
+  --set productname="Acme Cloud" --set productdomain=acme.dev \
+  --set subdomain=<workers-dev-subdomain>
+
+# every later phase reads identity from the product repo:
+orun workflow run flows/phases/02-foundation/workflow.yaml \
+  --set out=~/sourceplane/acme --set workspace=ws_XXXXXXXX
+# … 03 (infra), 04 (workers), 05 (edge), 06 (console), 08 (docs); 07 (domain) optional.
+```
+
+What lands in the product is PRODUCT-ONLY: source, infra, CI, configs,
+and its own docs. None of this baseline's machinery (flows, rebrand
+tooling, agent state, forking docs) ships, and nothing in the product
+presents it as a copy of anything.
+
+The workspace needs its three integrations connected once (GitHub,
+Cloudflare, Supabase) — preflight polls up to 10 minutes so consents can
+be clicked while it waits:
+
+- **Cloudflare**: paste the Account API token (in-console recipe).
+- **Supabase**: OAuth consent; pick the organization that owns this
+  product's projects. Changing the OAuth app's scopes later revokes every
+  existing connection of that app (secrets go `orphaned`; re-connect +
+  `flows/common/create-secrets.sh <ws>` self-heals).
+
+## 2. Headless / container mode (Daytona, CI, any sandbox)
 
 Every phase workflow is fully self-contained: reference it remotely, give
 it two tokens, and it fetches everything itself — the baseline at the SAME
@@ -141,16 +92,16 @@ orun workflow run github:sourceplane/lumen@<ref>//flows/phases/02-foundation/wor
 | classic-token caveat | a CLASSIC PAT or gh OAuth token additionally needs the `workflow` scope to push `.github/workflows/` (hit live); fine-grained PATs need only `contents: write` |
 | identity | commits fall back to `bootstrap-bot` when no git identity is configured |
 
-## 4. After the baseline is live
+## 3. After the baseline is live
 
-- **Custom domain**: create the product zone in Cloudflare, then un-park
-  `cloudflare-domain` (`node flows/common/park.mjs unpark cloudflare-domain`, PR it —
-  or `flows/batch.sh domain cloudflare-domain`).
+- **Custom domain**: create the product zone in Cloudflare, then run
+  [phase 07](flows/phases/07-domain/README.md), and re-run phase 08 so the
+  docs pick up the domain URLs.
 - **Runtime secrets** (OAuth client secrets, billing keys, …): seed with
   `orun secrets set <KEY> --org <org> --env <env>`; the next deploy pushes
   them to the workers (`wire-now-seed-later` — nothing blocks on them).
-- **Incremental rollouts**: normal PRs; `flows/batch.sh` for grouped
-  enable-style changes.
+- **Incremental rollouts**: normal PRs — merges to `main` converge
+  automatically.
 
 ## Troubleshooting (everything we hit doing this for real)
 
