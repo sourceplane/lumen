@@ -137,3 +137,13 @@ environments:
       requireApproval: "false"
     env:
       BASE_DOMAIN: lumen.app
+
+# Repo-level catalog entity: front page + role-tagged docs (rendered in
+# the workspace Docs library, pinned to the commit by `orun plan`).
+repo:
+  displayName: lumen
+  docs:
+    overview: README.md
+    pages:
+      - { path: ai/context/operations.md, role: runbook, title: Operating contract }
+      - { path: ai/context/deployment.md, role: reference, title: Live deployment manifest }

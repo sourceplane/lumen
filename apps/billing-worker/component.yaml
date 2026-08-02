@@ -4,6 +4,11 @@ metadata:
   name: billing-worker
   description: Cloudflare Worker for the Billing API surface (private, service-binding only)
 spec:
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture }
+      - { path: docs/runbook.md, role: runbook }
   type: cloudflare-worker-turbo
   lifecycle: production
   owner: platform
