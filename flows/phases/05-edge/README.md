@@ -37,6 +37,33 @@ as deployed; 5xx/timeout does not) on BOTH environments.
   binding misbehaves — check the worker it proxies to; the smoke in the
   deploy lane retried ~75s already, so this is real, not propagation.
 
+## Example commands
+
+From the baseline checkout (local mode):
+
+```bash
+orun workflow run flows/phases/05-edge/workflow.yaml \
+  --set out=$HOME/sourceplane/acme --set workspace=ws_ABCD1234
+```
+
+Headless (fresh container / no checkout — see BOOTSTRAP.md §3c): same
+command by remote reference, with `ORUN_TOKEN` + `GITHUB_TOKEN` exported
+and `--set repo=<owner/name>` instead of `out`:
+
+```bash
+export ORUN_TOKEN="$(orun auth token | tail -1)" GITHUB_TOKEN=…
+orun workflow run github:sourceplane/lumen@main//flows/phases/05-edge/workflow.yaml \
+  --set workspace=ws_ABCD1234 --set repo=sourceplane/acme
+```
+
+Preview with zero side effects (either mode): append `--set dryrun=true` —
+the blueprint is applied, shown, and reverted; nothing is pushed or
+deployed. Re-running a completed phase is always safe (idempotent): the
+apply is a no-op, the landing finds nothing, and verify re-asserts.
+
+On success the verify step has already probed
+`https://acme-api-edge-{stage,prod}.<subdomain>.workers.dev/health`.
+
 ## Next
 
 [Phase 06 — console](../06-console/README.md).
