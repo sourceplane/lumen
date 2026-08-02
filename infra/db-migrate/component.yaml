@@ -10,6 +10,11 @@ metadata:
     layer: data
 
 spec:
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture }
+      - { path: docs/runbook.md, role: runbook }
   type: db-migrate
   lifecycle: production
   owner: platform

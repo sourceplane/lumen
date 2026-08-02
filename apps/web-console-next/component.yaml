@@ -4,6 +4,11 @@ metadata:
   name: web-console-next
   description: Next.js 15 + opennextjs/cloudflare delivery of the Lumen web console (per-environment, Workers + Static Assets)
 spec:
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture }
+      - { path: docs/runbook.md, role: runbook }
   type: cloudflare-workers-assets-turbo
   lifecycle: production
   owner: platform

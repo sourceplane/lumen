@@ -4,6 +4,11 @@ metadata:
   name: admin-worker
   description: Internal Cloudflare Worker for audited support/administration diagnostics
 spec:
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture }
+      - { path: docs/runbook.md, role: runbook }
   type: cloudflare-worker-turbo
   lifecycle: production
   owner: platform

@@ -4,6 +4,11 @@ metadata:
   name: sdk
   description: Runtime-agnostic TypeScript SDK for the Lumen control plane API
 spec:
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture }
+      - { path: docs/runbook.md, role: runbook }
   type: turbo-package
   lifecycle: production
   owner: platform

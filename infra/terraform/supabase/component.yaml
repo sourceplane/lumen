@@ -9,6 +9,11 @@ metadata:
     scope: database
 
 spec:
+  docs:
+    overview: docs/overview.md
+    pages:
+      - { path: docs/architecture.md, role: architecture }
+      - { path: docs/runbook.md, role: runbook }
   type: terraform
   lifecycle: production
   owner: platform
