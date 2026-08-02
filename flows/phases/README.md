@@ -111,11 +111,3 @@ The split prunes cross-phase `dependsOn` edges (ordering becomes the run
 sequence), keeps hooks on the scaffold phase only, and re-bases each
 blueprint's dir source relative to its own folder.
 
-## Relationship to the express flow
-
-The express path is `flows/common/instantiate-all.sh` (applies every phase
-blueprint into one tree) followed by `flows/bootstrap-flow.yaml`: full tree
-instantiated parked, whole fleet un-parked in a single push, one
-convergence run. The phased path builds the repo incrementally — each
-phase's merge deploys exactly its slice, no parking involved. Same shared
-scripts, same guarantees; pick per product, they end in the same place.

@@ -83,7 +83,7 @@ Caveats that matter:
 - Inspect by NAME only: `orun secrets list --org <ws> --project` and
   `--env stage|prod`. No tooling in this repo ever prints a secret value,
   and no document in `ai/context/` may contain one.
-- Post-baseline runtime secrets (OAuth keys, Stripe, …) are seeded with
+- Post-bootstrap runtime secrets (OAuth keys, Stripe, …) are seeded with
   `orun secrets set <KEY> --org <ws> --env <env>` — wire-now-seed-later;
   nothing blocks on them.
 
@@ -97,8 +97,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://lumen-api-edge-stage.<subdomain
 # published wiring (names only)
 orun secrets list --org <ws> --env stage
 
-# workspace readiness end-to-end (integrations, allow-list, project)
-flows/common/preflight.sh <ws>   # from the repo root
+# workspace readiness (integrations + allow-list + project resolution)
+orun integrations list --org <ws> --json && orun cloud check --org <ws>
 ```
 
 ## Common operations
@@ -106,19 +106,30 @@ flows/common/preflight.sh <ws>   # from the repo root
 | task | how |
 |---|---|
 | deploy a change | merge to `main`; watch the run; failed lanes → `gh run rerun --failed` |
-| re-verify live state + refresh docs | run `flows/phases/08-docs` (idempotent) |
+| re-verify live state + refresh docs | run the docs flow (below); idempotent |
 | add a runtime secret | `orun secrets set <KEY> --org <ws> --env <env>` |
 | resolve workspace identity | `orun workspace <ws-id-or-slug>` |
 | check integrations | `orun integrations list --org <ws> --json` |
-| custom domain | `flows/phases/07-domain` once the zone exists, then re-run 08 |
-| headless/CI credentials | `ORUN_TOKEN` (workspace-scoped) + `GITHUB_TOKEN`; see BOOTSTRAP.md §3c |
+| custom domain | run the domain flow once the zone exists, then the docs flow |
+| headless/CI credentials | `ORUN_TOKEN` (workspace-scoped) + `GITHUB_TOKEN` |
 
-## Provenance and evolution
+The ops flows (docs refresh, domain, and the original deployment phases)
+are versioned workflows run by remote reference — from anywhere, with the
+two tokens above exported:
 
-This product was instantiated from the `sourceplane/lumen` baseline by the
-phased bootstrap (`flows/phases/01…08` — each folder documents its slice;
-every phase is idempotent and safe to re-run). The exact pinned baseline
-commit is recorded in [deployment.md](deployment.md) and
-[fork-from-baseline.md](fork-from-baseline.md). Baseline improvements are
-adopted by re-applying phase slices from a newer baseline tag — the
-apply→land→converge→verify contract is the same one that built the system.
+```bash
+orun workflow run github:OPSFLOWS//flows/phases/08-docs/workflow.yaml \
+  --set workspace=<ws> --set repo=<owner/name>     # docs refresh
+orun workflow run github:OPSFLOWS//flows/phases/07-domain/workflow.yaml \
+  --set workspace=<ws> --set repo=<owner/name>     # custom domain
+```
+
+Every flow is idempotent — re-running a completed one is a no-op that
+re-verifies.
+
+## Evolution
+
+Structural changes (new workers, infra components, packages) follow the
+same contract that deployed everything here: land the change as a PR,
+merge, and the convergence run applies it in dependency order. The ops
+flows above re-verify and re-document the system after any change.

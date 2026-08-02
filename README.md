@@ -29,7 +29,7 @@ after phase 06 to fill this section from verified live state
   apply on merge to `main`).
 - **Billing** is live end-to-end via the Polar adapter (embedded checkout,
   plan changes, multi-org fan-out).
-- **Known credential-blocked tails** (see `specs/epics/saas-baseline/`): full
+- **Known credential-blocked tails**: full
   production OAuth/magic-link auth and Stripe require human-supplied
   credentials. The notifications email provider is Cloudflare Email Service
   (`cloudflare-email`, no API key — the `send_email` binding is the
@@ -38,16 +38,15 @@ after phase 06 to fill this section from verified live state
 - The `dev` environment is verify-only (no provisioned Supabase project by
   design).
 
-## Forking / rebranding
+## Instantiating products
 
-This baseline is built to be instantiated as new products. The mechanical
-rename (repo slug, product name/domain, SDK class, CLI bin, worker prefixes,
-user agents, workers.dev subdomain) is one script —
-`node tooling/rebrand/rebrand.mjs --values my-brand.json` — and everything
-that needs human hands is a checklist. Forks can also grow **a few
-components at a time**: `tooling/fork/components.mjs` orders and validates
-per-component copies against the full prerequisite graph (and keeps
-`pnpm-lock.yaml` in sync). See **[FORKING.md](FORKING.md)**.
+This baseline births new products through the phased bootstrap
+(**[BOOTSTRAP.md](BOOTSTRAP.md)** → [flows/phases/](flows/phases/README.md)):
+eight idempotent workflows — scaffold, foundation, infrastructure, workers,
+edge, console, optional domain, docs — each landing a verified slice.
+Products receive **product-only content** (source, infra, CI, their own
+docs); none of this baseline's machinery ships, and a product's docs speak
+only about the product.
 
 ## Prerequisites
 

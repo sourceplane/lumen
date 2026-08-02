@@ -126,56 +126,86 @@ steps:
             s2 = re.sub(r"^(\s*)(workspace:.*)$", r"\g<1>\g<2>\n\g<1>project: " + proj, s2, count=1, flags=re.M)
         open("intent.yaml", "w").write(s2)
         print("intent.yaml workspace ->", ws, "project ->", proj or "(none)")
-        # ── product-accurate agent context ──
-        # The ai-context module copies the BASELINE's working notes
-        # (current.md = another repo's epic state) verbatim; that is
-        # actively misleading for agents reading the product. Reset
-        # current.md to the product's actual state and stamp the
-        # inherited files with a provenance banner.
+        # ── product-only agent context ──
+        # Products carry NOTHING of the baseline's working state: fresh
+        # current/decisions/open-risks, no provenance files. The docs are
+        # the PRODUCT's — they never present it as a copy of anything.
         import os
         name = (vals.get("repoName") or "product").strip()
-        current = "\n".join([
+        open("ai/context/current.md", "w").write("\n".join([
             "# Current Context (compact)",
             "",
             "Keep this file current as product work begins.",
             "",
             "## State",
             "",
-            name + " is a FRESHLY SCAFFOLDED product instantiated from the",
-            "`sourceplane/lumen` baseline by the phased bootstrap. Deployment phases",
-            "(02-06) may still be in progress; phase 08 records the verified live",
-            "state.",
+            name + " is freshly scaffolded. Deployment phases may still be in",
+            "progress; the docs flow (phase 08) records the verified live state.",
             "",
             "- **What is deployed, where:** [deployment.md](deployment.md) - the",
-            "  generated manifest (placeholder until `flows/phases/08-docs` runs).",
+            "  generated manifest (placeholder until the docs flow runs).",
             "- **How to operate it:** [operations.md](operations.md).",
-            "- **Where it came from:** [fork-from-baseline.md](fork-from-baseline.md);",
-            "  inherited design decisions and risks: [decisions.md](decisions.md),",
-            "  [open-risks.md](open-risks.md) (provenance banners inside).",
+            "- Established design decisions and risks: [decisions.md](decisions.md),",
+            "  [open-risks.md](open-risks.md).",
             "",
             "## Next",
             "",
             "Product work starts here. Replace this section with the active",
             "epic/task state as it forms.",
             "",
-        ])
-        open("ai/context/current.md", "w").write(current)
-        banner = "\n".join([
-            "> INHERITED FROM THE BASELINE at fork time (see",
-            "> [fork-from-baseline.md](fork-from-baseline.md)). Architecture-level",
-            "> entries generally still apply to this product; baseline-SESSION items",
-            "> (spec-pack pointers, task numbers, epic state) may not. Review before",
-            "> relying on any specific entry, and maintain this file for the product",
-            "> going forward.",
-            "", "",
-        ])
-        for fn in ("ai/context/decisions.md", "ai/context/open-risks.md"):
-            if os.path.exists(fn):
-                lines = open(fn).read().splitlines(keepends=True)
-                if lines and "INHERITED FROM THE BASELINE" not in "".join(lines[:8]):
-                    open(fn, "w").write(lines[0] + "\n" + banner + "".join(lines[1:]).lstrip("\n"))
-        print("ai/context reset for the product")
+        ]))
+        open("ai/context/decisions.md", "w").write("\n".join([
+            "# Decisions",
+            "",
+            "Architecture and process decisions for " + name + ". Add an entry per",
+            "decision (date, decision, rationale); prune superseded ones.",
+            "",
+            "## Active Decisions",
+            "",
+            "- The `dev` environment is verify-only by design: plan/verify lanes",
+            "  run, nothing deploys and no dev database exists.",
+            "- Provider credentials are brokered per-run from workspace",
+            "  integrations; no long-lived provider secrets at rest, and no",
+            "  tooling may print a secret value.",
+            "- Merges to `main` converge automatically; the convergence run is",
+            "  the deployment (see [operations.md](operations.md)).",
+            "",
+        ]))
+        open("ai/context/open-risks.md", "w").write("\n".join([
+            "# Open Risks",
+            "",
+            "Live risks for " + name + ". Add entries as they surface; close them",
+            "with a note when mitigated.",
+            "",
+            "## Active Risks",
+            "",
+            "- Production OAuth/magic-link auth and Stripe need human-supplied",
+            "  credentials before those surfaces work end-to-end",
+            "  (`orun secrets set ... --env <env>`; wire-now-seed-later).",
+            "- Notifications email needs one-time Cloudflare Email Service setup",
+            "  (Workers Paid plan + sending-domain DKIM/SPF).",
+            "",
+        ]))
+        for stray in ("ai/context/fork-from-baseline.md",):
+            if os.path.exists(stray):
+                os.remove(stray)
+        # The README ships product-only: baseline-reader sections go.
+        r = open("README.md").read()
+        r2 = re.sub(r"\n## (Forking / rebranding|Instantiating products)\n.*?(?=\n## |\Z)", "\n", r, flags=re.S)
+        if r2 != r:
+            open("README.md", "w").write(r2)
+        # The ops-flows pointer must survive the rebrand: the template says
+        # OPSFLOWS; fill it with the repo these flows actually came from.
+        src = (os.environ.get("ORUN_FLOW_SOURCE_REPO") or "sourceplane/lumen") + "@main"
+        o = open("ai/context/operations.md").read()
+        open("ai/context/operations.md", "w").write(o.replace("OPSFLOWS", src))
+        print("ai/context + README reset for the product")
         PYEOF
+        # Belt-and-braces: nothing baseline-shaped ships, even if the
+        # blueprint module list drifts.
+        rm -rf agents flows FORKING.md \
+          tooling/blueprint tooling/bootstrap tooling/fork tooling/rebrand tooling/migrations \
+          ai/state.json ai/tasks ai/proposals ai/reports ai/deferred.md ai/waiting_for_input.md
         git add -A
         if [ "{{ inputs.dryrun }}" = "true" ]; then
           echo "DRY RUN: scaffold rendered $(git ls-files | wc -l | xargs) file(s); removing"
