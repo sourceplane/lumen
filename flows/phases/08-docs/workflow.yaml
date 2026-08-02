@@ -1,0 +1,216 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: phase-08-docs
+# Phase 8: record the LIVE deployment in the product's documentation.
+# Renders ai/context/deployment.md (verified URLs, identity, secrets
+# inventory BY NAME, integrations, provenance), heals
+# ai/context/operations.md from the baseline for products that predate it,
+# and rewrites the README's live-deployment section — then lands the docs
+# on main (a docs-only push plans zero deploy lanes). Idempotent: re-run
+# any time (after phase 07's custom domain, after redeploys) to refresh.
+# Run from the baseline checkout (local mode: --set out=<product-path>), or
+# from ANYWHERE — a fresh container included — by remote ref (headless mode:
+# --set repo=<owner/name>; needs GITHUB_TOKEN + ORUN_TOKEN in the env):
+#   orun workflow run github:sourceplane/lumen@<ref>//flows/phases/08-docs/workflow.yaml \
+#     --set workspace=<ws-id> --set repo=<owner/name>
+# The baseline content is fetched at the SAME commit the flow came from
+# (ORUN_FLOW_SOURCE_SHA), so one remote reference pins everything.
+inputs:
+  workspace:
+    type: string
+    description: Workspace id (ws_…) or slug this product deploys against.
+  out:
+    type: string
+    default: ""
+    description: Product repo path (local checkout mode). Leave empty in headless mode.
+  repo:
+    type: string
+    default: ""
+    description: Product repo as owner/name — headless mode clones it (requires GITHUB_TOKEN/GH_TOKEN).
+  baselineref:
+    type: string
+    default: ""
+    description: Baseline git ref to fetch when no local checkout exists. Empty = the commit this flow was fetched from (ORUN_FLOW_SOURCE_SHA), else main.
+  dryrun:
+    type: string
+    default: "false"
+    description: '"true" previews the phase (docs rendered + shown + reverted, nothing pushed).'
+steps:
+  - name: preflight
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          # Fetch when the baseline is absent, partial, or at a DIFFERENT
+          # commit than the pinned ref — a stale reuse would silently apply
+          # old content against a new flow. Every git step is rerun-safe
+          # (remote add falls back to set-url; failures print before exiting
+          # — a bare exit-1 here surfaced as an empty error, hit live).
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref — check repo access (gh auth) and the ref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED (FETCH_HEAD missing?)"; exit 1; }
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
+        cd "$P"
+        "$L/flows/common/preflight.sh" "$ws"
+    timeout: 15m
+  - name: docs
+    needs: [preflight]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          # Fetch when the baseline is absent, partial, or at a DIFFERENT
+          # commit than the pinned ref — a stale reuse would silently apply
+          # old content against a new flow. Every git step is rerun-safe
+          # (remote add falls back to set-url; failures print before exiting
+          # — a bare exit-1 here surfaced as an empty error, hit live).
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref — check repo access (gh auth) and the ref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED (FETCH_HEAD missing?)"; exit 1; }
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
+        "$L/flows/common/render-deployment-docs.sh" "$P" "$ws" "$L"
+        cd "$P"
+        echo "── rendered docs diff:"
+        git --no-pager diff --stat
+        if [ "{{ inputs.dryrun }}" = "true" ]; then
+          echo "DRY RUN: reverting rendered docs"
+          git checkout -- . 2>/dev/null || true
+          git clean -qfd ai/context 2>/dev/null || true
+        fi
+    timeout: 10m
+  - name: land
+    needs: [docs]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          # Fetch when the baseline is absent, partial, or at a DIFFERENT
+          # commit than the pinned ref — a stale reuse would silently apply
+          # old content against a new flow. Every git step is rerun-safe
+          # (remote add falls back to set-url; failures print before exiting
+          # — a bare exit-1 here surfaced as an empty error, hit live).
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref — check repo access (gh auth) and the ref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED (FETCH_HEAD missing?)"; exit 1; }
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: nothing to land"; exit 0; }
+        cd "$P"
+        # Docs-only change: plans ZERO deploy lanes, so there is no
+        # convergence to watch — push-main lands it directly (PR-only
+        # repos get the branch→PR→merge path inside push-main.sh).
+        "$L/flows/common/push-main.sh" 08-docs "docs(deployment): record live deployment state" \
+          "Rendered by flows/phases/08-docs: verified URLs, identity, secrets inventory (names only), integrations, provenance."
+    timeout: 15m
+  - name: verify
+    needs: [land]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          # Steps run in the exec-specific wfruns dir — anchor shared content
+          # one level up so baseline/ and product/ persist across phases.
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          # Fetch when the baseline is absent, partial, or at a DIFFERENT
+          # commit than the pinned ref — a stale reuse would silently apply
+          # old content against a new flow. Every git step is rerun-safe
+          # (remote add falls back to set-url; failures print before exiting
+          # — a bare exit-1 here surfaced as an empty error, hit live).
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref — check repo access (gh auth) and the ref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED (FETCH_HEAD missing?)"; exit 1; }
+          fi
+        fi
+        . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would assert no placeholders remain + probe URLs"; exit 0; }
+        cd "$P"
+        # The docs phase's own outcome assertions:
+        # 1. no placeholder tokens survived the render, in the COMMITTED tree
+        if git grep -n "TBD_08DOCS" -- ai/context README.md 2>/dev/null; then
+          echo "verify: placeholder tokens remain (above)" >&2; exit 1
+        fi
+        # 2. the manifest exists and is committed (not just working-tree)
+        git cat-file -e "HEAD:ai/context/deployment.md" \
+          || { echo "verify: ai/context/deployment.md not committed on main" >&2; exit 1; }
+        # 3. the URLs the manifest claims are actually live
+        "$L/flows/common/verify-endpoints.sh" "$P" edge console
+    timeout: 10m

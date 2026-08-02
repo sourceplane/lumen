@@ -34,7 +34,9 @@ environment).
 ## Verify / done means
 
 The convergence run is green. Then check the product resolves on its own
-domain (DNS propagation applies).
+domain (DNS propagation applies). Re-run
+[phase 08](../08-docs/README.md) afterwards so the deployment manifest
+records the custom-domain URLs.
 
 ## Troubleshooting
 

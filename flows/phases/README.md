@@ -1,7 +1,8 @@
 # Phased bootstrap — one workflow per phase
 
-Seven independent workflows that take a product from **nothing** to a
-**live baseline**, one slice at a time, at whatever pace you choose. Each
+Eight independent workflows that take a product from **nothing** to a
+**live, documented baseline**, one slice at a time, at whatever pace you
+choose. Each
 phase is self-contained and follows the same contract:
 
 > **apply its blueprint slice → land it as a PR (merged immediately —
@@ -29,6 +30,7 @@ Each phase folder is fully self-contained: `README.md` + `workflow.yaml`
 | 05 | [`05-edge`](05-edge/README.md) | api-edge | `/health` 200 on stage+prod |
 | 06 | [`06-console`](06-console/README.md) | web console | console + edge live |
 | 07 | [`07-domain`](07-domain/README.md) | custom domain (OPTIONAL) | convergence green |
+| 08 | [`08-docs`](08-docs/README.md) | live-deployment docs (manifest + operating contract) | committed manifest matches probed reality |
 
 ## Inputs
 
