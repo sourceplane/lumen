@@ -6,6 +6,14 @@ organizations, projects, RBAC, audit, metering, billing, webhooks, and
 notifications ship as separate bounded-context Cloudflare Workers behind a single
 public edge API, with a Next.js console on Workers + Static Assets.
 
+## Live deployment
+
+<!-- 08-docs:begin -->
+_Not yet recorded — run [`flows/phases/08-docs`](flows/phases/08-docs/README.md)
+after phase 06 to fill this section from verified live state
+([manifest](ai/context/deployment.md) · [operating contract](ai/context/operations.md))._
+<!-- 08-docs:end -->
+
 ## Status
 
 - **Runtime is live, per environment, through Orun.** The edge API, the
@@ -13,7 +21,10 @@ public edge API, with a Next.js console on Workers + Static Assets.
   `orun run` (no direct Wrangler/Terraform/pnpm in CI).
 - **Data plane is provisioned by Terraform:** Supabase `stage` and `prod`
   projects, Cloudflare Hyperdrive (pooled Postgres for Workers), and the
-  `api-edge` idempotency KV namespace, with credentials in AWS Secrets Manager.
+  `api-edge` idempotency KV namespace. Terraform state lives in the Orun
+  Cloud HTTP state backend; provider credentials are BROKERED per-run from
+  the workspace's integration connections (no AWS, no long-lived secrets
+  at rest).
 - **Database migrations** run through the `db-migrate` component (plan on PRs,
   apply on merge to `main`).
 - **Billing** is live end-to-end via the Polar adapter (embedded checkout,

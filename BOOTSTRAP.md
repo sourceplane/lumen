@@ -98,9 +98,12 @@ final push restoring the service bindings → live-endpoint verification.
 ## 3b. Or: bootstrap in phases, at your own pace
 
 Prefer landing the product slice by slice — each with its own PR, deploy,
-and verification? `flows/phases/01-scaffold … 07-domain` are seven
+and verification? `flows/phases/01-scaffold … 08-docs` are eight
 independent workflows (phase 01 replaces steps 2–3 above; later phases need
-only `--set out=… --set workspace=…`). Full guide:
+only `--set out=… --set workspace=…`; phase 08 closes the loop by
+recording the verified live deployment into the product's own docs —
+`ai/context/deployment.md` + the README section — so agents reading the
+repo, e.g. through the Orun MCP surface, get the full picture). Full guide:
 [flows/phases/README.md](flows/phases/README.md), with a detailed README in
 every phase folder. Every phase supports
 `--set dryrun=true`.
@@ -123,12 +126,14 @@ orun workflow run github:sourceplane/lumen@<ref>//flows/phases/01-scaffold/workf
 
 orun workflow run github:sourceplane/lumen@<ref>//flows/phases/02-foundation/workflow.yaml \
   --set workspace=ws_… --set repo=sourceplane/acme
-# … phases 03–07 identically, at your pace. Add --set dryrun=true to preview.
+# … phases 03–08 identically, at your pace. Add --set dryrun=true to preview.
+# Phase 08 (docs) is the close-out: it records the VERIFIED live state in
+# the product repo and is safe to re-run any time as a live-state refresh.
 ```
 
 | requirement | detail |
 |---|---|
-| image deps | `git`, `gh`, `node` (≥20), `python3`, `orun` ≥ v2.52.1 (headless workspace→slug resolution; ≥ v2.50.0 works if `workspace` is passed as a slug) |
+| image deps | `git`, `gh`, `node` (≥20), `python3`, `orun` ≥ v2.52.4 (headless workspace/project resolution — the lane pin in the product's ci.yml needs the same) |
 | `ORUN_TOKEN` | orun access token; preflight authenticates with it (no login flow) |
 | `GITHUB_TOKEN` | fine-grained PAT: **read** on `sourceplane/lumen` (baseline fetch); on the PRODUCT repo: **contents write** (pushes), **pull-requests write** (landings), **actions read+write** (converge watches runs and auto-resumes via `gh run rerun`), **checks read**; **repo create** on the org if phase 01 creates the repo (or pre-create it — supported) |
 | pinning | the `@<ref>` in the remote reference pins EVERYTHING — the flow fetches its baseline at that exact commit (`ORUN_FLOW_SOURCE_SHA`). Use a tag for reproducible bootstraps; `@main` for latest |
