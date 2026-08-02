@@ -38,6 +38,33 @@ plus the edge health endpoints. **This is the "working baseline" moment**
 - **Console up, edge probes fail**: run phase 05's verify again; the
   console is static assets and can be "up" while the API behind it is not.
 
+## Example commands
+
+From the baseline checkout (local mode):
+
+```bash
+orun workflow run flows/phases/06-console/workflow.yaml \
+  --set out=$HOME/sourceplane/acme --set workspace=ws_ABCD1234
+```
+
+Headless (fresh container / no checkout — see BOOTSTRAP.md §3c): same
+command by remote reference, with `ORUN_TOKEN` + `GITHUB_TOKEN` exported
+and `--set repo=<owner/name>` instead of `out`:
+
+```bash
+export ORUN_TOKEN="$(orun auth token | tail -1)" GITHUB_TOKEN=…
+orun workflow run github:sourceplane/lumen@main//flows/phases/06-console/workflow.yaml \
+  --set workspace=ws_ABCD1234 --set repo=sourceplane/acme
+```
+
+Preview with zero side effects (either mode): append `--set dryrun=true` —
+the blueprint is applied, shown, and reverted; nothing is pushed or
+deployed. Re-running a completed phase is always safe (idempotent): the
+apply is a no-op, the landing finds nothing, and verify re-asserts.
+
+On success the baseline is LIVE end-to-end: the verify step probed the
+console roots and the edge health endpoints on both environments.
+
 ## Next
 
 Optional [Phase 07 — domain](../07-domain/README.md), or stop here — the

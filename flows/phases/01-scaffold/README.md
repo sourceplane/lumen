@@ -73,6 +73,43 @@ Idempotent: `orun new` is additive, rebrand is a no-op on branded files,
 If `cloud check` still fails after link, grant the repo in the console
 (Git Repos) and re-run the phase.
 
+## Example commands
+
+From the baseline checkout (local mode):
+
+```bash
+orun workflow run flows/phases/01-scaffold/workflow.yaml \
+  --set out=$HOME/sourceplane/acme \
+  --set workspace=ws_ABCD1234 \
+  --set reponame=acme \
+  --set productname="Acme Cloud" \
+  --set productdomain=acme.dev \
+  --set subdomain=rahulvarghesepullely
+```
+
+Headless (fresh container / no checkout — see BOOTSTRAP.md §3c): same
+command by remote reference, with `ORUN_TOKEN` + `GITHUB_TOKEN` exported
+and `--set repo=<owner/name>` instead of `out`:
+
+```bash
+export ORUN_TOKEN="$(orun auth token | tail -1)" GITHUB_TOKEN=…
+orun workflow run github:sourceplane/lumen@main//flows/phases/01-scaffold/workflow.yaml \
+  --set workspace=ws_ABCD1234 \
+  --set reponame=acme \
+  --set productname="Acme Cloud" \
+  --set productdomain=acme.dev \
+  --set subdomain=rahulvarghesepullely
+```
+
+Preview with zero side effects (either mode): append `--set dryrun=true` —
+the blueprint is applied, shown, and reverted; nothing is pushed or
+deployed. Re-running a completed phase is always safe (idempotent): the
+apply is a no-op, the landing finds nothing, and verify re-asserts.
+
+Pre-created repo: if `sourceplane/acme` already exists on GitHub (empty —
+org policy may restrict creation to admins), the repo step detects it,
+wires `origin`, and pushes into it instead of creating.
+
 ## Next
 
 [Phase 02 — foundation](../02-foundation/README.md).

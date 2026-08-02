@@ -67,6 +67,38 @@ republishes it — every consumer re-wires from the new secrets in the same
 run, but anything outside the platform still holding the old credentials
 breaks at that moment.
 
+## Example commands
+
+From the baseline checkout (local mode):
+
+```bash
+orun workflow run flows/phases/03-infrastructure/workflow.yaml \
+  --set out=$HOME/sourceplane/acme --set workspace=ws_ABCD1234
+```
+
+Headless (fresh container / no checkout — see BOOTSTRAP.md §3c): same
+command by remote reference, with `ORUN_TOKEN` + `GITHUB_TOKEN` exported
+and `--set repo=<owner/name>` instead of `out`:
+
+```bash
+export ORUN_TOKEN="$(orun auth token | tail -1)" GITHUB_TOKEN=…
+orun workflow run github:sourceplane/lumen@main//flows/phases/03-infrastructure/workflow.yaml \
+  --set workspace=ws_ABCD1234 --set repo=sourceplane/acme
+```
+
+Preview with zero side effects (either mode): append `--set dryrun=true` —
+the blueprint is applied, shown, and reverted; nothing is pushed or
+deployed. Re-running a completed phase is always safe (idempotent): the
+apply is a no-op, the landing finds nothing, and verify re-asserts.
+
+Prerequisite reminder: all three integrations (GitHub, Cloudflare,
+Supabase) must be ACTIVE in the workspace — preflight polls up to 10m so
+the consents can be clicked while it waits. Check first with:
+
+```bash
+orun integrations list ws_ABCD1234
+```
+
 ## Next
 
 [Phase 04 — workers](../04-workers/README.md).
