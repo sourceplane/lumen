@@ -49,9 +49,19 @@ fi
 if [ -z "$(getv orunWorkspaceSlug)" ]; then
   slug="$ws"
   case "$ws" in
-    ws_*|WS_*)
-      slug="$( (cd "$out" && orun cloud check --org "$ws" 2>/dev/null) \
-        | sed -n 's/.*allow-listed for org \([A-Za-z0-9_-]*\).*/\1/p' | head -1)"
+    ws_*|WS_*|org_*|ORG_*)
+      # Primary source: `orun workspace list` (v2.52.0+) — columnar
+      # `[*] SLUG WORKSPACE_ID ROLE`; take the token BEFORE the matching id.
+      # Fallback: the older `cloud check` prose ("allow-listed for org
+      # <slug>") for CLIs that predate the list verb. A slug that comes back
+      # empty, "—", or id-shaped means resolution failed.
+      slug="$(orun workspace list 2>/dev/null \
+        | awk -v ws="$ws" '{for(i=2;i<=NF;i++) if($i==ws) print $(i-1)}' | head -1)"
+      case "$slug" in ""|"—"|ws_*|org_*)
+        slug="$( (cd "$out" && orun cloud check --org "$ws" 2>/dev/null) \
+          | sed -n 's/.*allow-listed for org \([A-Za-z0-9_-]*\).*/\1/p' | head -1)"
+      ;; esac
+      case "$slug" in ""|"—"|ws_*|org_*) slug="" ;; esac
       ;;
   esac
   if [ -n "$slug" ] && [ "$slug" != "$ws" -o "${ws#ws_}" = "$ws" ]; then
