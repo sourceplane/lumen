@@ -50,15 +50,24 @@ if [ -z "$(getv orunWorkspaceSlug)" ]; then
   slug="$ws"
   case "$ws" in
     ws_*|WS_*|org_*|ORG_*)
-      # Primary source: `orun workspace list` (v2.52.0+) — columnar
-      # `[*] SLUG WORKSPACE_ID ROLE`; take the token BEFORE the matching id.
-      # Fallback: the older `cloud check` prose ("allow-listed for org
-      # <slug>") for CLIs that predate the list verb. A slug that comes back
-      # empty, "—", or id-shaped means resolution failed.
-      slug="$(orun workspace list 2>/dev/null \
-        | awk -v ws="$ws" '{for(i=2;i<=NF;i++) if($i==ws) print $(i-1)}' | head -1)"
+      # Primary source: `orun workspace <ws>` (v2.52.1+) — a direct backend
+      # read that works for user sessions AND workspace-scoped ORUN_TOKENs
+      # (which see no memberships list, so `workspace list` is empty for
+      # them headless). Its "slug:" line is a stable contract.
+      # Fallbacks, oldest last: `workspace list` columnar parse (v2.52.0),
+      # then the `cloud check` prose ("allow-listed for org <slug>").
+      # EVERY source is wrapped so a CLI that lacks the verb (or is not
+      # logged in) exits nonzero WITHOUT killing us via set -e in a
+      # command substitution — that failure mode is silent and unfindable.
+      # A slug that comes back empty, "—", or id-shaped means "try next".
+      slug="$( { cd "$out" && orun workspace "$ws" 2>/dev/null || true; } \
+        | sed -n 's/^ *slug: *//p' | head -1)"
       case "$slug" in ""|"—"|ws_*|org_*)
-        slug="$( (cd "$out" && orun cloud check --org "$ws" 2>/dev/null) \
+        slug="$( { orun workspace list 2>/dev/null || true; } \
+          | awk -v ws="$ws" '{for(i=2;i<=NF;i++) if($i==ws) print $(i-1)}' | head -1)"
+      ;; esac
+      case "$slug" in ""|"—"|ws_*|org_*)
+        slug="$( { cd "$out" && orun cloud check --org "$ws" 2>/dev/null || true; } \
           | sed -n 's/.*allow-listed for org \([A-Za-z0-9_-]*\).*/\1/p' | head -1)"
       ;; esac
       case "$slug" in ""|"—"|ws_*|org_*) slug="" ;; esac
