@@ -113,12 +113,19 @@ steps:
         node "$L/tooling/rebrand/rebrand.mjs" --values .rebrand/values.json --allow-dirty
         python3 - <<'PYEOF'
         import json, re
-        ws = (json.load(open(".rebrand/values.json")).get("orunWorkspace") or "").strip() or "ws_SET_ME"
+        vals = json.load(open(".rebrand/values.json"))
+        ws = (vals.get("orunWorkspace") or "").strip() or "ws_SET_ME"
+        proj = (vals.get("repoName") or "").strip()
         s = open("intent.yaml").read()
         s2 = re.sub(r"^(\s*workspace:\s*).*$", r"\g<1>" + ws, s, count=1, flags=re.M)
         assert s2 != s or ws in s, "no workspace: line in intent.yaml"
+        # Declare the project beside the workspace: headless runs authenticate
+        # with workspace-scoped tokens, which cannot write the repo link that
+        # project resolution would otherwise fall back to.
+        if proj and not re.search(r"^\s*project:", s2, flags=re.M):
+            s2 = re.sub(r"^(\s*)(workspace:.*)$", r"\g<1>\g<2>\n\g<1>project: " + proj, s2, count=1, flags=re.M)
         open("intent.yaml", "w").write(s2)
-        print("intent.yaml workspace ->", ws)
+        print("intent.yaml workspace ->", ws, "project ->", proj or "(none)")
         PYEOF
         git add -A
         if [ "{{ inputs.dryrun }}" = "true" ]; then
