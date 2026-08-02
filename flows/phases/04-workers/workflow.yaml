@@ -62,7 +62,7 @@ steps:
             git init -q "$L" 2>/dev/null || true
             git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
               || git -C "$L" remote set-url origin "https://github.com/$brepo"
-            git -C "$L" -c credential.helper='!gh auth git-credential' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
               || { echo "baseline fetch FAILED for $brepo@$bref — check repo access (gh auth) and the ref"; exit 1; }
             git -C "$L" checkout -q --detach FETCH_HEAD \
               || { echo "baseline checkout FAILED (FETCH_HEAD missing?)"; exit 1; }
