@@ -126,6 +126,55 @@ steps:
             s2 = re.sub(r"^(\s*)(workspace:.*)$", r"\g<1>\g<2>\n\g<1>project: " + proj, s2, count=1, flags=re.M)
         open("intent.yaml", "w").write(s2)
         print("intent.yaml workspace ->", ws, "project ->", proj or "(none)")
+        # ── product-accurate agent context ──
+        # The ai-context module copies the BASELINE's working notes
+        # (current.md = another repo's epic state) verbatim; that is
+        # actively misleading for agents reading the product. Reset
+        # current.md to the product's actual state and stamp the
+        # inherited files with a provenance banner.
+        import os
+        name = (vals.get("repoName") or "product").strip()
+        current = "\n".join([
+            "# Current Context (compact)",
+            "",
+            "Keep this file current as product work begins.",
+            "",
+            "## State",
+            "",
+            name + " is a FRESHLY SCAFFOLDED product instantiated from the",
+            "`sourceplane/lumen` baseline by the phased bootstrap. Deployment phases",
+            "(02-06) may still be in progress; phase 08 records the verified live",
+            "state.",
+            "",
+            "- **What is deployed, where:** [deployment.md](deployment.md) - the",
+            "  generated manifest (placeholder until `flows/phases/08-docs` runs).",
+            "- **How to operate it:** [operations.md](operations.md).",
+            "- **Where it came from:** [fork-from-baseline.md](fork-from-baseline.md);",
+            "  inherited design decisions and risks: [decisions.md](decisions.md),",
+            "  [open-risks.md](open-risks.md) (provenance banners inside).",
+            "",
+            "## Next",
+            "",
+            "Product work starts here. Replace this section with the active",
+            "epic/task state as it forms.",
+            "",
+        ])
+        open("ai/context/current.md", "w").write(current)
+        banner = "\n".join([
+            "> INHERITED FROM THE BASELINE at fork time (see",
+            "> [fork-from-baseline.md](fork-from-baseline.md)). Architecture-level",
+            "> entries generally still apply to this product; baseline-SESSION items",
+            "> (spec-pack pointers, task numbers, epic state) may not. Review before",
+            "> relying on any specific entry, and maintain this file for the product",
+            "> going forward.",
+            "", "",
+        ])
+        for fn in ("ai/context/decisions.md", "ai/context/open-risks.md"):
+            if os.path.exists(fn):
+                lines = open(fn).read().splitlines(keepends=True)
+                if lines and "INHERITED FROM THE BASELINE" not in "".join(lines[:8]):
+                    open(fn, "w").write(lines[0] + "\n" + banner + "".join(lines[1:]).lstrip("\n"))
+        print("ai/context reset for the product")
         PYEOF
         git add -A
         if [ "{{ inputs.dryrun }}" = "true" ]; then
