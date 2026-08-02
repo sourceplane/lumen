@@ -53,3 +53,42 @@ product pays today with every fix this run produced already landed.
 | #54 | later phases branded fresh baseline content with the product's scaffold-era rebrand copy — tool now always runs from the pinned baseline |
 | #55 | supabase `adopt.tf` read `SUPABASE_ORG_ID`, but the job env carries `TF_VAR_supabaseOrgId` |
 | #56/#57 | phase 03's PR lanes are structurally red on first boot → `--no-wait` landing |
+
+## Second measured run — ambient (2026-08-02, workspace-scoped token)
+
+Fully headless again, but with a **workspace-scoped `sk_` API token**
+instead of a user session — the first run to exercise that credential
+class. Clean-path times (with every fix this run produced landed,
+baseline-v8 + orun v2.52.4):
+
+| phase | time | notes |
+|---|---|---|
+| 02 foundation | **5m08s** | vs ~9m on vela |
+| 03 infrastructure | **~15m** | apply/land ~2m · convergence ~11m (Supabase long pole) · verify |
+| 04 workers | **20m49s** | vs ~31m on vela (single-deploy landings) |
+| 05 edge | **5m03s** | |
+| 06 console | **14m01s** | convergence needed 0 resumes |
+| **total 02–06** | **~60m clean** | the run itself took longer — it surfaced and fixed 6 real defects |
+
+What the workspace-token path surfaced (all fixed during the run):
+
+1. `sk_` tokens see NO memberships list → slug resolution needs
+   `orun workspace <ws>` (v2.52.1) — the direct org read.
+2. `sk_` tokens cannot write repo links → the intent must declare
+   `project:` (scaffold writes it; preflight self-heals, baseline-v5).
+3. Intent declares the project SLUG; config-surface AND state routes take
+   `prj_…` ids → CLI-side slug resolution (v2.52.2 secrets, v2.52.4 run).
+   The lane pin in ci.yml must be ≥ v2.52.4.
+4. Step `timeout:` didn't kill grandchildren — a wedged git held the
+   step's pipes past its deadline (15m declared, 71m observed) → process-
+   group kill + WaitDelay (orun v2.52.3).
+5. git has NO transfer timeout → `http.lowSpeedLimit/Time` on every flow
+   git (baseline-v6).
+6. git's credential `store` fires EVERY configured helper (system
+   osxkeychain included) → in a keychain-less HOME securityd can raise a
+   BLOCKING dialog on the console user's screen, hanging the step until a
+   human clicks. Get-only credential helper everywhere (baseline-v8).
+
+Also: a converge that follows a commit touching NO components plans zero
+lanes and reads "green" — the phase verify step is the real gate (it
+caught exactly this); never trust a green run without it.
