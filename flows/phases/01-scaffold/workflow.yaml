@@ -147,15 +147,44 @@ steps:
         # repo pre-created on GitHub (org policy may restrict creation to
         # admins) → wire origin and push; nothing anywhere → create private
         # repo and push. Idempotent across re-runs in every case.
+        #
+        # Remote choice: headless (a GitHub token in env — fine-grained PATs
+        # push workflow files with plain contents:write) uses https; local
+        # mode uses SSH, because gh's OAuth token lacks the `workflow` scope
+        # and GitHub rejects pushing .github/workflows/ over it (hit live,
+        # twice). A push that still hits that rejection in local mode is
+        # retried once over SSH — this also heals clones wired to https by
+        # an earlier run.
         slug="{{ inputs.githuborg }}/{{ inputs.reponame }}"
+        if [ -n "${GITHUB_TOKEN:-}${GH_TOKEN:-}" ]; then
+          remote_url="https://github.com/$slug"
+        else
+          remote_url="git@github.com:$slug.git"
+        fi
+        push_main() {
+          out="$(git push -u origin main 2>&1)" && { echo "$out" | tail -1; return 0; }
+          echo "$out" >&2
+          if printf '%s' "$out" | grep -q "without .workflow. scope" && [ -z "${GITHUB_TOKEN:-}${GH_TOKEN:-}" ]; then
+            echo "push rejected for workflow files over https — retrying over SSH"
+            git remote set-url origin "git@github.com:$slug.git"
+            git push -qu origin main
+            return $?
+          fi
+          if printf '%s' "$out" | grep -q "without .workflow. scope"; then
+            echo "your GitHub token cannot push .github/workflows/ — classic PATs and gh OAuth tokens need the \`workflow\` scope; fine-grained PATs need only contents:write (BOOTSTRAP.md §3c)" >&2
+          fi
+          return 1
+        }
         if git remote get-url origin >/dev/null 2>&1; then
-          git push -qu origin main
+          push_main
         elif gh repo view "$slug" >/dev/null 2>&1; then
           echo "repo $slug already exists on GitHub — wiring origin and pushing"
-          git remote add origin "https://github.com/$slug"
-          git push -qu origin main
+          git remote add origin "$remote_url"
+          push_main
         else
-          gh repo create "$slug" --private --source . --push
+          gh repo create "$slug" --private
+          git remote add origin "$remote_url"
+          push_main
         fi
     timeout: 5m
 
