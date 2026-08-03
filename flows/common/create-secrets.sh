@@ -76,7 +76,14 @@ create() { # key provider connection template
       fi
       ;;
   esac
-  orun integrations "$2" secret create "$1" --org "$org" --connection "$3" --template "$4" --project
+  if ! orun integrations "$2" secret create "$1" --org "$org" --connection "$3" --template "$4" --project; then
+    # Resource-hiding masks authorization as not_found: when READS work
+    # (this script already listed connections and secrets) but the WRITE
+    # 404s, the credential is almost always a read-only (viewer-role) API
+    # key. Say so — the raw error sends people chasing missing scopes.
+    echo "create-secrets: writing $1 failed. If the listings above worked, this ORUN_TOKEN is likely a VIEWER-role API key (reads ok, writes hidden as not_found). Re-mint the workspace API key with the admin or builder role in the console and re-run — this script is idempotent." >&2
+    exit 1
+  fi
   echo "✓ $1 created ($2/$4)"
 }
 
