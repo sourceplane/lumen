@@ -109,6 +109,14 @@ steps:
           --set "orunWorkspace={{ inputs.workspace }}"
         cd "$out"
         [ -d .git ] || git init -q -b main
+        # When the product checkout IS the workdir (the sandbox path), the
+        # fetched blueprint (baseline/) and orun's run scratch (.orun/) live
+        # inside it. Neither belongs in the product's history — and a staged
+        # baseline gitlink crashed the rebrand sweep mid-bootstrap (observed
+        # live). Ignore both, and un-stage any gitlink a prior run left.
+        grep -qxF 'baseline/' .gitignore 2>/dev/null || printf 'baseline/\n' >> .gitignore
+        grep -qxF '.orun/' .gitignore 2>/dev/null || printf '.orun/\n' >> .gitignore
+        git rm -r -q --cached baseline .orun 2>/dev/null || true
         git add -A
         node "$L/tooling/rebrand/rebrand.mjs" --values .rebrand/values.json --allow-dirty
         python3 - <<'PYEOF'
