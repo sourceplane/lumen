@@ -239,10 +239,24 @@ steps:
         # Secret reads resolve the project from the repo link — run them from
         # inside the product repo, not the workflow's exec dir.
         cd "$P"
-        missing=""
-        for key in WIRING_CLOUDFLARE_KV WIRING_CLOUDFLARE_HYPERDRIVE SUPABASE_PROJECT_REF; do
-          orun secrets list --org "$ws" --env stage 2>/dev/null | grep -q "$key" || missing="$missing $key"
+        # The deploy run publishes these asynchronously; with watch=false
+        # nothing upstream awaits it, so verify POLLS instead of racing —
+        # a one-shot read failed the phase while terraform was still applying
+        # (observed live). Deadline generous: hyperdrive+supabase provisioning
+        # routinely takes 10+ minutes.
+        deadline=$((SECONDS + 1500))
+        while :; do
+          missing=""
+          for key in WIRING_CLOUDFLARE_KV WIRING_CLOUDFLARE_HYPERDRIVE SUPABASE_PROJECT_REF; do
+            orun secrets list --org "$ws" --env stage 2>/dev/null | grep -q "$key" || missing="$missing $key"
+          done
+          [ -z "$missing" ] && break
+          if [ "$SECONDS" -ge "$deadline" ]; then
+            echo "expected job-output secrets missing on stage after 25m:$missing — check the deploy run's own status/logs" >&2
+            exit 1
+          fi
+          echo "waiting for job-output secrets:$missing (deploy run still converging)"
+          sleep 30
         done
-        [ -z "$missing" ] || { echo "expected job-output secrets missing on stage:$missing" >&2; exit 1; }
         echo "infrastructure verified: terraform outputs published"
-    timeout: 5m
+    timeout: 30m
