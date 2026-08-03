@@ -1,8 +1,10 @@
 # Phased bootstrap — one workflow per phase
 
 Eight independent workflows that take a product from **nothing** to a
-**live, documented baseline**, one slice at a time, at whatever pace you
-choose. Each
+**live, documented baseline** — run them one at a time at your own pace,
+or run [`00-all`](00-all/README.md), the umbrella that executes the whole
+sequence unattended (per-phase retry, built-in waits, independent final
+verification). Each
 phase is self-contained and follows the same contract:
 
 > **apply its blueprint slice → land it as a PR (merged immediately —
@@ -23,6 +25,7 @@ Each phase folder is fully self-contained: `README.md` + `workflow.yaml`
 
 | # | folder | lands | verified by |
 |---|--------|-------|-------------|
+| 00 | [`00-all`](00-all/README.md) | **everything below, unattended** (umbrella: retry per phase + early cred probe + independent final verify) | its own end-to-end re-assertion |
 | 01 | [`01-scaffold`](01-scaffold/README.md) | **GitHub repo created** + repo born: intent, CI, flows, tooling, identity | repo pushed + workspace-linked |
 | 02 | [`02-foundation`](02-foundation/README.md) | 13 shared packages | verify lanes green |
 | 03 | [`03-infrastructure`](03-infrastructure/README.md) | kv, supabase, db-migrate, hyperdrive | published `WIRING_*` / `SUPABASE_*` secrets |

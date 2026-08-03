@@ -27,7 +27,22 @@ minutes.
   self-heal (`cloud link` is refused for them) — do it up front or the
   first preflight will stop and ask for it. Everything else is headless.
 
-## 1. Bootstrap in phases — the one flow
+## 1. One command: the umbrella
+
+The whole bootstrap, unattended — phases 01→08 with per-phase retry, an
+early credential write-probe, and an independent final verification:
+
+```bash
+orun workflow run flows/phases/00-all/workflow.yaml \
+  --set workspace=ws_XXXXXXXX --set reponame=acme \
+  --set productname="Acme Cloud" --set productdomain=acme.dev \
+  --set subdomain=<workers-dev-subdomain>
+```
+
+Headless: same command by remote reference (§2). Details, prerequisites,
+and failure semantics: [flows/phases/00-all/README.md](flows/phases/00-all/README.md).
+
+## 1b. Or phase by phase — the same flow, at your pace
 
 `flows/phases/01-scaffold … 08-docs` are eight independent workflows that
 take a product from nothing to a live, documented baseline. Each phase is
