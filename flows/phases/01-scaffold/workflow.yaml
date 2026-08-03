@@ -50,7 +50,7 @@ inputs:
     description: '"true" renders the scaffold into a temp dir and reports, creating nothing.'
 steps:
   - name: blueprint
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -216,7 +216,7 @@ steps:
 
   - name: repo
     needs: [blueprint]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -310,7 +310,7 @@ steps:
 
   - name: link
     needs: [repo]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c

@@ -41,7 +41,7 @@ inputs:
     description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
 steps:
   - name: preflight
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -80,7 +80,7 @@ steps:
     timeout: 15m
   - name: secrets
     needs: [preflight]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -111,7 +111,7 @@ steps:
     timeout: 5m
   - name: apply
     needs: [secrets]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -141,7 +141,7 @@ steps:
     timeout: 15m
   - name: land
     needs: [apply]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -176,7 +176,7 @@ steps:
     timeout: 30m
   - name: converge
     needs: [land]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -209,7 +209,7 @@ steps:
     timeout: 60m
   - name: verify
     needs: [converge]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c

@@ -1,0 +1,43 @@
+# The lumen blueprint card: what the console's Blueprints page renders and
+# the platform's bootstrap door consumes (epic saas-blueprints-onboarding).
+apiVersion: orun.io/v1
+kind: Blueprint
+metadata:
+  name: lumen
+  displayName: Lumen — multi-tenant SaaS baseline
+  description: >
+    Cloudflare + Supabase multi-tenant SaaS: 13 bounded-context Workers
+    behind one edge API, Next.js console, terraform data plane, migrations,
+    CI that converges on merge. Live on stage+prod in ~60–75 minutes.
+  tags: [saas, cloudflare, supabase, nextjs]
+spec:
+  source:
+    repo: sourceplane/lumen
+    tag: baseline-v17          # bumped by the baseline release process
+  requires:
+    integrations: [github, cloudflare, supabase]
+    apiKeyRole: admin          # secret writes need the admin floor
+  inputs:                      # collected via cockpit intake (AG-UI)
+    - key: reponame
+      label: Repo name
+      pattern: "^[a-z][a-z0-9-]{1,38}$"
+      askedBy: console         # needed before repo creation
+    - key: productname
+      label: Product display name
+      askedBy: agent
+    - key: productdomain
+      label: Product domain
+      askedBy: agent
+    - key: subdomain
+      label: workers.dev subdomain
+      askedBy: agent
+  bootstrap:
+    umbrella: flows/phases/00-all/workflow.yaml
+    agentBrief: flows/agent/BASELINE-TASK.md
+    expectedMinutes: 75
+    tokenChannel: ORUN_TOKEN_FILE   # the flows read the runtime's refreshed token
+  verify:
+    urls:
+      - "https://{reponame}-api-edge-{env}.{subdomain}.workers.dev/health"
+      - "https://{reponame}-web-console-next-{env}.{subdomain}.workers.dev"
+    envs: [stage, prod]

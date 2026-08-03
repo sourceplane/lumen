@@ -15,8 +15,8 @@ echo "── auth"
 # there is no stored session for auth status to show — the integrations
 # probe below is the real auth check. Interactive mode still requires a
 # login so the failure message stays actionable.
-if [ -n "${ORUN_TOKEN:-}" ]; then
-  echo "auth: ORUN_TOKEN (headless)"
+if [ -n "${ORUN_TOKEN:-}${ORUN_TOKEN_FILE:-}" ]; then
+  echo "auth: headless (ORUN_TOKEN${ORUN_TOKEN_FILE:+/ORUN_TOKEN_FILE})"
 else
   orun auth status | grep -q "User:" || {
     echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device (or set ORUN_TOKEN for headless runs)" >&2

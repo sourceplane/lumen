@@ -64,7 +64,7 @@ inputs:
     description: '"true" previews the scaffold and stops (later phases need a real product tree).'
 steps:
   - name: scaffold
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -121,7 +121,7 @@ steps:
     timeout: 25m
   - name: credprobe
     needs: [scaffold]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -183,7 +183,7 @@ steps:
     timeout: 15m
   - name: foundation
     needs: [credprobe]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -238,7 +238,7 @@ steps:
     timeout: 60m
   - name: infrastructure
     needs: [foundation]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -293,7 +293,7 @@ steps:
     timeout: 120m
   - name: workers
     needs: [infrastructure]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -348,7 +348,7 @@ steps:
     timeout: 180m
   - name: edge
     needs: [workers]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -403,7 +403,7 @@ steps:
     timeout: 60m
   - name: console
     needs: [edge]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -458,7 +458,7 @@ steps:
     timeout: 90m
   - name: domain
     needs: [console]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -514,7 +514,7 @@ steps:
     timeout: 60m
   - name: docs
     needs: [domain]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -569,7 +569,7 @@ steps:
     timeout: 30m
   - name: verify
     needs: [docs]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
