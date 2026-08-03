@@ -52,11 +52,11 @@ orun --version || echo "MISSING: orun"
 ```
 
 Note the exact spelling: `orun --version` (there is no `orun version`
-subcommand on older CLIs). Install orun v2.52.5+ if missing or older:
+subcommand on older CLIs). Install orun v2.52.6+ if missing or older:
 
 ```bash
 OS=$(uname -s | tr '[:upper:]' '[:lower:]'); ARCH=$(uname -m); [ "$ARCH" = x86_64 ] && ARCH=amd64; [ "$ARCH" = aarch64 ] && ARCH=arm64
-curl -fsSL "https://github.com/sourceplane/orun/releases/download/v2.52.5/orun_2.52.5_${OS}_${ARCH}.tar.gz" | tar xz
+curl -fsSL "https://github.com/sourceplane/orun/releases/download/v2.52.6/orun_2.52.6_${OS}_${ARCH}.tar.gz" | tar xz
 sudo mv orun /usr/local/bin/ 2>/dev/null || { mkdir -p ~/bin && mv orun ~/bin/ && export PATH="$HOME/bin:$PATH"; }
 orun --version
 ```
