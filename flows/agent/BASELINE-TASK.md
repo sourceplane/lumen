@@ -46,8 +46,14 @@ cd <the product checkout>
 orun workflow run 'github:sourceplane/lumen@{{TAG}}//flows/phases/00-all/workflow.yaml' \
   --set workspace={{WS}} --set reponame={{REPO}} \
   --set productname="<from intake>" --set productdomain=<from intake> \
-  --set subdomain=<from intake> --set out="$PWD"
+  --set subdomain=<from intake> --set out="$PWD" --set watch=false
 ```
+
+(`watch=false` is required in the sandbox: it cannot observe GitHub
+Actions — and when the push token lacks the App's Workflows grant the CI
+workflow files are deferred entirely, so a converge that watches Actions
+would wait on a run that cannot exist. Deploys are still verified by the
+phases' own probes; note the out-of-band CI caveat in your report.)
 
 Run it in the background and monitor its output continuously.
 
