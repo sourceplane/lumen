@@ -92,6 +92,14 @@ steps:
           out="$(mktemp -d)/scaffold-preview"
           echo "DRY RUN: rendering scaffold into $out"
         fi
+        # Refuse to scaffold INTO a checkout of the blueprint itself: running
+        # the umbrella from inside baseline/ with out=$PWD scaffolded into the
+        # blueprint clone and pushed at sourceplane/lumen (observed live). The
+        # marker files that make a checkout "the baseline" are the refusal key.
+        if [ -f "$out/repo-blueprint.yaml" ] && [ -d "$out/flows/phases" ]; then
+          echo "scaffold: out=$out looks like the BLUEPRINT checkout (repo-blueprint.yaml + flows/phases present) — run the umbrella from the PRODUCT checkout root with --set out=\"\$PWD\"" >&2
+          exit 1
+        fi
         mkdir -p "$out"
         # Empty discovery roots FIRST: orun new's repo-scale gate (and later
         # `orun plan` in the product's CI) discovers apps/infra/packages/tests
