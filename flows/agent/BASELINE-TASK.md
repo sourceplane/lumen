@@ -41,19 +41,34 @@ and report "waiting on product identity".
 
 ## Step 2 — run the umbrella
 
+First determine the execution mode — CI is the intended engine:
+
 ```bash
 cd <the product checkout>
+# After the scaffold phase has pushed, check whether CI landed:
+#   git ls-tree -r --name-only origin/main | grep -q '^.github/workflows/' && WATCH=true || WATCH=false
+# On the FIRST run (nothing pushed yet) start with watch=true; if the
+# scaffold defers the workflow files (push token lacks the App's
+# Workflows grant), re-run with watch=false.
 orun workflow run 'github:sourceplane/lumen@{{TAG}}//flows/phases/00-all/workflow.yaml' \
   --set workspace={{WS}} --set reponame={{REPO}} \
   --set productname="<from intake>" --set productdomain=<from intake> \
-  --set subdomain=<from intake> --set out="$PWD" --set watch=false
+  --set subdomain=<from intake> --set out="$PWD" --set watch=$WATCH
 ```
 
-(`watch=false` is required in the sandbox: it cannot observe GitHub
-Actions — and when the push token lacks the App's Workflows grant the CI
-workflow files are deferred entirely, so a converge that watches Actions
-would wait on a run that cannot exist. Deploys are still verified by the
-phases' own probes; note the out-of-band CI caveat in your report.)
+Two modes, and the difference matters:
+
+- **watch=true (the designed path — use it whenever CI landed):** the
+  phases land PRs, the product repo's own GitHub Actions execute the
+  deploy lanes via the workspace's OIDC trust, and converge watches and
+  heals them. You conduct and narrate; GitHub runs the builds.
+- **watch=false (degraded — only when the CI workflow files could not be
+  pushed):** converge no-ops, so after each phase's apply/land YOU must
+  execute that phase's components yourself (`orun run <component>
+  --remote-state`, dependency order; re-invoking auto-resumes) and the
+  verify steps poll until your runs are green. Name the missing App
+  permission (Workflows: Read & write) in every update and in the
+  completion report — granting it restores the designed path.
 
 Run it in the background and monitor its output continuously.
 
