@@ -13,13 +13,19 @@ minutes.
 ## 0. What you need
 
 - GitHub org access (repo creation) and a machine with `git`, `gh`, `node`,
-  `python3`, and the `orun` CLI ≥ v2.52.4.
+  `python3`, and the `orun` CLI ≥ v2.52.5 (same floor as the product lane pin).
 - A Cloudflare account (Workers paid plan for the fleet) and its **Account
   API token** (the console's Connect recipe lists the exact permission
   groups).
 - A Supabase organization (capacity for `<repo>-stage` / `<repo>-prod`
   projects) whose OAuth consent you can grant.
-- An Orun Cloud workspace for the product (`workspace:` in `intent.yaml`).
+- An Orun Cloud workspace for the product (`workspace:` in `intent.yaml`),
+  with an **admin-role API key** for headless runs (builder/viewer keys can
+  read but their secret writes are denied — masked as `not_found`).
+- **The repo allow-listed in the workspace** (console → Settings → Git
+  repos). This is the ONE console action a workspace-scoped token cannot
+  self-heal (`cloud link` is refused for them) — do it up front or the
+  first preflight will stop and ask for it. Everything else is headless.
 
 ## 1. Bootstrap in phases — the one flow
 
@@ -59,6 +65,9 @@ be clicked while it waits:
   existing connection of that app (secrets go `orphaned`; re-connect +
   `flows/common/create-secrets.sh <ws>` self-heals).
 
+Handing the bootstrap to an agent? Use the maintained runbook —
+[flows/AGENT-PROMPT.md](flows/AGENT-PROMPT.md) — instead of writing your own.
+
 ## 2. Headless / container mode (Daytona, CI, any sandbox)
 
 Every phase workflow is fully self-contained: reference it remotely, give
@@ -84,7 +93,7 @@ orun workflow run github:sourceplane/lumen@<ref>//flows/phases/02-foundation/wor
 
 | requirement | detail |
 |---|---|
-| image deps | `git`, `gh`, `node` (≥20), `python3`, `orun` ≥ v2.52.4 (headless workspace/project resolution — the lane pin in the product's ci.yml needs the same) |
+| image deps | `git`, `gh`, `node` (≥20), `python3`, `curl`, `orun` ≥ v2.52.5 (the product's ci.yml lane pin matches) |
 | `ORUN_TOKEN` | orun access token; preflight authenticates with it (no login flow) |
 | `GITHUB_TOKEN` | fine-grained PAT: **read** on `sourceplane/lumen` (baseline fetch); on the PRODUCT repo: **contents write** (pushes), **pull-requests write** (landings), **actions read+write** (converge watches runs and auto-resumes via `gh run rerun`), **checks read**; **repo create** on the org if phase 01 creates the repo (or pre-create it — supported) |
 | pinning | the `@<ref>` in the remote reference pins EVERYTHING — the flow fetches its baseline at that exact commit (`ORUN_FLOW_SOURCE_SHA`). Use a tag for reproducible bootstraps; `@main` for latest |
@@ -115,6 +124,11 @@ orun workflow run github:sourceplane/lumen@<ref>//flows/phases/02-foundation/wor
 | Convergence run fails, lanes look transient | `flows/common/converge.sh <run-id>` resumes it (`gh run rerun --failed` = true resume: exec-id + `--retry`). The flow already does this ×3. |
 | Worker verify lane: missing `WIRING_*` / `SUPABASE_*` secret | Its terraform upstream hasn't applied (check that lane first) — inside one convergence run the DAG guarantees order; across manual partial runs it does not. |
 | CLI login dies with 429 `rate_limited` | Fixed ≥ v2.48.1 (redeem honors Retry-After). Upgrade the CLI. |
+| Secret WRITE fails `not_found` while listings work | The API key's role is below ADMIN (resource-hiding masks the denial). Re-mint the key with the admin role; `create-secrets.sh` is idempotent. |
+| `apply` dies (OCI 503, network) and the RETRY says "working tree is not clean" | Fixed: apply-blueprint self-heals its own crash debris via an inflight marker. On older baselines: `git reset --hard origin/main && git clean -fd` in the product, then re-run. |
+| Console/edge smoke fails right after the FIRST deploy of a worker | workers.dev route propagation race — the deploy lane's smoke retries with backoff (stack-tectonic ≥ 0.18.2); a resume (`converge.sh` does 3) clears older pins. |
+| Terraform lane: "state already locked" by ITS OWN plan | Backend lock-release race — a convergence resume clears it. |
+| Environment cannot observe GitHub Actions (gh 403) | Landings/converge fall back to plain REST automatically (ghrest.sh). If even REST Actions is blocked: `--set watch=false` skips the converge watch — then verify the run out-of-band before the next phase. |
 | Many lanes queued, none claiming | Runner-pool starvation — `max-parallel: 8` in ci.yml is deliberate (resolve-herd); patience, or check the run isn't superseded. |
 
 ## Architecture invariants this depends on

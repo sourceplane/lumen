@@ -28,13 +28,17 @@ inputs:
     type: string
     default: ""
     description: Baseline git ref to fetch when no local checkout exists. Empty = the commit this flow was fetched from (ORUN_FLOW_SOURCE_SHA), else main.
+  watch:
+    type: string
+    default: "true"
+    description: '"false" skips watching the CI convergence (use when this environment cannot observe GitHub Actions; converge state must then be verified out-of-band). Later steps (restore/verify) proceed.'
   dryrun:
     type: string
     default: "false"
     description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
 steps:
   - name: preflight
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -73,7 +77,7 @@ steps:
     timeout: 15m
   - name: apply
     needs: [preflight]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -103,7 +107,7 @@ steps:
     timeout: 15m
   - name: land
     needs: [apply]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -134,7 +138,7 @@ steps:
     timeout: 30m
   - name: converge
     needs: [land]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -161,6 +165,7 @@ steps:
         fi
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would watch the main convergence run (resume budget 3)"; exit 0; }
+        [ "{{ inputs.watch }}" = "false" ] && { echo "watch=false: NOT watching the convergence — verify the run out-of-band before trusting later phases"; exit 0; }
         cd "$P"
         "$L/flows/common/converge.sh" '' 3
     timeout: 45m
