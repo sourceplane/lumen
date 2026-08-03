@@ -246,7 +246,10 @@ steps:
         fi
         cd "$out"
         [ -d .git ] || git init -q -b main
-        git config credential.helper '!gh auth git-credential'
+        # --replace-all: the grounded sandbox clone already carries a repo-local
+        # credential.helper (set at clone time); a bare `git config` errors on
+        # the resulting multi-value key (observed live on a re-run).
+        git config --replace-all credential.helper '!gh auth git-credential'
         if ! git config user.email >/dev/null 2>&1 && ! git config --global user.email >/dev/null 2>&1; then
           git config user.email "bootstrap-bot@users.noreply.github.com"
           git config user.name "bootstrap-bot"
