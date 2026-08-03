@@ -1,0 +1,646 @@
+apiVersion: orun.dev/v1
+kind: Workflow
+metadata:
+  name: bootstrap-all
+# The UMBRELLA: nothing → live, documented baseline in ONE unattended run.
+# Composes the phase workflows (01→06, optional 07, 08) with per-phase
+# retry — every phase is idempotent and self-healing, so retries are free —
+# an EARLY credential write-probe (the expensive failure surfaces in the
+# first minutes, not phase 03), and an independent final verification that
+# re-asserts URLs, published secrets, and the committed docs manifest.
+#
+# No agent needed. Headless container contract (BOOTSTRAP.md §2): export
+# ORUN_TOKEN (ADMIN-role key) + GITHUB_TOKEN, then:
+#   orun workflow run github:sourceplane/lumen@<tag>//flows/phases/00-all/workflow.yaml \
+#     --set workspace=ws_… --set reponame=acme --set productname="Acme Cloud" \
+#     --set productdomain=acme.dev --set subdomain=<workers-dev-subdomain>
+# Local mode: same from this checkout, plus --set out=<product-path>.
+#
+# Operator prerequisites (the two things no token can self-heal):
+#   1. workspace integrations connected (github+cloudflare+supabase) —
+#      preflight polls 10 minutes so consents can be clicked while it waits;
+#   2. the product repo allow-listed (console → Settings → Git repos) —
+#      or pre-create nothing and let phase 01 create the repo, then
+#      allow-list when preflight of phase 02 asks.
+inputs:
+  workspace:
+    type: string
+    description: Workspace id (ws_…) or slug this product deploys against.
+  reponame:
+    type: string
+    description: Repo slug (lowercase; becomes <githuborg>/<reponame>).
+  productname:
+    type: string
+    description: Human product display name.
+  productdomain:
+    type: string
+    description: Product domain (e.g. acme.dev).
+  subdomain:
+    type: string
+    description: workers.dev subdomain.
+  githuborg:
+    type: string
+    default: "sourceplane"
+    description: GitHub org the repo lives under.
+  out:
+    type: string
+    default: ""
+    description: Product path (local mode). Empty = ./product (headless default).
+  baselineref:
+    type: string
+    default: ""
+    description: Baseline ref for the phases. Empty = the commit this flow was fetched from.
+  domain:
+    type: string
+    default: "false"
+    description: '"true" also runs phase 07 (needs the Cloudflare zone to exist) before the docs phase.'
+  watch:
+    type: string
+    default: "true"
+    description: Passed to every phase — '"false"' skips convergence WATCHING (env cannot see Actions); runs must then be verified out-of-band.
+  dryrun:
+    type: string
+    default: "false"
+    description: '"true" previews the scaffold and stops (later phases need a real product tree).'
+steps:
+  - name: scaffold
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        run_phase 01-scaffold 2 \
+          --set "reponame={{ inputs.reponame }}" --set "productname={{ inputs.productname }}" \
+          --set "productdomain={{ inputs.productdomain }}" --set "subdomain={{ inputs.subdomain }}" \
+          --set "githuborg={{ inputs.githuborg }}"
+    timeout: 25m
+  - name: credprobe
+    needs: [scaffold]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        # The expensive lesson: a read-capable but write-denied key (role
+        # below ADMIN) sails through everything until phase 03's secret
+        # writes, then dies with a masked not_found — after ~30 minutes.
+        # Probe the WRITE floor now, in minute two: create-secrets.sh is
+        # idempotent, so doing the real thing early IS the probe, and
+        # phase 03's own secrets step then finds everything "kept".
+        cd "$out"
+        "$L/flows/common/create-secrets.sh" "{{ inputs.workspace }}"
+    timeout: 15m
+  - name: foundation
+    needs: [credprobe]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        run_phase 02-foundation 3 --set "watch={{ inputs.watch }}"
+    timeout: 60m
+  - name: infrastructure
+    needs: [foundation]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        run_phase 03-infrastructure 3 --set "watch={{ inputs.watch }}"
+    timeout: 120m
+  - name: workers
+    needs: [infrastructure]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        run_phase 04-workers 3 --set "watch={{ inputs.watch }}"
+    timeout: 180m
+  - name: edge
+    needs: [workers]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        run_phase 05-edge 3 --set "watch={{ inputs.watch }}"
+    timeout: 60m
+  - name: console
+    needs: [edge]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        run_phase 06-console 3 --set "watch={{ inputs.watch }}"
+    timeout: 90m
+  - name: domain
+    needs: [console]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        [ "{{ inputs.domain }}" = "true" ] || { echo "domain=false: skipping phase 07 (run it later once the zone exists, then re-run the docs phase)"; exit 0; }
+        run_phase 07-domain 2 --set "watch={{ inputs.watch }}"
+    timeout: 60m
+  - name: docs
+    needs: [domain]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        run_phase 08-docs 2
+    timeout: 30m
+  - name: verify
+    needs: [docs]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        # ── context: baseline (local checkout, or self-pinned fetch) ──
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"; W="$PWD"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        out="{{ inputs.out }}"
+        [ -n "$out" ] || out="$W/product"
+        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
+        # retry here is always safe: transient failures (OCI 5xx, network,
+        # a flaky lane past the converge budget) clear on the next attempt;
+        # a real problem fails every attempt and stops the umbrella with
+        # the phase's own actionable message.
+        run_phase() {
+          name="$1"; attempts="$2"; shift 2
+          for i in $(seq 1 "$attempts"); do
+            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
+                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
+                --set "dryrun={{ inputs.dryrun }}" "$@"; then
+              return 0
+            fi
+            if [ "$i" -lt "$attempts" ]; then
+              w=$(( i * 60 ))
+              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
+              sleep "$w"
+            fi
+          done
+          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
+          return 1
+        }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        # Independent end-to-end re-assertion — trusts no prior step's word:
+        cd "$out"
+        echo "── live URLs (edge /health + console, stage+prod)"
+        "$L/flows/common/verify-endpoints.sh" "$out" edge console
+        echo "── published job-output secrets (names only)"
+        for env in stage prod; do
+          missing=""
+          for key in WIRING_CLOUDFLARE_KV WIRING_CLOUDFLARE_HYPERDRIVE SUPABASE_PROJECT_REF; do
+            orun secrets list --org "{{ inputs.workspace }}" --env "$env" 2>/dev/null | grep -q "$key" || missing="$missing $key"
+          done
+          [ -z "$missing" ] || { echo "missing on $env:$missing" >&2; exit 1; }
+          echo "✓ $env: wiring secrets present"
+        done
+        echo "── committed docs manifest"
+        git fetch -q origin main && git checkout -q main && git pull -q --ff-only
+        git cat-file -e "HEAD:ai/context/deployment.md" || { echo "deployment.md not on main" >&2; exit 1; }
+        if git grep -q "TBD_08DOCS" HEAD -- ai/context README.md 2>/dev/null; then
+          echo "placeholder tokens remain in the committed docs" >&2; exit 1
+        fi
+        echo ""
+        echo "✓✓ BOOTSTRAP COMPLETE — live, verified, documented."
+        echo "   manifest: ai/context/deployment.md (URLs, identity, secrets inventory)"
+        echo "   operate:  ai/context/operations.md"
+    timeout: 15m

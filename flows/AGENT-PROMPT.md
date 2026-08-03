@@ -77,7 +77,22 @@ mkdir -p ~/bootstrap-<REPO> && cd ~/bootstrap-<REPO>
 
 Stay here for every phase (they share `baseline/` and `product/`).
 
-## Step 3 — the phases, in order
+## Step 3 — run the umbrella (preferred: one command does everything)
+
+```bash
+orun workflow run 'github:sourceplane/lumen@<TAG>//flows/phases/00-all/workflow.yaml' \
+  --set workspace=<WS> --set reponame=<REPO> \
+  --set productname="<PRODUCT_NAME>" --set productdomain=<PRODUCT_DOMAIN> \
+  --set subdomain=<SUBDOMAIN>
+```
+
+It retries each phase itself, probes the credential's write access in
+minute two, and ends with an independent verification. Expect 60–75
+minutes; the output names the exact operator action if it stops. If it
+completes, skip to Step 4. Use the per-phase commands below ONLY if the
+operator asks for phase-at-a-time control.
+
+## Step 3-alt — the phases, one at a time
 
 Notes that prevent confusion:
 - Phase 01's scaffold is the repo's FIRST commit and lands **directly on
