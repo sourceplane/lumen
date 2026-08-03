@@ -50,7 +50,7 @@ inputs:
     description: '"true" renders the scaffold into a temp dir and reports, creating nothing.'
 steps:
   - name: blueprint
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -216,7 +216,7 @@ steps:
 
   - name: repo
     needs: [blueprint]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -269,22 +269,48 @@ steps:
           fi
           return 1
         }
+        # Existence check via authenticated ls-remote, NOT `gh repo view`:
+        # gh's GraphQL path is blocked in some sandboxes, and treating ANY
+        # view failure as "absent" fell through to a doomed `repo create`
+        # against an existing repo (hit live). ls-remote distinguishes the
+        # cases: exit 0 = exists (possibly EMPTY — zero refs is fine),
+        # "not found" = definitively absent, anything else = a real error
+        # to surface, never a reason to create.
         if git remote get-url origin >/dev/null 2>&1; then
           push_main
-        elif gh repo view "$slug" >/dev/null 2>&1; then
-          echo "repo $slug already exists on GitHub — wiring origin and pushing"
-          git remote add origin "$remote_url"
-          push_main
         else
-          gh repo create "$slug" --private
-          git remote add origin "$remote_url"
-          push_main
+          probe="$(git -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' ls-remote "$remote_url" HEAD 2>&1)"; probe_rc=$?
+          if [ "$probe_rc" -eq 0 ]; then
+            echo "repo $slug exists — wiring origin and pushing (an EMPTY repo is normal: this scaffold IS the first commit, landed directly on main)"
+            git remote add origin "$remote_url"
+            push_main
+          elif printf '%s' "$probe" | grep -qiE "repository not found|not found"; then
+            gh repo create "$slug" --private               || { echo "repo $slug not found and creation failed — pre-create it and re-run (this phase is idempotent)" >&2; exit 1; }
+            git remote add origin "$remote_url"
+            push_main
+          else
+            echo "cannot reach $slug — NOT creating (the failure is access/network, not absence):" >&2
+            printf '%s\n' "$probe" >&2
+            exit 1
+          fi
+        fi
+        # First push to an empty repo makes THAT branch the default. We
+        # always push main first, and additionally pin the default branch
+        # explicitly — best-effort (settings writes are blocked in some
+        # sandboxes; a later branch push then cannot steal the default).
+        tok="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+        if [ -n "$tok" ]; then
+          curl -sf -X PATCH -H "Authorization: Bearer $tok" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"default_branch":"main"}' "https://api.github.com/repos/$slug" >/dev/null \
+            && echo "default branch pinned to main" \
+            || echo "note: could not pin default branch to main (settings write blocked?) — verify it manually"
         fi
     timeout: 5m
 
   - name: link
     needs: [repo]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN]
+    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c

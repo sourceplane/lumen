@@ -70,7 +70,10 @@ echo "── repo link + allow-list (idempotent)"
 orun cloud link --org "$ws" >/dev/null 2>&1 \
   || echo "note: cloud link not written (workspace-scoped token?) — relying on intent.yaml project declaration"
 orun cloud check --org "$ws" || {
-  echo "repo not allow-listed for $ws: grant it in the console (Git Repos)" >&2
+  echo "repo not allow-listed for workspace $ws." >&2
+  echo "This is the ONE step a workspace-scoped token cannot do itself:" >&2
+  echo "  console → workspace $ws → Settings → Git repos → add this repo" >&2
+  echo "Then re-run this phase (idempotent). Do this ONCE per product, ideally before phase 01." >&2
   exit 1
 }
 

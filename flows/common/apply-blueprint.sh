@@ -35,10 +35,29 @@ for k in pascalName brandSlug cliBin apiBaseUrl salesEmail; do
 done
 
 cd "$out"
+# Failure-path idempotency: an apply that dies mid-flight (network error,
+# OCI 5xx, killed step) leaves ITS OWN debris in the tree, and the naive
+# clean-tree check then fails every retry ("re-running is always safe"
+# must include the failure path — hit live). The inflight marker scopes
+# the self-heal precisely: dirty + OUR marker → reset to the recorded
+# start commit and continue; dirty WITHOUT the marker → a human's work,
+# hard-stop exactly as before.
+marker=".git/orun-apply-inflight"
 if [ -n "$(git status --porcelain)" ]; then
-  echo "apply-blueprint: $out working tree is not clean — commit/stash first" >&2
-  exit 1
+  if [ -f "$marker" ]; then
+    start_sha="$(cat "$marker")"
+    echo "apply-blueprint: dirty tree left by a previous failed apply — resetting to ${start_sha:0:12} and retrying"
+    git reset -q --hard "$start_sha"
+    git clean -qfd
+  else
+    echo "apply-blueprint: $out working tree is not clean — commit/stash first" >&2
+    exit 1
+  fi
 fi
+rm -f "$marker"
+git rev-parse HEAD > "$marker"
+# Any exit before the explicit success/dry-run paths keeps the marker in
+# place, arming the next run's self-heal.
 
 # (after the clean check: this may WRITE .rebrand/values.json, and the change
 # then lands with this phase's PR)
@@ -113,7 +132,11 @@ if [ "$dry" = "true" ]; then
   git reset -q
   git checkout -q -- . 2>/dev/null || true
   git clean -qfd
+  rm -f "$marker"
   exit 0
 fi
 
 echo "apply-blueprint: $(git status --porcelain | wc -l | xargs) path(s) staged from $bp"
+# The marker stays armed until the LANDING commits this content (land-pr
+# removes it after its commit): an interrupt between apply and land heals
+# on rerun by resetting and re-applying — both idempotent.
