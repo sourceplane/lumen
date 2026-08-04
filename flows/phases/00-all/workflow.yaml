@@ -3,11 +3,24 @@ kind: Workflow
 metadata:
   name: bootstrap-all
 # The UMBRELLA: nothing → live, documented baseline in ONE unattended run.
-# Composes the phase workflows (01→06, optional 07, 08) with per-phase
-# retry — every phase is idempotent and self-healing, so retries are free —
-# an EARLY credential write-probe (the expensive failure surfaces in the
-# first minutes, not phase 03), and an independent final verification that
-# re-asserts URLs, published secrets, and the committed docs manifest.
+# Composes the phase workflows (01→06, optional 07, 08) with an EARLY
+# credential write-probe (the expensive failure surfaces in the first minutes,
+# not phase 03) and an independent final verification that re-asserts URLs,
+# published secrets, and the committed docs manifest.
+#
+# RESUMABLE. A failed run is resumed by running it again: every phase whose
+# postcondition already holds is skipped — established from a checkpoint when
+# the workdir survives, and by PROBING REALITY (repo content on main, published
+# wiring secrets, live endpoints) when it does not. Retries also stamp redeploy
+# markers, because re-applying identical content plans EMPTY under
+# `orun plan --changed` and would never deploy what a failed attempt left
+# undeployed. flows/common/umbrella.sh carries the full rationale.
+#
+#   --set from=<phase>   replay from a named phase, ignoring the checkpoint
+#   --set fresh=true     ignore every skip and run all phases again
+#
+# Each step below is: the inline baseline resolve (the one block that cannot be
+# factored out — it is what LOCATES the shared helper), then one run_phase call.
 #
 # No agent needed. Headless container contract (BOOTSTRAP.md §2): export
 # ORUN_TOKEN (ADMIN-role key) + GITHUB_TOKEN, then:
@@ -37,7 +50,12 @@ inputs:
     description: Product domain (e.g. acme.dev).
   subdomain:
     type: string
-    description: workers.dev subdomain.
+    description: >
+      The Cloudflare ACCOUNT's workers.dev subdomain — NOT the product name.
+      Every generated URL and the api-edge CORS allowlist are built from it, so
+      a wrong value yields a product that deploys cleanly and is unreachable at
+      every address it advertises. Find it in the Cloudflare dashboard under
+      Workers & Pages → "*.<subdomain>.workers.dev".
   githuborg:
     type: string
     default: "sourceplane"
@@ -62,9 +80,17 @@ inputs:
     type: string
     default: "false"
     description: '"true" previews the scaffold and stops (later phases need a real product tree).'
+  from:
+    type: string
+    default: ""
+    description: 'Resume point: skip every phase before this one (e.g. "05-edge"). Empty = let the checkpoint and the reality probes decide.'
+  fresh:
+    type: string
+    default: "false"
+    description: '"true" clears the checkpoint and runs every phase again, even ones whose postcondition already holds.'
 steps:
   - name: scaffold
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: &env [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
     run:
       - /bin/bash
       - -c
@@ -90,38 +116,20 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.fresh }}" = "true" ] && bs_reset
         run_phase 01-scaffold 2 \
           --set "reponame={{ inputs.reponame }}" --set "productname={{ inputs.productname }}" \
           --set "productdomain={{ inputs.productdomain }}" --set "subdomain={{ inputs.subdomain }}" \
           --set "githuborg={{ inputs.githuborg }}"
     timeout: 25m
+
   - name: credprobe
     needs: [scaffold]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -147,43 +155,22 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
-        # The expensive lesson: a read-capable but write-denied key (role
-        # below ADMIN) sails through everything until phase 03's secret
-        # writes, then dies with a masked not_found — after ~30 minutes.
-        # Probe the WRITE floor now, in minute two: create-secrets.sh is
-        # idempotent, so doing the real thing early IS the probe, and
-        # phase 03's own secrets step then finds everything "kept".
+        # The expensive lesson: a read-capable but write-denied key (role below
+        # ADMIN) sails through everything until phase 03's secret writes, then
+        # dies with a masked not_found — after ~30 minutes. Probe the WRITE
+        # floor now, in minute two: create-secrets.sh is idempotent, so doing
+        # the real thing early IS the probe, and phase 03's own secrets step
+        # then finds everything "kept".
         cd "$out"
-        "$L/flows/common/create-secrets.sh" "{{ inputs.workspace }}"
+        "$L/flows/common/create-secrets.sh" "$ws"
     timeout: 15m
+
   - name: foundation
     needs: [credprobe]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -209,36 +196,17 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 02-foundation 3 --set "watch={{ inputs.watch }}"
     timeout: 60m
+
   - name: infrastructure
     needs: [foundation]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -264,36 +232,17 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 03-infrastructure 3 --set "watch={{ inputs.watch }}"
     timeout: 120m
+
   - name: workers
     needs: [infrastructure]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -319,36 +268,17 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 04-workers 3 --set "watch={{ inputs.watch }}"
     timeout: 180m
+
   - name: edge
     needs: [workers]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -374,36 +304,17 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 05-edge 3 --set "watch={{ inputs.watch }}"
     timeout: 60m
+
   - name: console
     needs: [edge]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -429,36 +340,17 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 06-console 3 --set "watch={{ inputs.watch }}"
     timeout: 90m
+
   - name: domain
     needs: [console]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -484,37 +376,18 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         [ "{{ inputs.domain }}" = "true" ] || { echo "domain=false: skipping phase 07 (run it later once the zone exists, then re-run the docs phase)"; exit 0; }
         run_phase 07-domain 2 --set "watch={{ inputs.watch }}"
     timeout: 60m
+
   - name: docs
     needs: [domain]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -540,36 +413,17 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        . "$L/flows/common/umbrella.sh"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 08-docs 2
     timeout: 30m
+
   - name: verify
     needs: [docs]
-    envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -595,31 +449,9 @@ steps:
               || { echo "baseline checkout FAILED"; exit 1; }
           fi
         fi
-        out="{{ inputs.out }}"
-        [ -n "$out" ] || out="$W/product"
-        # Each phase is IDEMPOTENT and self-heals its own crash debris, so a
-        # retry here is always safe: transient failures (OCI 5xx, network,
-        # a flaky lane past the converge budget) clear on the next attempt;
-        # a real problem fails every attempt and stops the umbrella with
-        # the phase's own actionable message.
-        run_phase() {
-          name="$1"; attempts="$2"; shift 2
-          for i in $(seq 1 "$attempts"); do
-            if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
-                --set "workspace={{ inputs.workspace }}" --set "out=$out" \
-                --set "dryrun={{ inputs.dryrun }}" "$@"; then
-              return 0
-            fi
-            if [ "$i" -lt "$attempts" ]; then
-              w=$(( i * 60 ))
-              echo "umbrella: phase $name attempt $i/$attempts failed — retrying in ${w}s (idempotent)"
-              sleep "$w"
-            fi
-          done
-          echo "umbrella: phase $name FAILED after $attempts attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2
-          return 1
-        }
-        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview — later phases need a real product tree"; exit 0; }
+        out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
+        ws="{{ inputs.workspace }}"
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         # Independent end-to-end re-assertion — trusts no prior step's word:
         cd "$out"
         echo "── live URLs (edge /health + console, stage+prod)"
@@ -628,7 +460,7 @@ steps:
         for env in stage prod; do
           missing=""
           for key in WIRING_CLOUDFLARE_KV WIRING_CLOUDFLARE_HYPERDRIVE SUPABASE_PROJECT_REF; do
-            orun secrets list --org "{{ inputs.workspace }}" --env "$env" 2>/dev/null | grep -q "$key" || missing="$missing $key"
+            orun secrets list --org "$ws" --env "$env" 2>/dev/null | grep -q "$key" || missing="$missing $key"
           done
           [ -z "$missing" ] || { echo "missing on $env:$missing" >&2; exit 1; }
           echo "✓ $env: wiring secrets present"
