@@ -121,6 +121,12 @@ steps:
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.fresh }}" = "true" ] && bs_reset
+        # Validate the subdomain BEFORE phase 01 bakes it into every file: a
+        # product name passed here deploys cleanly and is dead at every URL it
+        # advertises. One DNS lookup, no credentials. (dryrun still checks —
+        # the point is to fail on a bad input, and a preview with a bad input
+        # is exactly as wrong.)
+        "$L/flows/common/check-subdomain.sh" "{{ inputs.subdomain }}"
         run_phase 01-scaffold 2 \
           --set "reponame={{ inputs.reponame }}" --set "productname={{ inputs.productname }}" \
           --set "productdomain={{ inputs.productdomain }}" --set "subdomain={{ inputs.subdomain }}" \
