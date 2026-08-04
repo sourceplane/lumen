@@ -92,7 +92,14 @@ _secret_present() {  # _secret_present <env> <key>
   # From $out: orun discovers intent.yaml relative to the CWD, and run_phase
   # does not chdir — probing from the workdir listed nothing and reported a
   # complete phase 03 as incomplete.
-  ( cd "$out" 2>/dev/null && orun secrets list --org "$ws" --env "$1" 2>/dev/null ) | grep -q "$2"
+  #
+  # Capture then match, never `orun … | grep -q`: grep exits on first match,
+  # orun takes SIGPIPE, and pipefail turns that into a failure (see the same
+  # trap in preflight.sh). Here it would only cost a redundant phase re-run,
+  # but the pattern is wrong either way.
+  local listing
+  listing="$( cd "$out" 2>/dev/null && orun secrets list --org "$ws" --env "$1" 2>/dev/null || true )"
+  case "$listing" in *"$2"*) return 0 ;; *) return 1 ;; esac
 }
 
 _url_code() { curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$1" 2>/dev/null || echo 000; }
@@ -268,11 +275,20 @@ EOF
 }
 
 _stamp_for_retry() {  # _stamp_for_retry <phase> <reason>
-  local name="$1" reason="$2" comps
+  local name="$1" reason="$2" comps flag
+  # ONCE per phase per run. One marker is all it takes to put a component in
+  # the changed set; stamping again on attempt 3 only piles duplicate comment
+  # lines into component.yaml. It also keeps the noise proportionate when the
+  # retry had nothing to do with deploying (a preflight/auth failure retries
+  # too, and those attempts should not litter twelve files).
+  flag="$BOOTSTRAP_STATE_DIR/stamped-$name"
+  [ -f "$flag" ] && return 0
   comps="$(phase_components "$name")"
   [ -n "$comps" ] || return 0
+  bs_init
   # shellcheck disable=SC2086
   "$L/flows/common/redeploy-marker.sh" "$out" "$reason" $comps || true
+  : > "$flag"
 }
 
 _phase_lt() {  # _phase_lt <a> <b> — true when a comes before b in the order
