@@ -82,7 +82,7 @@ failed phase.
 
 How the resume point is established, in order:
 
-1. **Checkpoint** — `<workdir>/.orun-bootstrap/state`, written after each
+1. **Checkpoint** — `<workdir>/.orun/bootstrap/state`, written after each
    phase. Fast, and exact, when the workdir survived.
 2. **Reality probes** — when there is no checkpoint (a fresh headless
    container, the usual case), each phase is asked whether its
@@ -100,6 +100,12 @@ Two overrides:
 |---|---|
 | `--set from=05-edge` | skip everything before that phase, whatever the checkpoint says |
 | `--set fresh=true` | clear the checkpoint and run every phase again |
+
+Complementary, and worth knowing: `orun workflow run --resume <exec-id>`
+re-executes only the umbrella's non-succeeded *steps*. That is the sharper
+tool when you still have the exec id and the original workdir. The checkpoint
+and probes cover the case it cannot — a fresh container, where both the exec
+id and the run state are gone.
 
 ### Why a resume also forces redeploys
 

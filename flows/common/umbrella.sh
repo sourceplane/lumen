@@ -28,7 +28,7 @@
 #
 # ── WHERE THE CHECKPOINT LIVES ────────────────────────────────────────────
 #
-# $W/.orun-bootstrap/state — beside baseline/ and product/, outside the product
+# $W/.orun/bootstrap/state — beside baseline/ and product/, outside the product
 # repo (nothing about a bootstrap run belongs in the product's history).
 #
 # A local file only helps when the workdir is reused. Headless re-runs get a
@@ -38,7 +38,10 @@
 # Reality survives container death; a state file does not.
 set -uo pipefail
 
-BOOTSTRAP_STATE_DIR="${W:?umbrella.sh: W (workdir anchor) required}/.orun-bootstrap"
+# Under .orun/ so the baseline's own .gitignore (".orun/*") already covers it —
+# in local mode $W IS the baseline checkout, and an untracked state file there
+# would show up in every `git status` and risk being swept into a landing.
+BOOTSTRAP_STATE_DIR="${W:?umbrella.sh: W (workdir anchor) required}/.orun/bootstrap"
 BOOTSTRAP_STATE="$BOOTSTRAP_STATE_DIR/state"
 
 # All phases in order — the resume ordering and the `from` input both read it.
