@@ -39,6 +39,28 @@ orun workflow run flows/phases/00-all/workflow.yaml \
   --set subdomain=<workers-dev-subdomain>
 ```
 
+`subdomain` is the Cloudflare **account's** workers.dev subdomain, not the
+product name. Every generated URL and the api-edge CORS allowlist derive from
+it, so a wrong value ships a product that deploys cleanly and is unreachable at
+every address it advertises. Find it under Workers & Pages in the dashboard.
+
+**Resuming a failed run: run the same command again.** The umbrella skips every
+phase whose postcondition already holds — from a checkpoint when the workdir
+survived, and by probing reality (repo content on `main`, published wiring
+secrets, live endpoints) when it did not, so a fresh container resumes just as
+well. Two overrides when you want to be explicit:
+
+```bash
+--set from=05-edge     # replay from a named phase, ignoring the checkpoint
+--set fresh=true       # run every phase again, skipping nothing
+```
+
+Retries also stamp `# ci:` redeploy markers on the phase's components. This
+matters more than it looks: CI plans `--changed`, so re-applying identical
+content after a failed convergence yields an EMPTY plan and never deploys what
+the failed attempt left undeployed. Without the markers a partial fleet stays
+partial through unlimited restarts.
+
 Headless: same command by remote reference (§2). Details, prerequisites,
 and failure semantics: [flows/phases/00-all/README.md](flows/phases/00-all/README.md).
 

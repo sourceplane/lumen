@@ -18,10 +18,21 @@ echo "── auth"
 if [ -n "${ORUN_TOKEN:-}${ORUN_TOKEN_FILE:-}" ]; then
   echo "auth: headless (ORUN_TOKEN${ORUN_TOKEN_FILE:+/ORUN_TOKEN_FILE})"
 else
-  orun auth status | grep -q "User:" || {
-    echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device (or set ORUN_TOKEN for headless runs)" >&2
-    exit 1
-  }
+  # Capture, THEN match — never `orun auth status | grep -q`. `grep -q` exits
+  # on the first match, `orun` takes SIGPIPE writing the rest of the org list,
+  # and `set -o pipefail` turns that 141 into a pipeline failure: a perfectly
+  # logged-in CLI is reported as "not logged in". Only interactive runs reach
+  # this branch, which is why it survived so long (headless sets ORUN_TOKEN and
+  # short-circuits above). Hit live on a local-mode bootstrap.
+  auth_out="$(orun auth status 2>&1 || true)"
+  case "$auth_out" in
+    *"User:"*) ;;
+    *)
+      echo "not logged in: run \`orun auth login --device\` and approve at https://app.orun.dev/cli/device (or set ORUN_TOKEN for headless runs)" >&2
+      [ -n "$auth_out" ] && printf '%s\n' "$auth_out" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 echo "── integrations (ACTIVE github+cloudflare+supabase; polling up to 10m so consents can be clicked now)"

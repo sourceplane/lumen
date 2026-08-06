@@ -92,7 +92,8 @@ Caveats that matter:
 ```bash
 # the four public surfaces (also recorded, probed, in deployment.md)
 curl -s -o /dev/null -w '%{http_code}\n' https://lumen-api-edge-stage.<subdomain>.workers.dev/health
-# 2xx–4xx = alive (401/403 is "deployed, unauthorized"); 5xx/timeout = not deployed
+# 200 = deployed and healthy. A 404 here means NOTHING is deployed at that
+# name (workers.dev answers 404 for an unclaimed hostname) — not a routing bug.
 
 # published wiring (names only)
 orun secrets list --org <ws> --env stage

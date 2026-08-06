@@ -21,9 +21,12 @@ curl -s -o /dev/null -w '%{http_code}\n' https://lumen-api-edge-stage.rahulvargh
 curl -s -o /dev/null -w '%{http_code}\n' https://lumen-api-edge-prod.rahulvarghesepullely.workers.dev/health
 ```
 
-2xx–4xx = alive (401/403 is "deployed, unauthorized"); 5xx/timeout = not
-deployed. The deploy lane's smoke already retries ~75s, so a persistent
-failure is real.
+200 = deployed and healthy. A **404 means nothing is deployed at that
+name** — workers.dev answers 404 for a hostname with no live script, so
+this reads like a routing fault when it is a missing deploy; check the
+component's deploy lane in the last main convergence. 5xx/timeout =
+deployed but unhealthy. The deploy lane's smoke already retries ~75s, so
+a persistent failure is real.
 
 ## Common failures
 
