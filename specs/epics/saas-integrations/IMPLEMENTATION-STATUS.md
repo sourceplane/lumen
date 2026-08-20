@@ -28,6 +28,10 @@ B5 outbound webhooks, B11 entitlements, console shell).
   **RESOLVED 2026-06-11**: account upgraded to Workers Paid; the drain cron
   is attached. D1 stage secrets are provisioned (App registered, all eight
   worker secrets set) — stage live path unparked.
+  **SUPERSEDED 2026-08-20**: the free-tier profile removed the dependency on
+  the upgrade. Crons are declared per-environment in `prod` only, so the three
+  scheduled jobs cost 3 of the free plan's 5 triggers instead of 6. The drain
+  cron no longer runs in stage. See `specs/profiles/free-tier.md`.
 
 - 2026-06-11: IG0 (#307, task 0138) landed the bounded context with zero live
   behavior. No public route beyond `/health`; provider credentials are

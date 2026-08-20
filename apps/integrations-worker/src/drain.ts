@@ -26,8 +26,8 @@ import {
   LIFECYCLE_EVENT_TYPES,
   normalizeScmEvent,
 } from "./normalize.js";
+import { drainBatchSize } from "./free-tier.js";
 
-const DEFAULT_BATCH_SIZE = 50;
 const MAX_ATTEMPTS = 5;
 /** Retry backoff: 1m, 2m, 4m, 8m (then terminal `failed`). */
 function backoffMs(attempts: number): number {
@@ -447,7 +447,7 @@ async function emitScmEvents(
 /** One cron tick: claim due inbox rows oldest-first and process each. */
 export async function drainInboundDeliveries(
   executor: SqlExecutor,
-  _env: Env,
+  env: Env,
   opts?: { batchSize?: number; now?: () => Date },
 ): Promise<DrainSummary> {
   const ctx: ProcessCtx = {
@@ -458,7 +458,7 @@ export async function drainInboundDeliveries(
   };
   const summary: DrainSummary = { processed: 0, emitted: 0, skipped: 0, retried: 0, failed: 0 };
 
-  const due = await ctx.repo.listDueInboundDeliveries(opts?.batchSize ?? DEFAULT_BATCH_SIZE);
+  const due = await ctx.repo.listDueInboundDeliveries(opts?.batchSize ?? drainBatchSize(env));
   if (!due.ok) return summary;
 
   for (const delivery of due.value) {

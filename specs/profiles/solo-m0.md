@@ -128,6 +128,13 @@ later request.
 - Build: `pnpm build` green (40/40) with Solo on; the console also builds with
   `NEXT_PUBLIC_SOLO_MODE=false`, confirming the baseline is restorable.
 
+## See also
+
+- [`free-tier.md`](./free-tier.md) — the Cloudflare Workers Free plan profile,
+  which is specified on top of this one: Solo's single org is what makes the
+  webhook dispatcher's per-org loop a loop of one, and therefore what makes the
+  free-tier delivery budgets fair.
+
 ## Defaults chosen (M0 minimum)
 
 - API keys: hidden in M0, re-enableable by flag (they are part of the suppressed

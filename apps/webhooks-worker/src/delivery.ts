@@ -11,14 +11,13 @@ import type { CiphertextEnvelope, EncryptionAdapter } from "./encryption.js";
 import type { WebhookRepository, WebhookDeliveryAttempt, EndpointForDelivery } from "@saas/db/webhooks";
 import type { EventsRepository, StoredEvent } from "@saas/db/events";
 import { WEBHOOK_USER_AGENT } from "./app-config";
+import { PAID_BUDGET, type DeliveryBudget } from "./free-tier.js";
 
 // ── Constants ────────────────────────────────────────────────
 
-const MAX_EVENTS_PER_ORG = 50;
 const MAX_RETRIES = 5;
 const RETRY_BASE_SECONDS = 30;
 const DELIVERY_TIMEOUT_MS = 10_000;
-const MAX_RETRY_BATCH = 100;
 
 /**
  * V1 threshold: after this many consecutive terminal delivery failures
@@ -338,7 +337,10 @@ async function deliverAttempt(
 
 // ── Fanout ────────────────────────────────────────────────────
 
-export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatched: number; errors: number }> {
+export async function dispatchNewEvents(
+  ctx: DeliveryContext,
+  budget: DeliveryBudget = PAID_BUDGET,
+): Promise<{ dispatched: number; errors: number }> {
   let dispatched = 0;
   let errors = 0;
 
@@ -347,6 +349,11 @@ export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatc
   if (!orgsResult.ok) return { dispatched: 0, errors: 1 };
 
   for (const orgId of orgsResult.value) {
+    // Per-pass delivery ceiling (free-tier subrequest governor). Stopping
+    // between orgs is safe: each org's cursor only advances over events this
+    // pass actually handled, so the next tick resumes exactly here.
+    if (dispatched >= budget.maxDeliveriesPerPass) break;
+
     // 2. Get dispatch cursor for this org
     const cursorResult = await ctx.webhookRepo.getDispatchCursor(orgId);
     if (!cursorResult.ok) { errors++; continue; }
@@ -357,7 +364,7 @@ export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatc
       orgId,
       cursor.lastOccurredAt,
       cursor.lastEventId,
-      MAX_EVENTS_PER_ORG,
+      budget.maxEventsPerOrg,
     );
     if (!eventsResult.ok) { errors++; continue; }
     if (eventsResult.value.length === 0) continue;
@@ -365,6 +372,10 @@ export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatc
     let lastEvent: StoredEvent | null = null;
 
     for (const event of eventsResult.value) {
+      // Budget exhausted mid-org: leave the cursor where the last handled
+      // event put it so these events are re-claimed next pass.
+      if (dispatched >= budget.maxDeliveriesPerPass) break;
+
       // ── Recursion guard: skip webhook lifecycle events to prevent unbounded loops ──
       // Delivering webhook.delivery_succeeded, webhook.delivery_failed, or webhook.disabled
       // would create new delivery attempts → new lifecycle events → infinite recursion.
@@ -377,7 +388,16 @@ export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatc
       const subsResult = await ctx.webhookRepo.findMatchingSubscriptions(orgId, event.type);
       if (!subsResult.ok) { errors++; continue; }
 
+      // A partially fanned-out event must NOT advance the cursor, or the
+      // subscriptions we did not reach would never see it.
+      let fanoutComplete = true;
+
       for (const sub of subsResult.value) {
+        if (dispatched >= budget.maxDeliveriesPerPass) {
+          fanoutComplete = false;
+          break;
+        }
+
         // 5. Create delivery attempt
         const attemptId = crypto.randomUUID();
         const idempotencyKey = `${sub.id}:${event.id}:1`;
@@ -404,6 +424,8 @@ export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatc
         dispatched++;
       }
 
+      if (!fanoutComplete) break;
+
       lastEvent = event;
     }
 
@@ -422,11 +444,18 @@ export async function dispatchNewEvents(ctx: DeliveryContext): Promise<{ dispatc
 
 // ── Retry ────────────────────────────────────────────────────
 
-export async function retryFailedDeliveries(ctx: DeliveryContext): Promise<{ retried: number; errors: number }> {
+export async function retryFailedDeliveries(
+  ctx: DeliveryContext,
+  maxBatch: number = PAID_BUDGET.maxRetryBatch,
+): Promise<{ retried: number; errors: number }> {
   let retried = 0;
   let errors = 0;
 
-  const result = await ctx.webhookRepo.listRetryableDeliveries(MAX_RETRY_BATCH);
+  // A non-positive ceiling means dispatch already spent the pass's whole
+  // subrequest budget; the sweep is a no-op rather than an over-spend.
+  if (maxBatch <= 0) return { retried: 0, errors: 0 };
+
+  const result = await ctx.webhookRepo.listRetryableDeliveries(maxBatch);
   if (!result.ok) return { retried: 0, errors: 1 };
 
   for (const attempt of result.value) {

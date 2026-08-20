@@ -3,6 +3,12 @@ export interface Env {
   MEMBERSHIP_WORKER?: Fetcher;
   POLICY_WORKER?: Fetcher;
   ENVIRONMENT: string;
+  /**
+   * Free-tier profile switch ("true" to enable). Caps how much of the delivery
+   * backlog one scheduled pass claims, so the pass fits the Workers Free plan's
+   * 10ms CPU / 50-subrequest invocation ceiling. See specs/profiles/free-tier.md.
+   */
+  FREE_TIER?: string;
   /** Hex-encoded 256-bit key for signing-secret encryption (AES-256-GCM). */
   SECRET_ENCRYPTION_KEY?: string;
   /**
