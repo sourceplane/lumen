@@ -173,10 +173,28 @@ the dominant cost under 10 ms.
 
 ## Guards
 
-`tests/platform-limits` (`@saas/platform-limits-tests`) reads every committed
-wrangler template and fails on: a top-level `triggers` block, crons declared
-outside `prod`, more than 5 crons in a single-environment deployment, or a
-worker with `minify` disabled. See its runbook for what each failure means.
+`tests/platform-limits` (`@saas/platform-limits-tests`) reads the committed
+wrangler templates and `component.yaml` files and fails on: a top-level
+`triggers` block, crons declared outside `prod`, more than 5 crons in a
+single-environment deployment, a worker with `minify` disabled, a
+component-level **required** `secretEnv` whose ref hard-codes an environment,
+or a per-environment `optionalSecretEnv` (a form orun silently drops). See its
+runbook for what each failure means.
+
+### Secret scoping
+
+Deploy-time wiring documents are declared **per-environment**, under
+`subscribe.environments[]` on `stage` and `prod` only — never at component
+level, where orun attaches them to every job of the component as a required
+reference regardless of profile or environment.
+
+That is not a style preference. It is the difference between a dev lane that
+renders offline from `wiring.fixture.json` and one that cannot start until a
+prod credential resolves. When the Supabase integration connection was revoked
+on 2026-08-06 and `WIRING_CLOUDFLARE_HYPERDRIVE` stopped being published, the
+component-level form took every lane in every environment down with it —
+`Secret not found`, before the first step, for two weeks. Scoping removed 26
+required references from 12 dev jobs, verified against `orun plan`.
 
 Verified at authoring time by rendering each scheduled worker from its wiring
 fixture and running `wrangler deploy --dry-run --env prod`: wrangler accepts an

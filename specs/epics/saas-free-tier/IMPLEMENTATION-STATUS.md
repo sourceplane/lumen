@@ -51,3 +51,42 @@ things that turned out to be untrue.
   packages, which widened `--changed` to mark every worker changed. FT0 widens it
   the same way by touching every wrangler template. The missing secret lives in
   the orun workspace, not the repo, so this is not fixable from a PR.
+
+- **2026-08-21: RESOLVED — the missing secret was the whole outage, and its
+  cause was upstream of Cloudflare entirely.** The Supabase integration
+  connection behind `SUPABASE_ACCESS_TOKEN` and `SUPABASE_ORG_ID` had been
+  revoked, orphaning both brokered secrets. `supabase` could not apply, so it
+  never published `SUPABASE_PROJECT_REF` / `SUPABASE_DB_PASSWORD`;
+  `cloudflare-hyperdrive` depends on those and so never published
+  `WIRING_CLOUDFLARE_HYPERDRIVE`; and twelve components hard-required that
+  document. `WIRING_CLOUDFLARE_KV` was the control that isolated it —
+  `cloudflare-kv` has no Supabase dependency and its document was present
+  throughout.
+
+  Recovery: both brokered secrets repointed to the live connection (revoke +
+  recreate; an in-place `integrations … secret create` against an existing key
+  returns a backend 500), then one `# ci:` trailer PR per infra component —
+  #95 `supabase`, #96 `cloudflare-hyperdrive`, #97 `db-migrate`. One PR per
+  component was necessary, not fastidious: `orun plan --changed` schedules
+  directly-changed components only, and the "Dependents" that
+  `orun component --changed` prints are dropped at plan time as
+  `component not selected`.
+
+  The earlier claim above that this is "not fixable from a PR" was wrong in
+  spirit: the *secret* is workspace state, but the applies that publish it are
+  driven from the repo, so PRs were exactly the instrument.
+
+- **2026-08-21: FT0 landed and the cron fix was proven on a real deploy.**
+  Run 208 deployed all 13 workers to stage and prod, green, with no
+  `5 cron triggers per account` error. Worth stating explicitly because the
+  verify lanes cannot prove this: `wrangler deploy --dry-run` does not attach
+  triggers, so only the deploy profile exercises the ceiling.
+
+- **2026-08-21: secret scoping (the latent fragility, fixed separately).** The
+  outage was a missing secret; what turned it into a *fleet-wide* outage was
+  the component-level `secretEnv` form. Wiring refs are now declared
+  per-environment on `stage` and `prod`, which removed 26 required references
+  from 12 dev jobs (verified against `orun plan`). Established empirically
+  while choosing the fix: per-environment `secretEnv` is honoured and scopes
+  correctly, but per-environment `optionalSecretEnv` is **silently dropped** —
+  no error, no warning. Both shapes are now guarded in `tests/platform-limits`.

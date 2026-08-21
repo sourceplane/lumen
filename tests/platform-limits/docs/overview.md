@@ -1,7 +1,9 @@
 # platform-limits-tests
 
-Structural guards on the **Cloudflare account limits** the whole worker fleet
-deploys into, read straight off the committed `wrangler` templates.
+Structural guards on the **platform contracts the whole worker fleet deploys
+under**, read straight off the committed `wrangler` templates and
+`component.yaml` files: Cloudflare's per-account limits, and how components
+declare the secrets their jobs resolve.
 
 These are not runtime tests. They defend limits that are per-account and only
 bite at deploy time — after every other lane has gone green. The cron-trigger
@@ -12,6 +14,12 @@ cron triggers per account`.
 
 The budget these numbers come from is `specs/profiles/free-tier.md`.
 
+The secret-scoping gates defend a contract the composition states itself, in
+`cloudflare-worker-turbo-verify.yaml`: *"Offline fixture render only — verify
+lanes must never need cloud credentials (BF6 D5 guard); wire-live is
+deploy-only."* Component-level `secretEnv` bypasses that guarantee, because
+orun attaches it to every job in every environment regardless of profile.
+
 ## Gates
 
 - No worker declares `triggers` at the top level, where every named environment
@@ -19,3 +27,8 @@ The budget these numbers come from is `specs/profiles/free-tier.md`.
 - Only the environment the free-tier profile deploys (`prod`) declares crons.
 - A single-environment deployment stays within 5 cron triggers.
 - No worker ships with `minify` disabled, against the free plan's 3MB gzip cap.
+- No component declares a **required** `secretEnv` at component level whose ref
+  hard-codes an environment — that is what makes a dev job require a prod
+  credential it never reads.
+- No component declares a per-environment `optionalSecretEnv`, a form orun
+  silently drops.
