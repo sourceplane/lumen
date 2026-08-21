@@ -9,7 +9,7 @@ things that turned out to be untrue.
 | FT1 | ✅ Shipped | Account budget priced from the deployed set. Corrected the premise: the profile does not need a single environment. | #99 |
 | FT2 | ✅ Shipped | Binding graph bounded at 8 invocations and pinned; 2 cycles named and allowlisted. | #100 |
 | FT3 | ⚠️ Re-scoped | CPU is unmeasurable inside a Worker by design; hop count and wall time remain implementable. | #101 |
-| FT4 | 🗓️ Planned | Connection reuse / SCRAM cost. | — |
+| FT4 | ✅ Closed | Not implemented, and should not be: cross-request reuse is runtime-forbidden and was already tried and reverted. | #103 |
 | FT5 | ✅ Shipped | 2296 → 1880 KiB via minify; 61% of the cap, guarded at 2400 KiB in the console's build lane. | #102 |
 | FT6 | ⛔ Gated | Monolith mode. Entry condition is Cloudflare CPU telemetry — not FT3, which cannot produce it. | — |
 
@@ -166,3 +166,28 @@ things that turned out to be untrue.
   It lives in the console's build lane rather than `tests/platform-limits`,
   because measuring costs a full Next build — minutes — and that suite's value
   is being cheap enough to always run.
+
+- **2026-08-21: FT4 closed without implementing it — the answer was already in
+  the repo.** The plan said to read why the previous attempt was rolled back
+  before repeating it. It was rolled back for a good reason: the Workers runtime
+  forbids cross-request socket reuse (`Cannot perform I/O on behalf of a
+  different request`), the module-scoped pool broke membership with 500s and
+  billing with flaky 503s on stage, the self-heal retry did not reliably
+  recover, and `saas-performance/risks-and-open-questions.md` interdicts
+  retrying it without a stage canary. It is also largely unnecessary: Hyperdrive
+  pools the upstream connection, so the per-request client talks to a local
+  socket and the DB round trip is ~6 ms over floor.
+
+  Finding it took longer than it should have. The comment in ten worker
+  entrypoints cited "task 0134", and `ai/tasks/task-0134.md` is a console UX
+  task about sidebar account chips and dialog accessibility. The connection-reuse
+  work is `ai/reports/task-0134-implementer.md` — same number, different work,
+  because the task number was reused. Following the citation lands a reader on
+  the wrong document. All ten comments now point at the risks doc, which holds
+  the lesson and cannot be renumbered out from under them.
+
+  What the closure does NOT settle: whether per-request SCRAM-SHA-256 auth is a
+  material CPU cost under 10 ms. All the evidence above is wall-time, and per
+  FT3 a Worker cannot measure its own CPU. But it is not independently
+  actionable — the only remedy is the one the runtime forbids — so it folds into
+  FT6's telemetry reading rather than standing as its own milestone.
