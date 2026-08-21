@@ -6,7 +6,7 @@ things that turned out to be untrue.
 | Milestone | Status | Notes | PR |
 |---|---|---|---|
 | FT0 | ✅ Shipped | Profile spec + cron topology + `FREE_TIER` budgets + fleet-wide minify + `tests/platform-limits`. Found and fixed a cursor bug while capping fanout (see notes). | #94 |
-| FT1 | 🗓️ Planned | Single-environment deployment, guarded. | — |
+| FT1 | ✅ Shipped | Account budget priced from the deployed set. Corrected the premise: the profile does not need a single environment. | #99 |
 | FT2 | 🗓️ Planned | Chain-depth + subrequest audit. | — |
 | FT3 | 🗓️ Planned | Request-path cost instrumentation. | — |
 | FT4 | 🗓️ Planned | Connection reuse / SCRAM cost. | — |
@@ -90,3 +90,18 @@ things that turned out to be untrue.
   while choosing the fix: per-environment `secretEnv` is honoured and scopes
   correctly, but per-environment `optionalSecretEnv` is **silently dropped** —
   no error, no warning. Both shapes are now guarded in `tests/platform-limits`.
+
+- **2026-08-21: FT1 landed, and disproved its own premise.** The milestone was
+  specified as "make 'free tier deploys one environment' explicit and guarded".
+  Measuring the deployed set showed that claim was never true: stage + prod
+  cost 3 of 5 cron triggers, 28 of 100 worker scripts and 2 of 10 Hyperdrive
+  configs. What must be concentrated in one environment is the *crons* — a
+  trigger is charged per deployed environment — and nothing else in the fleet
+  is near its ceiling.
+
+  So the guard prices the deployed set instead of enforcing a shape it turned
+  out not to need. It applies wrangler's inheritance rule directly, which means
+  it charges a top-level `triggers` block to every deployed environment and
+  reports the fourth charge by name. The pricing function is unit-tested on
+  synthetic configs, so the guard proves it can catch the 6-trigger case
+  without a violation being planted in a real file.

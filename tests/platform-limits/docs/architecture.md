@@ -1,6 +1,6 @@
 # Architecture
 
-Two Jest suites, no runtime dependencies, no network. It walks `apps/*`, reads
+Three Jest suites, no runtime dependencies, no network. It walks `apps/*`, reads
 the first of `wrangler.template.jsonc` or `wrangler.jsonc` it finds per app,
 strips line comments and the deploy-time `@@wiring(...)@@` placeholders, and
 asserts over the parsed objects.
@@ -30,3 +30,19 @@ cheap enough to always run should not pull a parser in to read four keys.
 The two failure shapes it encodes were both established empirically against
 `orun plan`, not inferred: a component-level ref reaches every environment, and
 a per-environment `optionalSecretEnv` is dropped without a warning.
+
+## account-budget.test.ts
+
+Computes what the fleet actually costs the Cloudflare account, rather than
+checking the shape of any one config.
+
+It derives the deployed set from `subscribe.environments[]` — the pairs whose
+`profileRules` carry a `deploy` or `apply` profile — then prices each one. Cron
+pricing applies wrangler's inheritance rule: a top-level `triggers` block is
+charged to *every* deployed environment, which is exactly the arithmetic that
+took the account to 6 against a limit of 5.
+
+`effectiveCrons()` is exported and unit-tested against synthetic configs, so the
+pricing rule is verified independently of the repo's current state. That matters:
+a budget guard that mispriced inheritance would be worse than no guard, and this
+way it demonstrates it can catch the regression without one being planted.
