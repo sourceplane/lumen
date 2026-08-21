@@ -1,6 +1,7 @@
 # Profile: Free Tier (Cloudflare Workers Free plan)
 
 Status: Implemented (budgets + cron topology) · Owner: platform · Switch: `FREE_TIER`
+Epic: [`saas-free-tier`](../epics/saas-free-tier/) — FT0 shipped; FT1–FT6 planned
 
 The **Free Tier** profile runs Lumen on a Cloudflare account with no Workers
 Paid subscription. Like [Solo](./solo-m0.md), it is achieved by **configuring
