@@ -19,11 +19,13 @@ import { join } from "node:path";
 const REPO_ROOT = join(process.cwd(), "..", "..");
 const APPS_DIR = join(REPO_ROOT, "apps");
 
-/** Cron triggers per account — Workers Free. Paid raises this to 250. */
-const FREE_PLAN_CRON_TRIGGERS = 5;
-
-/** The one environment the free-tier profile deploys. */
-const FREE_TIER_ENVIRONMENT = "prod";
+/**
+ * The environment that carries the scheduled jobs. Not "the only environment
+ * that deploys" — stage deploys too, and the account budget accommodates it
+ * (see account-budget.test.ts). Crons are concentrated here so the per-account
+ * trigger cost is paid once rather than once per environment.
+ */
+const CRON_ENVIRONMENT = "prod";
 
 interface WorkerConfig {
   app: string;
@@ -84,11 +86,11 @@ describe("cron trigger budget (free plan: 5 per account)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("declares crons only in the environment the free-tier profile deploys", () => {
+  it("declares crons only in the environment that carries the scheduled jobs", () => {
     const offenders: string[] = [];
     for (const worker of WORKERS) {
       for (const [envName, envConfig] of Object.entries(environmentsOf(worker.config))) {
-        if (envName !== FREE_TIER_ENVIRONMENT && cronsIn(envConfig).length > 0) {
+        if (envName !== CRON_ENVIRONMENT && cronsIn(envConfig).length > 0) {
           offenders.push(`${worker.file} → env.${envName}`);
         }
       }
@@ -97,22 +99,6 @@ describe("cron trigger budget (free plan: 5 per account)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("keeps a single-environment deployment inside the free plan's 5", () => {
-    const declared = WORKERS.flatMap((worker) =>
-      cronsIn(environmentsOf(worker.config)[FREE_TIER_ENVIRONMENT]).map(
-        (cron) => `${worker.app}: ${cron}`,
-      ),
-    );
-
-    // Spelled out rather than counted, so the failure output names which jobs
-    // are competing for the budget instead of just saying the count is wrong.
-    expect(declared).toEqual([
-      "integrations-worker: * * * * *",
-      "metering-worker: 5 * * * *",
-      "webhooks-worker: * * * * *",
-    ]);
-    expect(declared.length).toBeLessThanOrEqual(FREE_PLAN_CRON_TRIGGERS);
-  });
 });
 
 describe("worker size budget (free plan: 3MB gzipped)", () => {

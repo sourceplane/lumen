@@ -29,14 +29,14 @@ Measured against the [Workers limits][limits] and [pricing][pricing] docs.
 | Limit | Free | Paid | Bites Lumen |
 |---|---|---|---|
 | **CPU per invocation** | **10 ms** | 30 s (→5 min) | **Yes — the hard constraint.** See below |
-| Cron triggers **per account** | 5 | 250 | Yes — 3 jobs × 2 envs was 6 |
+| Cron triggers **per account** | 5 | 250 | Yes — 3 jobs × 2 envs was 6; now 3 |
 | Subrequests per invocation | 50 | 10,000 | Yes — one outbound fetch per delivery |
 | Requests | 100k/day, then error 1027 | unmetered | No — ~4.3k/day of crons at 1/min |
 | Worker size | 3 MB gzip | 10 MB | No — domain workers gzip to 27–40 KiB; only the OpenNext console is worth watching |
 | Hyperdrive | 10 configs, ~20 conns | 25, ~100 | No — the fleet uses one per env |
 | Durable Objects | SQLite-backed only | + KV-backed | No — `RATE_LIMITER_DO` is SQLite-backed |
 | Queues | 10k ops/day | 1M/mo | Not used |
-| Workers per account | 100 | 500 | No — ~26 across two envs |
+| Workers per account | 100 | 500 | No — 28 across two envs |
 
 ### The chained-CPU constraint
 
@@ -113,8 +113,28 @@ Crons are therefore declared **inside `env.prod` only**:
 | `integrations-worker` | `* * * * *` | Inbox drain: attribute → normalize → emit |
 | `metering-worker` | `5 * * * *` | Usage rollup materialization |
 
-**3 of 5 spent, 2 spare.** `tests/platform-limits` fails CI if a change breaks
-that arithmetic.
+**3 of 5 spent, 2 reserved.** `tests/platform-limits` prices the deployed set
+and fails CI if that arithmetic breaks.
+
+### The profile does not require a single environment
+
+An earlier draft of this spec said the free-tier profile deploys one
+environment. That was wrong, and worth correcting rather than quietly
+softening: it conflated *where the crons live* with *how many environments
+deploy*. Measured from the repo, the current two-environment fleet costs
+
+| Per-account resource | Free plan | Spent | By |
+|---|---|---|---|
+| Cron triggers | 5 | **3** | `prod` only — stage carries none |
+| Worker scripts | 100 | **28** | 14 components × 2 environments |
+| Hyperdrive configs | 10 | **2** | one per environment |
+
+Stage and prod together sit comfortably inside every per-account ceiling. What
+has to be concentrated in one environment is the *crons*, because a trigger is
+charged per deployed environment; nothing else in the fleet is close enough to
+its limit to care. A third environment would cost 14 more worker scripts and
+one more Hyperdrive config — still fine — and zero additional crons, as long as
+they stay declared in `prod`.
 
 Spending the spare two is a deliberate decision to record here. Before spending
 one on a fourth job, prefer either of:
@@ -175,11 +195,19 @@ the dominant cost under 10 ms.
 
 `tests/platform-limits` (`@saas/platform-limits-tests`) reads the committed
 wrangler templates and `component.yaml` files and fails on: a top-level
-`triggers` block, crons declared outside `prod`, more than 5 crons in a
-single-environment deployment, a worker with `minify` disabled, a
+`triggers` block, crons declared outside `prod`, an account budget over any
+free-plan ceiling, a worker with `minify` disabled, a
 component-level **required** `secretEnv` whose ref hard-codes an environment,
 or a per-environment `optionalSecretEnv` (a form orun silently drops). See its
 runbook for what each failure means.
+
+The budget suite **prices** the deployed set rather than forbidding a shape: it
+computes which `(component, environment)` pairs a main-push convergence
+deploys, applies wrangler's inheritance rule — a top-level `triggers` block is
+charged to *every* deployed environment — and asserts the totals. A style rule
+can be argued with; a number cannot. Reinstating the top-level block makes the
+suite report `webhooks-worker · stage` as a fourth charge, which is precisely
+the trigger that took the account to 6.
 
 ### Secret scoping
 

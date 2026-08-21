@@ -45,3 +45,17 @@ block inside a `subscribe.environments[]` item. orun **silently drops** it: no
 error, no warning, the reference never reaches the job. Either move it to
 component level (where the optional form works, for every environment) or make
 it a per-environment `secretEnv` if it is genuinely required there.
+
+**"spends exactly the budget the profile documents"** — the set of cron
+triggers the account will attach has changed. The diff names the additions. If
+a new charge appeared for an environment you did not expect, the usual cause is
+a top-level `triggers` block, which wrangler inherits into every deployed
+environment. If the change is intended, update the expected list here and the
+table in `specs/profiles/free-tier.md` together.
+
+**"stays inside the account limit, with the reserved slots intact"** — a fourth
+cron trigger. Two slots are held back deliberately; spending one is a decision
+about a shared account resource, so lower `RESERVED_CRON_SLOTS` and record why
+in the profile spec. Before spending one, check the alternatives the spec
+lists: folding the work into an existing tick costs nothing, and a Durable
+Object alarm costs no trigger at all.
