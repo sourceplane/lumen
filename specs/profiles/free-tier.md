@@ -234,11 +234,33 @@ question; the telemetry is the only scale.
   and dispatch in-process, removing the per-hop serialize/parse entirely. That
   is a structural change and gets its own spec.
 
-One thing to measure first either way: `@saas/db` uses `postgres.js` and both
-scheduled workers carry `perf(db): reverted to per-request DB client`. A fresh
-Postgres connection performs SCRAM-SHA-256 auth — PBKDF2 at the server's
-iteration count — in the worker, per request. Invisible under 30 s; potentially
-the dominant cost under 10 ms.
+### The per-request DB client is not the lever it looks like
+
+An earlier draft of this spec proposed restoring connection reuse: `@saas/db`
+uses `postgres.js` with a per-request client, and a fresh Postgres connection
+performs SCRAM-SHA-256 auth — PBKDF2 at the server's iteration count — in the
+worker, every request. Invisible under a 30 s budget; a plausible dominant cost
+under 10 ms.
+
+It is off the table, and the reason is recorded in
+`specs/epics/saas-performance/risks-and-open-questions.md`:
+
+- **The runtime forbids it.** A module-scoped pool fails with `Cannot perform
+  I/O on behalf of a different request`. It was tried, broke membership (500)
+  and billing (flaky 503) on stage, and was reverted; the self-heal retry did
+  not reliably recover. The performance epic interdicts retrying it without a
+  stage canary.
+- **Hyperdrive already carries the win.** The per-request client connects to
+  Hyperdrive's local socket, not the origin, and the DB round trip measures
+  ~6 ms over floor.
+
+What that evidence does *not* settle is the CPU question, and it is worth being
+precise about why: those are **wall-time** measurements, and per the section
+above a Worker cannot measure its own CPU. Whether per-request SCRAM is
+material against a 10 ms CPU budget is therefore unanswered — but it is not
+independently actionable, because the only remedy is the one the runtime
+forbids. It folds into the telemetry reading below rather than standing as its
+own milestone.
 
 ## Guards
 

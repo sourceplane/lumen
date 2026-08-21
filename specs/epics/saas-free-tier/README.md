@@ -49,7 +49,7 @@ for this profile (FT6).
 | FT1 | Account budget — price the deployed set against every per-account ceiling | ✅ Shipped |
 | FT2 | Chain-depth audit — the binding graph bounded, pinned, and its cycles named | ✅ Shipped |
 | FT3 | Request-path cost instrumentation — re-scoped: CPU is unmeasurable in-worker; hop count and wall time remain | ⚠️ Re-scoped, not started |
-| FT4 | Connection reuse — the per-request Postgres client and its SCRAM cost | 🗓️ Planned |
+| FT4 | Connection reuse — closed: runtime-forbidden, already tried and reverted | ✅ Closed (no change) |
 | FT5 | Console on the free plan — bundle measured, minified and guarded | ✅ Shipped |
 | FT6 | Monolith mode — collapse the domain contexts for this profile | ⛔ Gated on Cloudflare CPU telemetry |
 
