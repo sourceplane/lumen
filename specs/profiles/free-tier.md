@@ -32,7 +32,7 @@ Measured against the [Workers limits][limits] and [pricing][pricing] docs.
 | Cron triggers **per account** | 5 | 250 | Yes — 3 jobs × 2 envs was 6; now 3 |
 | Subrequests per invocation | 50 | 10,000 | Yes — one outbound fetch per delivery; each binding hop also spends one |
 | Requests | 100k/day, then error 1027 | unmetered | No — ~4.3k/day of crons at 1/min |
-| Worker size | 3 MB gzip | 10 MB | No — domain workers gzip to 27–40 KiB; only the OpenNext console is worth watching |
+| Worker size | 3 MB gzip | 10 MB | **Only for the console** — 1880 KiB gzipped, 61% of the cap. Domain workers are 27–40 KiB |
 | Hyperdrive | 10 configs, ~20 conns | 25, ~100 | No — the fleet uses one per env |
 | Durable Objects | SQLite-backed only | + KV-backed | No — `RATE_LIMITER_DO` is SQLite-backed |
 | Queues | 10k ops/day | 1M/mo | Not used |
@@ -257,6 +257,34 @@ charged to *every* deployed environment — and asserts the totals. A style rule
 can be argued with; a number cannot. Reinstating the top-level block makes the
 suite report `webhooks-worker · stage` as a fourth charge, which is precisely
 the trigger that took the account to 6.
+
+### The console bundle
+
+The console is the one worker in the fleet whose size is a live constraint.
+Measured with `wrangler deploy --dry-run`:
+
+| | gzipped | % of the 3 MB cap |
+|---|---|---|
+| Unminified | 2296 KiB | 75% |
+| **With `minify: true`** | **1880 KiB** | **61%** |
+
+Minify was worth 416 KiB — 18% — and it was the one config the fleet-wide
+minify pass missed, because `apps/web-console-next/wrangler.jsonc` carried no
+`minify` key at all rather than an explicit `false`.
+
+Two things are deliberately not counted. **Static assets** (2.1 MB) are served
+from the assets binding: free, unlimited, and outside the script size limit —
+so the console's real cost against the 100k requests/day budget is its
+server-rendered routes only, not its page loads. And **`.open-next/worker.js`**
+is a ~2 KiB entry shim, not the bundle; measuring it reports 1 KiB and passes
+any budget, which is worse than no guard. The measurement therefore comes from
+a wrangler dry-run, which bundles exactly as the real deploy does.
+
+`apps/web-console-next/scripts/check-worker-size.mjs` runs in the console's own
+build lane — the only lane where the artifact exists — and holds the bundle to
+2400 KiB, below the hard cap so a failure arrives while there is still room to
+act. It reports the figure on every build, not only on failure: the trend is
+the useful part.
 
 ### Secret scoping
 

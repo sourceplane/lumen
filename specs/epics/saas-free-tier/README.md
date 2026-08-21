@@ -50,7 +50,7 @@ for this profile (FT6).
 | FT2 | Chain-depth audit — the binding graph bounded, pinned, and its cycles named | ✅ Shipped |
 | FT3 | Request-path cost instrumentation — re-scoped: CPU is unmeasurable in-worker; hop count and wall time remain | ⚠️ Re-scoped, not started |
 | FT4 | Connection reuse — the per-request Postgres client and its SCRAM cost | 🗓️ Planned |
-| FT5 | Console on the free plan — OpenNext bundle against the 3MB gzip cap | 🗓️ Planned |
+| FT5 | Console on the free plan — bundle measured, minified and guarded | ✅ Shipped |
 | FT6 | Monolith mode — collapse the domain contexts for this profile | ⛔ Gated on Cloudflare CPU telemetry |
 
 Per-milestone detail: [`implementation-plan.md`](./implementation-plan.md).
