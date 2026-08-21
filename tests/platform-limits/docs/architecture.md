@@ -1,6 +1,6 @@
 # Architecture
 
-Three Jest suites, no runtime dependencies, no network. It walks `apps/*`, reads
+Four Jest suites, no runtime dependencies, no network. It walks `apps/*`, reads
 the first of `wrangler.template.jsonc` or `wrangler.jsonc` it finds per app,
 strips line comments and the deploy-time `@@wiring(...)@@` placeholders, and
 asserts over the parsed objects.
@@ -46,3 +46,22 @@ took the account to 6 against a limit of 5.
 pricing rule is verified independently of the repo's current state. That matters:
 a budget guard that mispriced inheritance would be worse than no guard, and this
 way it demonstrates it can catch the regression without one being planted.
+
+## service-chain.test.ts
+
+Builds the service-binding graph from each worker's prod `services` block and
+measures two things: the longest simple chain from every entry point, and every
+distinct cycle.
+
+Both numbers are pinned rather than merely bounded. A bound alone would let the
+worst case creep from 8 to 11 without anyone noticing; pinning makes each step
+a visible edit here and in the profile spec.
+
+Cycles get their own gate because they are the shape this analysis cannot
+bound: on a cyclic path the only limit is the platform's 32-invocation cap,
+which is a bug's ceiling rather than a design's. The two that exist are
+allowlisted, not banned — they are long-standing and the fleet works. The gate
+exists so a third is deliberate.
+
+`longestChain()` and `findCycles()` are exported and unit-tested on synthetic
+graphs, so the analysis is verified independently of the fleet's current shape.

@@ -7,7 +7,7 @@ things that turned out to be untrue.
 |---|---|---|---|
 | FT0 | ✅ Shipped | Profile spec + cron topology + `FREE_TIER` budgets + fleet-wide minify + `tests/platform-limits`. Found and fixed a cursor bug while capping fanout (see notes). | #94 |
 | FT1 | ✅ Shipped | Account budget priced from the deployed set. Corrected the premise: the profile does not need a single environment. | #99 |
-| FT2 | 🗓️ Planned | Chain-depth + subrequest audit. | — |
+| FT2 | ✅ Shipped | Binding graph bounded at 8 invocations and pinned; 2 cycles named and allowlisted. | #100 |
 | FT3 | 🗓️ Planned | Request-path cost instrumentation. | — |
 | FT4 | 🗓️ Planned | Connection reuse / SCRAM cost. | — |
 | FT5 | 🗓️ Planned | Console against the 3MB gzip cap. | — |
@@ -105,3 +105,23 @@ things that turned out to be untrue.
   reports the fourth charge by name. The pricing function is unit-tested on
   synthetic configs, so the guard proves it can catch the 6-trigger case
   without a violation being planted in a real file.
+
+- **2026-08-21: FT2 measured the chain, and the number was worse than the spec's
+  example.** The chained-CPU section illustrated the problem with a five-worker
+  path. Measured from the prod service bindings, the deepest simple chain is
+  **8 worker invocations** from `api-edge` — still far inside the platform's
+  32-invocation cap, but eight workers sharing one 10ms CPU budget is a
+  materially different claim from five. The spec now carries the measured
+  figure.
+
+  The audit also surfaced **two cycles**:
+  `billing-worker → membership-worker → billing-worker` and
+  `membership-worker → notifications-worker → events-worker → membership-worker`.
+  Neither is new and neither is breaking anything. They matter because a cycle
+  is the one shape static depth analysis cannot bound — on a cyclic path the
+  only limit is the platform cap, reached by a bug rather than by design. Both
+  are allowlisted so a third is a decision rather than a surprise.
+
+  Depth and cycle set are pinned to their measured values, so a new service
+  binding that deepens the worst case fails CI as a visible edit. The analysis
+  functions are unit-tested on synthetic graphs, independently of the fleet.

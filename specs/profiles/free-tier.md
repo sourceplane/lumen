@@ -30,7 +30,7 @@ Measured against the [Workers limits][limits] and [pricing][pricing] docs.
 |---|---|---|---|
 | **CPU per invocation** | **10 ms** | 30 s (→5 min) | **Yes — the hard constraint.** See below |
 | Cron triggers **per account** | 5 | 250 | Yes — 3 jobs × 2 envs was 6; now 3 |
-| Subrequests per invocation | 50 | 10,000 | Yes — one outbound fetch per delivery |
+| Subrequests per invocation | 50 | 10,000 | Yes — one outbound fetch per delivery; each binding hop also spends one |
 | Requests | 100k/day, then error 1027 | unmetered | No — ~4.3k/day of crons at 1/min |
 | Worker size | 3 MB gzip | 10 MB | No — domain workers gzip to 27–40 KiB; only the OpenNext console is worth watching |
 | Hyperdrive | 10 configs, ~20 conns | 25, ~100 | No — the fleet uses one per env |
@@ -46,16 +46,33 @@ Worker B"* ([pricing][pricing]) — with a cap of 32 worker invocations per
 request. So on the free plan
 
 ```
-api-edge → integrations-worker → policy-worker → membership-worker → billing-worker
+api-edge → integrations-worker → projects-worker → billing-worker
+         → membership-worker → notifications-worker → events-worker → …
 ```
 
-shares **one 10 ms budget across all five**, including the JSON serialize and
-parse at every hop. Lumen's worker-per-bounded-context architecture is what
-conflicts with the free plan; the cron ceiling is only the first symptom.
+shares **one 10 ms budget across the whole chain**, including the JSON
+serialize and parse at every hop. Lumen's worker-per-bounded-context
+architecture is what conflicts with the free plan; the cron ceiling is only the
+first symptom.
+
+Measured from the prod service bindings, the deepest such chain is **8 worker
+invocations**, from `api-edge` (`tests/platform-limits/src/service-chain.test.ts`).
+That is comfortably inside the platform's hard cap of 32 invocations per
+request, and it is the number that matters for CPU: eight workers, one budget.
+
+The graph also contains **two cycles** —
+`billing-worker → membership-worker → billing-worker` and
+`membership-worker → notifications-worker → events-worker → membership-worker`.
+They are long-standing and the fleet works, but they are worth naming: a cycle
+is the one shape static analysis cannot bound, so on a cyclic path the only
+limit is the platform cap, reached by a bug rather than by design. Both are
+pinned in the guard so a third cannot arrive unnoticed.
 
 This profile does **not** yet solve that. It removes the ceilings that can be
-removed by configuration. Whether the request path fits in 10 ms is an
-empirical question — see [Open question: monolith mode](#open-question-monolith-mode).
+removed by configuration, and it bounds and pins the chain depth so the cost
+cannot grow unobserved. Whether eight chained workers fit in 10 ms is still an
+empirical question — see
+[Open question: monolith mode](#open-question-monolith-mode).
 
 ## The switch
 

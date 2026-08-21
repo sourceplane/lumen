@@ -59,3 +59,18 @@ about a shared account resource, so lower `RESERVED_CRON_SLOTS` and record why
 in the profile spec. Before spending one, check the alternatives the spec
 lists: folding the work into an existing tick costs nothing, and a Durable
 Object alarm costs no trigger at all.
+
+**"has not deepened since it was last measured"** — a new service binding
+lengthened the worst-case chain. Every hop is one more worker sharing the
+request's CPU budget (a single 10ms budget on the free plan) plus a
+serialize/parse round trip. Check whether the caller genuinely needs a new
+bounded context or whether the data is already reachable on the current path.
+If the depth is intended, update `DEEPEST` and the figure in
+`specs/profiles/free-tier.md` together.
+
+**"contains only the cycles that have been reviewed"** — a new cycle in the
+binding graph. A cycle makes the chain unbounded to static analysis: nothing
+stops a request looping except the platform's 32-invocation cap. Prefer
+breaking it — usually one direction is a notification or an event emit that
+could go through the event log instead of a direct binding. If it has to stay,
+add it to `ACCEPTED_CYCLES` with the reasoning in the commit message.
