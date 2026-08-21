@@ -84,30 +84,46 @@ alone.
 
 ---
 
-## FT3 — Request-path cost instrumentation
+## FT3 — Request-path cost instrumentation ⚠️ Re-scoped
 
-The chained-CPU question needs numbers. Cloudflare's own CPU metrics are a
-dashboard feature; a free-tier operator, by definition, is the person least
-likely to have the paid account those numbers come from. The measurement has to
-live in the product.
+**The premise was wrong.** FT3 was specified as making per-hop cost readable
+from inside the product, so that a free-tier operator — by definition the
+person least likely to have a paid dashboard — could see the chain's cost. That
+is not possible for CPU, and the reason is a deliberate platform property
+rather than a gap we can close.
 
-**Scope**
+Workers freeze timers as a Spectre mitigation
+([security model](https://developers.cloudflare.com/workers/reference/security-model/)):
+*"`Date.now()` returns the time of the last I/O. It does not advance during code
+execution."* Every in-worker timer therefore measures wall time across I/O, not
+CPU. The existing `Server-Timing` seam is not under-built; it is measuring the
+only thing it can.
 
-- Extend the existing edge timing seam (`apps/api-edge/src/http.ts` →
-  `withTimings`, covered by `tests/api-edge/src/edge-timing.test.ts`) to
-  attribute cost per hop rather than per request.
-- Make the per-hop breakdown readable from a response header or a single
-  structured log line, behind the profile switch or a debug flag — not on by
-  default in a hot path.
-- Document the reading in the profile spec: what number means "this route will
-  not survive the free plan".
+**What remains implementable, and still worth doing**
 
-**Verification** — a test asserting the breakdown attributes cost to each hop of
-a multi-hop facade call.
+- **Hop count per request.** Propagate a depth header through the chain,
+  increment per hop, and surface it in the response header and the timing log.
+  This measures the 50-subrequest and 32-invocation budgets *on real traffic*,
+  which FT2 can only bound statically.
+- **Per-hop wall time.** Attribute the existing phases per hop rather than per
+  request, so a slow chain names the worker responsible.
 
-**Note** — wall-clock is not CPU time, and the instrumentation must say so
-rather than implying a precision it does not have. It bounds the answer; it does
-not produce it.
+**What is out of scope, permanently**
+
+- CPU attribution from inside a request. The only source is Cloudflare
+  telemetry: the dashboard's *CPU Time per execution* chart (P50/P90/P99/P999,
+  three-month retention) and the GraphQL Analytics API behind it.
+
+**Cost to implement.** The hop counter has no single choke point: each api-edge
+facade builds its own forward headers, and each downstream worker forwards
+independently. Delivering it means touching hot-path code in all 13 workers.
+That is a real change to production request handling in exchange for an
+observability signal — worth doing deliberately, not as a side effect of an
+epic milestone.
+
+**Verification** — a test asserting the depth header increments across a
+multi-hop facade call, and that a request's reported depth matches the static
+bound FT2 computes for that route.
 
 ---
 
@@ -170,5 +186,9 @@ committing to it before the measurement exists would be building on a guess.
 The bounded contexts stay non-negotiable as *code* boundaries either way — this
 is about deployment count, which `specs/roadmap.md` already names as negotiable.
 
-**Entry condition** — an FT3 measurement, on a real deployment, showing the
-chained cost of a representative multi-hop route.
+**Entry condition** — a CPU-time P99 reading for `api-edge` and the workers it
+chains into, taken from Cloudflare's *CPU Time per execution* telemetry on a
+real deployment. Not from FT3, and not from anything the product can emit: a
+Worker cannot measure its own CPU (see the profile spec). FT2 established the
+shape of what is being weighed — the deepest chain is 8 worker invocations —
+but the weight itself only exists in Cloudflare's telemetry.
