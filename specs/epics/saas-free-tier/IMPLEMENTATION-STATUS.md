@@ -10,7 +10,7 @@ things that turned out to be untrue.
 | FT2 | ✅ Shipped | Binding graph bounded at 8 invocations and pinned; 2 cycles named and allowlisted. | #100 |
 | FT3 | ⚠️ Re-scoped | CPU is unmeasurable inside a Worker by design; hop count and wall time remain implementable. | #101 |
 | FT4 | 🗓️ Planned | Connection reuse / SCRAM cost. | — |
-| FT5 | 🗓️ Planned | Console against the 3MB gzip cap. | — |
+| FT5 | ✅ Shipped | 2296 → 1880 KiB via minify; 61% of the cap, guarded at 2400 KiB in the console's build lane. | #102 |
 | FT6 | ⛔ Gated | Monolith mode. Entry condition is Cloudflare CPU telemetry — not FT3, which cannot produce it. | — |
 
 ## Notes
@@ -146,3 +146,23 @@ things that turned out to be untrue.
   api-edge facade builds its own forward headers and each downstream worker
   forwards independently, so it means touching hot-path code in all 13 workers.
   Parked as a deliberate decision rather than absorbed into this epic.
+
+- **2026-08-21: FT5 — the console was the real size risk, and minify was still
+  on the table.** Measured with `wrangler deploy --dry-run`: 2296 KiB gzipped,
+  75% of the free plan's 3072 KiB cap. Adding `minify: true` took it to 1880
+  KiB (61%), a 416 KiB saving. FT0's fleet-wide minify pass had missed this one
+  file, because it matched on `"minify": false` and the console config carried
+  no `minify` key at all — a reminder that a sweep keyed on the wrong-value
+  form silently skips the absent-key form.
+
+  Two measurement traps, both hit before the guard was right. `.open-next/worker.js`
+  is a ~2 KiB entry shim, not the bundle: the first version of the guard gzipped
+  it, reported 1 KiB, and passed a budget of 1500 KiB — a guard that cannot fail
+  is worse than none. And static assets (2.1 MB) must not be counted at all;
+  they are served from the assets binding, free and unlimited, outside the
+  script limit. The guard now shells out to a wrangler dry-run, which bundles
+  exactly as the deploy does.
+
+  It lives in the console's build lane rather than `tests/platform-limits`,
+  because measuring costs a full Next build — minutes — and that suite's value
+  is being cheap enough to always run.
