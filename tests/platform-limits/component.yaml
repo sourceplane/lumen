@@ -2,7 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: platform-limits-tests
-  description: Structural guards on the Cloudflare account limits the fleet deploys into
+  description: Structural guards on the platform contracts the fleet deploys under — Cloudflare account limits and secret scoping
 spec:
   docs:
     overview: docs/overview.md

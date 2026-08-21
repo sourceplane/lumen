@@ -24,3 +24,24 @@ spare slots is a decision to record in the profile spec, not a test to relax.
 
 **"minifies every worker that opts into the setting"** — a worker set `minify`
 to false. The free plan caps a worker at 3MB gzipped against 10MB on paid.
+
+**"declares no component-level required secret that hard-codes an
+environment"** — a `secretEnv` entry under `spec:` points at a literal
+`/dev/`, `/stage/` or `/prod/` rung. orun attaches component-level `secretEnv`
+to every job of the component, in every environment, as a required reference,
+so this makes jobs resolve credentials they never read — and resolution runs
+*before* the first step, so a missing value kills the lane with `Secret not
+found` and nothing built. Two fixes, depending on what the secret is:
+
+- The job needs *its own* environment's value → template it:
+  `secret://<ws>/<project>/{{ .environment }}/<KEY>`.
+- Only some environments need it (a deploy-time wiring document, say) → declare
+  it per-environment under `subscribe.environments[]`, on those environments
+  only. This is what the twelve worker components do for
+  `WIRING_CLOUDFLARE_HYPERDRIVE`.
+
+**"declares no per-environment optionalSecretEnv"** — an `optionalSecretEnv`
+block inside a `subscribe.environments[]` item. orun **silently drops** it: no
+error, no warning, the reference never reaches the job. Either move it to
+component level (where the optional form works, for every environment) or make
+it a per-environment `secretEnv` if it is genuinely required there.

@@ -24,25 +24,30 @@ spec:
     # a months-old copy of a package that has since changed underneath it.
     - component: contracts
     - component: db
-  # BF6 wiring documents from orun secrets (SEC-JOB): lease-published by
-  # the infra components; wire-live renders the wrangler template from
-  # these instead of Secrets Manager documents.
-  secretEnv:
-    WIRING_CLOUDFLARE_HYPERDRIVE_STAGE: "secret://lumen/lumen/stage/WIRING_CLOUDFLARE_HYPERDRIVE"
-    WIRING_CLOUDFLARE_HYPERDRIVE_PROD: "secret://lumen/lumen/prod/WIRING_CLOUDFLARE_HYPERDRIVE"
-
   subscribe:
     environments:
       - name: dev
         profile: verify
       - name: stage
         profile: verify
+        # wire-live (deploy profile) is the only reader, and dev never
+        # deploys — scoping keeps dev jobs from requiring stage+prod
+        # credentials they can never use. See specs/profiles/free-tier.md.
+        secretEnv:
+          WIRING_CLOUDFLARE_HYPERDRIVE_STAGE: "secret://lumen/lumen/stage/WIRING_CLOUDFLARE_HYPERDRIVE"
+          WIRING_CLOUDFLARE_HYPERDRIVE_PROD: "secret://lumen/lumen/prod/WIRING_CLOUDFLARE_HYPERDRIVE"
         profileRules:
           - profile: deploy
             when:
               triggerRef: github-push-main
       - name: prod
         profile: verify
+        # wire-live (deploy profile) is the only reader, and dev never
+        # deploys — scoping keeps dev jobs from requiring stage+prod
+        # credentials they can never use. See specs/profiles/free-tier.md.
+        secretEnv:
+          WIRING_CLOUDFLARE_HYPERDRIVE_STAGE: "secret://lumen/lumen/stage/WIRING_CLOUDFLARE_HYPERDRIVE"
+          WIRING_CLOUDFLARE_HYPERDRIVE_PROD: "secret://lumen/lumen/prod/WIRING_CLOUDFLARE_HYPERDRIVE"
         profileRules:
           - profile: deploy
             when:
