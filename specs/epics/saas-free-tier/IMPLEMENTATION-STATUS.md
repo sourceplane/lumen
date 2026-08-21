@@ -8,10 +8,10 @@ things that turned out to be untrue.
 | FT0 | ✅ Shipped | Profile spec + cron topology + `FREE_TIER` budgets + fleet-wide minify + `tests/platform-limits`. Found and fixed a cursor bug while capping fanout (see notes). | #94 |
 | FT1 | ✅ Shipped | Account budget priced from the deployed set. Corrected the premise: the profile does not need a single environment. | #99 |
 | FT2 | ✅ Shipped | Binding graph bounded at 8 invocations and pinned; 2 cycles named and allowlisted. | #100 |
-| FT3 | 🗓️ Planned | Request-path cost instrumentation. | — |
+| FT3 | ⚠️ Re-scoped | CPU is unmeasurable inside a Worker by design; hop count and wall time remain implementable. | #101 |
 | FT4 | 🗓️ Planned | Connection reuse / SCRAM cost. | — |
 | FT5 | 🗓️ Planned | Console against the 3MB gzip cap. | — |
-| FT6 | ⛔ Gated | Monolith mode. Entry condition is an FT3 measurement. | — |
+| FT6 | ⛔ Gated | Monolith mode. Entry condition is Cloudflare CPU telemetry — not FT3, which cannot produce it. | — |
 
 ## Notes
 
@@ -125,3 +125,24 @@ things that turned out to be untrue.
   Depth and cycle set are pinned to their measured values, so a new service
   binding that deepens the worst case fails CI as a visible edit. The analysis
   functions are unit-tested on synthetic graphs, independently of the fleet.
+
+- **2026-08-21: FT3's premise does not survive contact with the platform.** The
+  milestone was to make per-hop cost readable from inside the product, so a
+  free-tier operator would not need the paid dashboard the whole profile exists
+  to avoid. Workers freeze timers as a Spectre mitigation — *"`Date.now()`
+  returns the time of the last I/O. It does not advance during code
+  execution"* — so every in-worker timer measures wall time across I/O and none
+  can measure CPU. The existing `Server-Timing` seam is not under-built; it is
+  measuring the only thing available to it.
+
+  This also re-gates FT6. Its entry condition was "an FT3 measurement". FT3
+  cannot produce one. The only source of CPU numbers is Cloudflare's own
+  telemetry (*CPU Time per execution*, P50–P999, three-month retention), so
+  that is what FT6 now waits on.
+
+  What survives in FT3 is real and still worth building — hop count per request
+  measures the 50-subrequest and 32-invocation budgets on live traffic, where
+  FT2 can only bound them statically — but it has no single choke point. Each
+  api-edge facade builds its own forward headers and each downstream worker
+  forwards independently, so it means touching hot-path code in all 13 workers.
+  Parked as a deliberate decision rather than absorbed into this epic.

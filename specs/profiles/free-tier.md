@@ -189,12 +189,44 @@ because a pass stops when its delivery budget is spent. Fixing that needs a
 rotating org cursor, which is out of scope until a multi-org free-tier
 deployment is a real case.
 
+## A Worker cannot measure its own CPU
+
+This is a platform property, not a gap in our instrumentation, and it decides
+how the open question below can ever be closed. Workers freeze timers as a
+Spectre mitigation ([security model][security]):
+
+> `Date.now()` returns the time of the last I/O. It does not advance during
+> code execution.
+
+So the clock only moves at I/O boundaries. Any in-worker timer — including the
+`Server-Timing` phases in `packages/contracts/src/timing.ts` — measures **wall
+time across I/O**, never CPU. That instrumentation is genuinely useful for
+latency and for attributing database round trips, and it is worth keeping. It
+simply cannot answer "does this chain fit in 10 ms of CPU", and no amount of
+extra instrumentation in the product will change that.
+
+What *is* measurable from inside a request:
+
+| Quantity | In-worker? | Relevant limit |
+|---|---|---|
+| Hop count / subrequests | Yes | 50 subrequests, 32 invocations |
+| Wall time across I/O | Yes | latency, DB round trips |
+| **CPU time** | **No — frozen clock** | **10 ms per invocation** |
+
+The only source of CPU numbers is Cloudflare's own telemetry: the dashboard's
+*CPU Time per execution* chart (P50/P90/P99/P999, retained three months) and
+the GraphQL Analytics API behind it.
+
 ## Open question: monolith mode
 
-Whether the *request* path fits in 10 ms of chained CPU is unresolved and
-cannot be answered by reading the code. The cheap experiment, from a paid
-account: read CPU-time p50/p99 per worker off the dashboard for `api-edge` and
-the workers it chains into.
+Whether the request path fits in 10 ms of chained CPU is unresolved, and per
+the section above it cannot be answered from the code or from anything we ship.
+It has to come from Cloudflare telemetry: read *CPU Time per execution* P99 for
+`api-edge` and the workers it chains into.
+
+FT2 measured the shape of the thing to be weighed: the deepest chain is **8
+worker invocations**. Eight workers' CPU inside one 10 ms budget is the
+question; the telemetry is the only scale.
 
 - **p99 comfortably under 10 ms** → the profile is complete as specified.
 - **p99 over 10 ms** → no amount of cron or batch budgeting helps, and the
@@ -247,4 +279,5 @@ env-scoped `triggers` block (it reports unexpected keys in an env block, and
 reports none here), and the three workers bundle to 27–40 KiB gzipped.
 
 [limits]: https://developers.cloudflare.com/workers/platform/limits/
+[security]: https://developers.cloudflare.com/workers/reference/security-model/
 [pricing]: https://developers.cloudflare.com/workers/platform/pricing/
