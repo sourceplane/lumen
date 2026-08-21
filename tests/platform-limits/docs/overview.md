@@ -27,6 +27,8 @@ orun attaches it to every job in every environment regardless of profile.
 - Only the environment the free-tier profile deploys (`prod`) declares crons.
 - A single-environment deployment stays within 5 cron triggers.
 - No worker ships with `minify` disabled, against the free plan's 3MB gzip cap.
+- The **service-binding chain** stays inside the fleet's depth budget, its
+  worst case matches the pinned measurement, and no unreviewed cycle appears.
 - The **account budget** — cron triggers, worker scripts and Hyperdrive configs
   summed across every `(component, environment)` pair a main-push convergence
   deploys — fits inside the free plan, with two cron slots held in reserve.
