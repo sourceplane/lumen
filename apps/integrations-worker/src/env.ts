@@ -5,6 +5,12 @@ export interface Env {
   BILLING_WORKER?: Fetcher;
   PROJECTS_WORKER?: Fetcher;
   ENVIRONMENT: string;
+  /**
+   * Free-tier profile switch ("true" to enable). Shrinks the inbox drain's
+   * per-pass batch so a tick fits the Workers Free plan's 10ms CPU /
+   * 50-subrequest invocation ceiling. See specs/profiles/free-tier.md.
+   */
+  FREE_TIER?: string;
 
   // ── Per-environment secrets (wrangler secret put; never vars) ──
   // All optional until the GitHub App is registered for the environment

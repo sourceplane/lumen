@@ -24,6 +24,10 @@ Plus:
 - [`roadmap.md`](./roadmap.md) — the **cross-epic program index/register**. One
   line per cluster pointing into `epics/`; the per-milestone detail lives in the
   epic plans.
+- [`profiles/`](./profiles/) — the ways this baseline is configured *down* for
+  a deployment, each one switch and no fork: [`solo-m0.md`](./profiles/solo-m0.md)
+  (single-user B2C, `SOLO_MODE`) and [`free-tier.md`](./profiles/free-tier.md)
+  (Cloudflare Workers Free plan, `FREE_TIER`).
 - [`_archive/`](./_archive/) — superseded or fully-closed material, **non-
   authoritative**, kept for provenance only.
 

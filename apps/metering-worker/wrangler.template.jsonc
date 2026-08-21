@@ -7,13 +7,16 @@
   "compatibility_date": "2025-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
-  "minify": false,
+  // Free plan caps a Worker at 3MB gzipped (10MB on paid) — minify fleet-wide
+  // so the ceiling is never the thing that blocks a deploy.
+  "minify": true,
   "vars": {
     "ENVIRONMENT": "local"
   },
-  "triggers": {
-    "crons": ["5 * * * *"]
-  },
+  // Cron budget (free plan: 5 triggers per ACCOUNT, across every worker AND
+  // every environment). Triggers are declared per-environment, in `prod` only:
+  // a top-level `triggers` block is inherited by stage and prod alike, which is
+  // what put this account at 6/5. See specs/profiles/free-tier.md.
   "env": {
     "dev": {
       "vars": {
@@ -44,6 +47,10 @@
     },
     "prod": {
       "workers_dev": false,
+      // Usage rollup materialization, hourly at :05.
+      "triggers": {
+        "crons": ["5 * * * *"]
+      },
       "vars": {
         "ENVIRONMENT": "prod"
       },

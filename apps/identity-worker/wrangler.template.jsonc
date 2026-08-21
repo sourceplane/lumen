@@ -7,7 +7,9 @@
   "compatibility_date": "2025-05-01",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/index.ts",
-  "minify": false,
+  // Free plan caps a Worker at 3MB gzipped (10MB on paid) — minify fleet-wide
+  // so the ceiling is never the thing that blocks a deploy.
+  "minify": true,
   // OAuth (B1) configuration:
   //   - Non-secret vars are declared per-env below. Replace the empty
   //     {GITHUB,GOOGLE}_OAUTH_CLIENT_ID placeholders with the client id of the
