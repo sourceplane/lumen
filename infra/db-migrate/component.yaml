@@ -62,3 +62,4 @@ spec:
               triggerRef: github-push-main
 # ci: re-trigger deploy (batch A — runner-starvation recovery 20260622T115650Z)
 # ci: re-trigger deploy (batch A — runner-starvation recovery 20260622T115650Z)
+# ci: re-apply migrations onto the recreated Supabase database (20260821T062704Z)

@@ -64,3 +64,4 @@ spec:
             when:
               triggerRef: github-push-main
 # ci: trigger convergence — first-boot infra bring-up (hyperdrive stage/prod)
+# ci: re-apply hyperdrive against the recreated Supabase origin (20260821T061640Z)
