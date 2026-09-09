@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+# A stand-in `orun` for flows/testing/track.test.sh: just enough of the
+# task-plane verbs (task epic create|show, task milestone create, task list,
+# task create, task show) to exercise track.sh's find-or-create contract,
+# backed by a JSON state file at $FAKE_ORUN_STATE. Every answer has the
+# shape the real --json output has (remotestate types). Not a mock of
+# anything else: any other verb fails loud.
+set -euo pipefail
+state="${FAKE_ORUN_STATE:?FAKE_ORUN_STATE}"
+[ -f "$state" ] || printf '{"epics":{},"milestones":[],"tasks":[],"seq":0,"calls":[]}\n' > "$state"
+# `FAKE_ORUN_OLD=1` emulates a binary that predates the task-plane verbs.
+if [ "${FAKE_ORUN_OLD:-}" = "1" ] && [ "${1:-}" = "task" ] && [ "${2:-}" = "epic" ]; then
+  echo "Error: unknown command \"epic\" for \"orun task\"" >&2; exit 1
+fi
+# `pr open`: the pen's gesture, locally — checks the grammar branch out from
+# HEAD, pushes it to origin (a real git push; the test's remote is a bare
+# repo), and answers with the pen's --json shape. FAKE_ORUN_PEN_REFUSE=1
+# emulates GitHub refusing the PR: pushed, compareUrl, not opened.
+if [ "${1:-}" = "pr" ] && [ "${2:-}" = "open" ]; then
+  if [ "${3:-}" = "--help" ]; then echo "  --branch-slug string   slug half of the branch verbatim"; exit 0; fi
+  python3 - "$state" "$@" <<'PY'
+import json,sys
+st=json.load(open(sys.argv[1])); st["calls"].append(sys.argv[2:]); json.dump(st,open(sys.argv[1],"w"))
+PY
+  task="" slug="" epic="" title=""
+  args=("$@"); i=0
+  while [ $i -lt ${#args[@]} ]; do
+    case "${args[$i]}" in
+      --task) task="${args[$((i+1))]}"; i=$((i+2)) ;;
+      --branch-slug) slug="${args[$((i+1))]}"; i=$((i+2)) ;;
+      --epic) epic="${args[$((i+1))]}"; i=$((i+2)) ;;
+      --title) title="${args[$((i+1))]}"; i=$((i+2)) ;;
+      *) i=$((i+1)) ;;
+    esac
+  done
+  prose="$(cat)"
+  branch="orun/${task}-${slug}"
+  git checkout -qB "$branch" && git push -qu origin "$branch"
+  body="${prose}"$'\n\n'"<!-- orun:manifest {\"version\":1,\"task\":\"${task}\"${epic:+,\"epic\":\"${epic}\"}} -->"
+  printf '%s' "$body" > "${FAKE_ORUN_PEN_BODY:-/dev/null}"
+  if [ "${FAKE_ORUN_PEN_REFUSE:-}" = "1" ]; then
+    printf '{"branch":"%s","pushed":true,"opened":false,"compareUrl":"https://github.com/x/y/compare/main...%s"}\n' "$branch" "$branch"
+  else
+    printf '{"branch":"%s","pushed":true,"opened":true,"url":"https://github.com/x/y/pull/7","number":7}\n' "$branch"
+  fi
+  exit 0
+fi
+exec python3 - "$state" "$@" <<'PY'
+import json,sys
+state_path=sys.argv[1]; argv=sys.argv[2:]
+st=json.load(open(state_path))
+st["calls"].append(argv)
+def flag(name, default=None):
+    if name in argv:
+        i=argv.index(name); return argv[i+1] if i+1<len(argv) else default
+    return default
+def flags(name):
+    return [argv[i+1] for i,a in enumerate(argv) if a==name and i+1<len(argv)]
+def save(): json.dump(st,open(state_path,"w"))
+def out(o): print(json.dumps(o)); save()
+sub=argv[:3]
+if argv[:2]==["task","epic"] and argv[2:3]==["--help"]:
+    print("Epics: the container tasks and milestones club under"); sys.exit(0)
+if argv[:3]==["task","epic","create"]:
+    slug=flag("--slug") or flag("--name").lower().replace(" ","-")
+    if slug in st["epics"]:
+        out({"epic":st["epics"][slug],"existed":True}); sys.exit(0)
+    e={"id":f"epc_{len(st['epics'])+1:08d}","slug":slug,"key":f"EP-{len(st['epics'])+1}","name":flag("--name"),"description":flag("--description",""),"provider":""}
+    st["epics"][slug]=e; out({"epic":e,"existed":False}); sys.exit(0)
+if argv[:3]==["task","epic","show"]:
+    ref=argv[3]; e=st["epics"].get(ref)
+    if not e:
+        print(json.dumps({"error":{"code":"not_found","message":"Not found"}}),file=sys.stderr); sys.exit(1)
+    ms=[m for m in st["milestones"] if m["epicId"]==e["id"]]
+    tasks=[t for t in st["tasks"] if t["epic"]["id"]==e["id"]]
+    roll=[]
+    for m in ms:
+        mine=[t for t in tasks if t["milestone"]["id"]==m["id"]]
+        roll.append({"id":m["id"],"name":m["name"],"total":len(mine),"done":sum(1 for t in mine if t.get("rung")=="done")})
+    out({"epic":e,"milestones":ms,"taskCount":len(tasks),"rollup":{"total":len(tasks),"done":sum(1 for t in tasks if t.get("rung")=="done"),"milestones":roll}}); sys.exit(0)
+if argv[:3]==["task","milestone","create"]:
+    e=st["epics"].get(flag("--epic"))
+    if not e: print("no such epic",file=sys.stderr); sys.exit(1)
+    m={"id":f"mls_{len(st['milestones'])+1:08d}","epicId":e["id"],"name":flag("--name"),"exitCriteria":flags("--exit-criteria")}
+    st["milestones"].append(m); out({"milestone":m}); sys.exit(0)
+if argv[:2]==["task","list"]:
+    e=st["epics"].get(flag("--epic","")) if flag("--epic") else None
+    ts=[t for t in st["tasks"] if (not e or t["epic"]["id"]==e["id"])]
+    out({"tasks":ts}); sys.exit(0)
+if argv[:2]==["task","create"]:
+    e=st["epics"].get(flag("--epic"))
+    m=next((m for m in st["milestones"] if m["id"]==flag("--milestone")),None)
+    if not e or not m: print("bad epic/milestone ref",file=sys.stderr); sys.exit(1)
+    if not flag("--contract"): print("test expects --contract",file=sys.stderr); sys.exit(1)
+    st["seq"]+=1
+    t={"id":f"tsk_{st['seq']:08d}","key":f"{flag('--prefix','TSK')}-{st['seq']}","keyOrigin":"derived","titleMirror":flag("--title",""),"brief":flag("--brief",""),"assignee":flag("--assignee",""),"contractHash":"sha256:"+"ab"*32,"epic":{"id":e["id"],"slug":e["slug"],"key":e["key"]},"milestone":{"id":m["id"],"name":m["name"]},"rung":"ready"}
+    st["tasks"].append(t); out({"task":t,"contractHash":t["contractHash"]}); sys.exit(0)
+if argv[:2]==["task","show"]:
+    t=next((t for t in st["tasks"] if t["key"]==argv[2] or t["id"]==argv[2]),None)
+    if not t: print("not found",file=sys.stderr); sys.exit(1)
+    out({"task":t,"verdict":{"verdict":{"rung":t.get("rung","ready"),"evidence":{"observationId":None,"reason":"contract complete"}}}}); sys.exit(0)
+print(f"fake-orun: unsupported verb {argv}",file=sys.stderr); sys.exit(2)
+PY

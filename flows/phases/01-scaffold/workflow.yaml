@@ -48,6 +48,14 @@ inputs:
     type: string
     default: "false"
     description: '"true" renders the scaffold into a temp dir and reports, creating nothing.'
+  track:
+    type: string
+    default: "true"
+    description: '"false" skips tracking this phase in the workspace task plane (saas-baseline-tracking BT): the scaffold is main''s first commit, pushed directly, as before.'
+  epicslug:
+    type: string
+    default: "infra-baselining"
+    description: The epic the bootstrap tracks itself under (its slug); the umbrella creates it, a phase run alone adopts or creates it.
 steps:
   - name: blueprint
     envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
@@ -244,6 +252,7 @@ steps:
           case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
           out="$W/product"
         fi
+        L_HINT="$PWD"
         cd "$out"
         [ -d .git ] || git init -q -b main
         # --replace-all: the grounded sandbox clone already carries a repo-local
@@ -254,8 +263,34 @@ steps:
           git config user.email "bootstrap-bot@users.noreply.github.com"
           git config user.name "bootstrap-bot"
         fi
-        git add -A
-        git diff --cached --quiet || git commit -q -m "scaffold: {{ inputs.reponame }} from the baseline workspace blueprint"
+        # ── the baseline checkout, for track.sh and land-pr.sh (BT4) ──
+        if BL="$(git -C "$L_HINT" rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          case "$L_HINT" in */.orun/wfruns/*) W="${L_HINT%%/.orun/wfruns/*}" ;; *) W="$L_HINT" ;; esac
+          L="$W/baseline"
+        fi
+        # ── tracked bootstrap (BT4): the scaffold lands as PR #1 ──────
+        # An empty repo cannot take a PR, so a tracked bootstrap seeds main
+        # with ONE commit (the scaffold's own README) and lands the rest
+        # through the pen on orun/BASE-n-01-scaffold, where it binds to its
+        # task. Untracked (track=false, or tracking degraded): the scaffold
+        # is main's first commit, pushed directly — as before.
+        key=""
+        if [ "{{ inputs.track }}" = "true" ] && [ -x "$L/flows/common/track.sh" ]; then
+          export ws="{{ inputs.workspace }}"
+          key="$("$L/flows/common/track.sh" ensure-task "{{ inputs.epicslug }}" 01-scaffold "phase(01-scaffold): repo born" "$L/flows/phases/01-scaffold/task-contract.yaml")"
+        fi
+        if [ -n "$key" ]; then
+          if ! git rev-parse --verify -q HEAD >/dev/null; then
+            git add README.md
+            [ ! -f .gitignore ] || git add .gitignore
+            git commit -q -m "chore: initial commit" -m "The scaffold lands as PR #1 — phase(01-scaffold): repo born (task $key)."
+          fi
+        else
+          git add -A
+          git diff --cached --quiet || git commit -q -m "scaffold: {{ inputs.reponame }} from the baseline workspace blueprint"
+        fi
         # Three supported states, in order: origin already wired → push;
         # repo pre-created on GitHub (org policy may restrict creation to
         # admins) → wire origin and push; nothing anywhere → create private
@@ -319,7 +354,7 @@ steps:
         else
           probe="$(git -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' ls-remote "$remote_url" HEAD 2>&1)"; probe_rc=$?
           if [ "$probe_rc" -eq 0 ]; then
-            echo "repo $slug exists — wiring origin and pushing (an EMPTY repo is normal: this scaffold IS the first commit, landed directly on main)"
+            echo "repo $slug exists — wiring origin and pushing (an EMPTY repo is normal: main's first commit lands now)"
             git remote add origin "$remote_url"
             push_main
           elif printf '%s' "$probe" | grep -qiE "repository not found|not found"; then
@@ -344,7 +379,32 @@ steps:
             && echo "default branch pinned to main" \
             || echo "note: could not pin default branch to main (settings write blocked?) — verify it manually"
         fi
-    timeout: 5m
+        # ── the scaffold PR (tracked) ─────────────────────────────────
+        if [ -n "$key" ]; then
+          land_scaffold() {
+            "$L/flows/common/land-pr.sh" --no-wait --task "$key" --epic "{{ inputs.epicslug }}" "$out" 01-scaffold \
+              "phase(01-scaffold): repo born" \
+              "The product repo, born from the baseline workspace blueprint: intent, CI, tooling, identity (flows/phases/01-scaffold)."
+          }
+          if ! landed="$(land_scaffold 2>&1)"; then
+            printf '%s\n' "$landed" >&2
+            if printf '%s' "$landed" | grep -qiE "without .workflows?. (scope|permission)" && [ -d .github/workflows ]; then
+              echo "token cannot push .github/workflows/ — landing the scaffold PR without them; grant the GitHub App 'Workflows: Read & write' and push them afterwards" >&2
+              # The failed landing left its commit on a scratch branch: make
+              # that main, un-commit it (index + working tree intact), drop
+              # the workflows from the index, and land again.
+              git branch -f main HEAD && git checkout -q main
+              git reset -q --soft origin/main
+              git rm -r -q --cached .github/workflows
+              grep -qxF '.github/workflows/' .git/info/exclude 2>/dev/null || echo '.github/workflows/' >> .git/info/exclude
+              landed="$(land_scaffold 2>&1)" || { printf '%s\n' "$landed" >&2; exit 1; }
+            else
+              exit 1
+            fi
+          fi
+          printf '%s\n' "$landed"
+        fi
+    timeout: 15m
 
   - name: link
     needs: [repo]

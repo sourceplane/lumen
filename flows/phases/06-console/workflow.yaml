@@ -35,6 +35,14 @@ inputs:
     type: string
     default: "false"
     description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
+  track:
+    type: string
+    default: "true"
+    description: '"false" skips tracking this phase in the workspace task plane (saas-baseline-tracking BT): no milestone, no task, an untracked phase/… branch.'
+  epicslug:
+    type: string
+    default: "infra-baselining"
+    description: The epic the bootstrap tracks itself under (its slug); the umbrella creates it, a phase run alone adopts or creates it.
 steps:
   - name: preflight
     envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
@@ -134,7 +142,11 @@ steps:
         . "$L/flows/common/ctx.sh" "{{ inputs.workspace }}" "{{ inputs.repo }}" "{{ inputs.out }}"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: skipping PR/merge"; exit 0; }
         # --no-wait: same single-deploy rationale as phase 04.
-        "$L/flows/common/land-pr.sh" --no-wait "$P" 06-console "phase(06-console): web console"
+        key=""
+        if [ "{{ inputs.track }}" = "true" ]; then
+          key="$("$L/flows/common/track.sh" ensure-task "{{ inputs.epicslug }}" 06-console "phase(06-console): web console" "$L/flows/phases/06-console/task-contract.yaml")"
+        fi
+        "$L/flows/common/land-pr.sh" --no-wait ${key:+--task "$key" --epic "{{ inputs.epicslug }}"} "$P" 06-console "phase(06-console): web console"
     timeout: 30m
   - name: converge
     needs: [land]

@@ -1,0 +1,14 @@
+# Task contract template for the 06-console landing (saas-baseline-tracking BT1).
+# Unbound to a key on purpose: `orun task create --contract` seals and
+# attaches it to the key the allocator issues. gates: [] is a DECLARATION —
+# merge alone finishes this task; the main convergence is the gate the flow
+# watches, not one the plane observes as a PR check.
+apiVersion: orun.io/v1
+kind: TaskContract
+spec:
+  goal: The web console is live on stage and prod, talking to the edge
+  affects:
+    - web-console-next
+  doneWhen:
+    - console and edge live on stage and prod
+  gates: []

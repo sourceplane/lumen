@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# A stand-in `gh` for land-pr.test.sh: `pr merge` merges the named PR's
+# branch into main on the bare remote (what GitHub would do), `pr edit`
+# records the label, everything else fails so ghrest's REST fallback is
+# never reached with a real token.
+set -euo pipefail
+log="${FAKE_GH_LOG:?FAKE_GH_LOG}"
+echo "$*" >> "$log"
+case "$1 $2" in
+  "pr merge")
+    # land-pr passes the branch after the number: merge it on the remote.
+    branch="$(git rev-parse --abbrev-ref HEAD)"
+    tmp="$(mktemp -d)"; git clone -q "$(git remote get-url origin)" "$tmp/clone"
+    git -C "$tmp/clone" checkout -q main && git -C "$tmp/clone" merge -q --squash "origin/$branch" && git -C "$tmp/clone" -c user.name=t -c user.email=t@t commit -qm "squash $branch" && git -C "$tmp/clone" push -q origin main
+    exit 0 ;;
+  "pr edit") exit 0 ;;
+  "auth git-credential") exit 1 ;;
+esac
+exit 1

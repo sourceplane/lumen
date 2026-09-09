@@ -7,7 +7,8 @@
 #
 # Expects in the environment: L (baseline checkout), W (workdir anchor),
 # out (product dir), ws (workspace), plus the umbrella's own inputs exported
-# as UMB_* by the caller.
+# as UMB_* by the caller (UMB_TRACK / UMB_EPICSLUG ride into every phase —
+# saas-baseline-tracking BT3).
 #
 # ── WHY RESUMING MATTERS ──────────────────────────────────────────────────
 #
@@ -248,7 +249,8 @@ run_phase() {
     fi
     if orun workflow run "$L/flows/phases/$name/workflow.yaml" \
         --set "workspace=$ws" --set "out=$out" \
-        --set "dryrun=${UMB_DRYRUN:-false}" "$@"; then
+        --set "dryrun=${UMB_DRYRUN:-false}" \
+        --set "track=${UMB_TRACK:-true}" --set "epicslug=${UMB_EPICSLUG:-infra-baselining}" "$@"; then
       bs_mark "$name" done
       echo "umbrella: ✓ $name complete"
       return 0

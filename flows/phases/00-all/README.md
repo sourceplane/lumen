@@ -1,8 +1,9 @@
 # Phase 00 — the umbrella (nothing → live, documented, unattended)
 
-ONE workflow that runs the whole bootstrap: scaffold → foundation →
-infrastructure → workers → edge → console → (optional domain) → docs →
-final verification. No agent, no babysitting — every phase is invoked
+ONE workflow that runs the whole bootstrap: programme (the epic and its
+phases in the task plane) → scaffold → foundation → infrastructure →
+workers → edge → console → (optional domain) → docs → final verification
+(ending with the epic's rollup). No agent, no babysitting — every phase is invoked
 with retry, waits are built into the phases themselves, and the last
 step independently re-asserts the outcome.
 
@@ -61,6 +62,8 @@ provisioning and the two worker landings dominate).
 | `domain` | `false` | `true` also runs phase 07 (zone must exist) |
 | `watch` | `true` | `false` skips convergence WATCHING everywhere (env cannot see Actions); verify runs out-of-band |
 | `dryrun` | `false` | previews the scaffold, then stops |
+| `track` | `true` | the bootstrap tracks itself in the task plane: the first step lays out epic `epicslug` with one milestone per phase, every landing becomes a task on an `orun/BASE-n-<phase>` branch, and `verify` ends with the epic's rollup. `false` = untracked `phase/…` branches as before |
+| `epicslug` | `infra-baselining` | the epic's slug (adopted when it already exists) |
 | `from` | `""` | resume point: skip every phase before this one |
 | `fresh` | `false` | `true` clears the checkpoint and runs every phase again |
 

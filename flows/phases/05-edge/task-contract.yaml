@@ -1,0 +1,14 @@
+# Task contract template for the 05-edge landing (saas-baseline-tracking BT1).
+# Unbound to a key on purpose: `orun task create --contract` seals and
+# attaches it to the key the allocator issues. gates: [] is a DECLARATION —
+# merge alone finishes this task; the main convergence is the gate the flow
+# watches, not one the plane observes as a PR check.
+apiVersion: orun.io/v1
+kind: TaskContract
+spec:
+  goal: The API edge — the single public entry point fronting the fleet — is live on stage and prod
+  affects:
+    - api-edge
+  doneWhen:
+    - api-edge /health 200 on stage and prod
+  gates: []

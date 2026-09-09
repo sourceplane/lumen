@@ -88,9 +88,66 @@ inputs:
     type: string
     default: "false"
     description: '"true" clears the checkpoint and runs every phase again, even ones whose postcondition already holds.'
+  track:
+    type: string
+    default: "true"
+    description: '"false" skips tracking this phase in the workspace task plane (saas-baseline-tracking BT): no milestone, no task, an untracked phase/… branch.'
+  epicslug:
+    type: string
+    default: "infra-baselining"
+    description: The epic the bootstrap tracks itself under (its slug); the umbrella creates it, a phase run alone adopts or creates it.
 steps:
+  # The programme first (saas-baseline-tracking BT3): the epic and its
+  # phases exist in the workspace before the first commit, so the first
+  # thing the console shows is the plan, then the landings. Idempotent by
+  # identity (slug, name-within-epic) — a re-run adopts what it made — and
+  # never blocking: an orun without the task-plane verbs, or a refused
+  # write, says so once and the bootstrap proceeds untracked. Not subject
+  # to the checkpoint: it is cheap, and a resumed run must see the same
+  # epic.
+  - name: programme
+    envInherit: &env [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL, XDG_CACHE_HOME]
+    run:
+      - /bin/bash
+      - -c
+      - |
+        set -euo pipefail
+        [ "{{ inputs.track }}" = "true" ] || { echo "track=false: the bootstrap is not tracked in the task plane"; exit 0; }
+        [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would ensure epic {{ inputs.epicslug }} and its phase milestones"; exit 0; }
+        if BL="$(git rev-parse --show-toplevel 2>/dev/null)" && [ -f "$BL/repo-blueprint.yaml" ] && [ -d "$BL/flows/phases" ]; then
+          L="$BL"
+        else
+          case "$PWD" in */.orun/wfruns/*) W="${PWD%%/.orun/wfruns/*}" ;; *) W="$PWD" ;; esac
+          L="$W/baseline"
+          brepo="${ORUN_FLOW_SOURCE_REPO:-sourceplane/lumen}"
+          bref="{{ inputs.baselineref }}"
+          [ -n "$bref" ] || bref="${ORUN_FLOW_SOURCE_SHA:-main}"
+          if [ "$(git -C "$L" rev-parse HEAD 2>/dev/null)" != "$bref" ]; then
+            echo "fetching baseline $brepo@$bref"
+            git init -q "$L" 2>/dev/null || true
+            git -C "$L" remote add origin "https://github.com/$brepo" 2>/dev/null \
+              || git -C "$L" remote set-url origin "https://github.com/$brepo"
+            git -C "$L" -c credential.helper= -c 'credential.helper=!f(){ [ "$1" = get ] && exec gh auth git-credential get; :; }; f' -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=30 fetch -q --depth 1 origin "$bref" \
+              || { echo "baseline fetch FAILED for $brepo@$bref"; exit 1; }
+            git -C "$L" checkout -q --detach FETCH_HEAD \
+              || { echo "baseline checkout FAILED"; exit 1; }
+          fi
+        fi
+        export ws="{{ inputs.workspace }}"
+        ref="$(git -C "$L" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+        epic="$("$L/flows/common/track.sh" ensure-epic "{{ inputs.epicslug }}" "Infra baselining — {{ inputs.productname }}" \
+          "Bootstrap of {{ inputs.githuborg }}/{{ inputs.reponame }} from sourceplane/lumen@$ref: one milestone per phase, one task per landing, PRs on orun/BASE-n-<phase>.")"
+        [ -n "$epic" ] || exit 0  # track.sh said why; the bootstrap proceeds untracked
+        for phase in 01-scaffold 02-foundation 03-infrastructure 04-workers 05-edge 06-console; do
+          "$L/flows/common/track.sh" ensure-milestone "$epic" "$phase" >/dev/null || true
+        done
+        [ "{{ inputs.domain }}" != "true" ] || "$L/flows/common/track.sh" ensure-milestone "$epic" 07-domain >/dev/null || true
+        "$L/flows/common/track.sh" ensure-milestone "$epic" 08-docs >/dev/null || true
+        echo "programme: epic $epic laid out — $("$L/flows/common/track.sh" rollup "$epic")"
+    timeout: 5m
   - name: scaffold
-    envInherit: &env [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
+    needs: [programme]
+    envInherit: *env
     run:
       - /bin/bash
       - -c
@@ -119,6 +176,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.fresh }}" = "true" ] && bs_reset
         # Validate the subdomain BEFORE phase 01 bakes it into every file: a
@@ -205,6 +263,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 02-foundation 3 --set "watch={{ inputs.watch }}"
@@ -241,6 +300,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 03-infrastructure 3 --set "watch={{ inputs.watch }}"
@@ -277,6 +337,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 04-workers 3 --set "watch={{ inputs.watch }}"
@@ -313,6 +374,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 05-edge 3 --set "watch={{ inputs.watch }}"
@@ -349,6 +411,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 06-console 3 --set "watch={{ inputs.watch }}"
@@ -385,6 +448,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         [ "{{ inputs.domain }}" = "true" ] || { echo "domain=false: skipping phase 07 (run it later once the zone exists, then re-run the docs phase)"; exit 0; }
@@ -422,6 +486,7 @@ steps:
         out="{{ inputs.out }}"; [ -n "$out" ] || out="$W/product"
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
+        export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 08-docs 2
@@ -477,8 +542,25 @@ steps:
         if git grep -q "TBD_08DOCS" HEAD -- ai/context README.md 2>/dev/null; then
           echo "placeholder tokens remain in the committed docs" >&2; exit 1
         fi
+        if [ "{{ inputs.track }}" = "true" ]; then
+          echo "── the programme (task plane)"
+          export ws
+          if roll="$("$L/flows/common/track.sh" rollup "{{ inputs.epicslug }}" 2>/dev/null)" && [ -n "$roll" ]; then
+            echo "epic {{ inputs.epicslug }}: $roll"
+            # Observation lag is real (the tasks-worker drains scm.* on a
+            # cron), so a landing not yet folded to done is a warning with
+            # the epic named, never a failed bootstrap.
+            case "$roll" in
+              *" done"*) done_n="${roll%%/*}"; total_n="$(printf '%s' "$roll" | sed -E 's#^[0-9]+/([0-9]+) done.*#\1#')"
+                [ "$done_n" = "$total_n" ] || echo "note: $((total_n - done_n)) task(s) not yet folded to done — the observation drain may still be catching up; check the epic in the console" ;;
+            esac
+          else
+            echo "epic {{ inputs.epicslug }}: untracked (tracking degraded earlier — see the programme step's note)"
+          fi
+        fi
         echo ""
         echo "✓✓ BOOTSTRAP COMPLETE — live, verified, documented."
         echo "   manifest: ai/context/deployment.md (URLs, identity, secrets inventory)"
         echo "   operate:  ai/context/operations.md"
+        [ "{{ inputs.track }}" != "true" ] || echo "   tracked:  epic {{ inputs.epicslug }} in workspace $ws (one task per landing, PRs on orun/BASE-n-<phase>)"
     timeout: 15m

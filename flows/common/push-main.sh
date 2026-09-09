@@ -5,21 +5,44 @@
 # plain merge when the actor lacks admin bypass; in that case required checks
 # must pass first (bootstrap PRs' own lanes are plan/verify-only).
 #
-#   flows/common/push-main.sh <branch-suffix> <title> [body]
+#   flows/common/push-main.sh [--task KEY] [--epic SLUG] <branch-suffix> <title> [body]
+#
+# --task KEY (or ORUN_TASK_KEY): the landing is TRACKED (saas-baseline-
+# tracking BT2) and ALWAYS takes the PR path through the pen — a direct push
+# to main is a landing the platform cannot bind to a task, so a tracked
+# landing never takes it. See land-pr.sh for the mechanics; a pen that is
+# missing or refuses degrades to the untracked path below with one line.
 set -euo pipefail
 
-suffix="${1:?usage: push-main.sh <branch-suffix> <title> [body]}"
-title="${2:?usage: push-main.sh <branch-suffix> <title> [body]}"
+task="${ORUN_TASK_KEY:-}"
+epic="${ORUN_EPIC_SLUG:-}"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --task) task="${2:?--task KEY}"; shift 2 ;;
+    --epic) epic="${2:?--epic SLUG}"; shift 2 ;;
+    *) break ;;
+  esac
+done
+suffix="${1:?usage: push-main.sh [--task KEY] [--epic SLUG] <branch-suffix> <title> [body]}"
+title="${2:?usage: push-main.sh [--task KEY] [--epic SLUG] <branch-suffix> <title> [body]}"
 body="${3:-Automated bootstrap push (flows/common/push-main.sh).}"
 
-if git diff --quiet && git diff --cached --quiet; then
+# Untracked files count too (the docs phase writes new files): stage
+# first, then ask — the same "nothing to land" land-pr.sh answers.
+git add -A
+if git diff --cached --quiet; then
   echo "push-main: nothing to land"
   exit 0
 fi
 
+if [ -n "$task" ]; then
+  # The tracked path IS land-pr's: same pen, same merge, same fallbacks.
+  here="$(cd "$(dirname "$0")" && pwd)"
+  exec "$here/land-pr.sh" --no-wait --task "$task" ${epic:+--epic "$epic"} "$PWD" "$suffix" "$title" "$body"
+fi
+
 branch="bootstrap/${suffix}-$(date +%s)"
 git checkout -qb "${branch}"
-git add -A
 git commit -q -m "${title}" -m "${body}"
 
 # Direct push first: repos without a PR-only rule take the fast path.

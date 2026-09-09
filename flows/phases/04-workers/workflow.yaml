@@ -37,6 +37,14 @@ inputs:
     type: string
     default: "false"
     description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
+  track:
+    type: string
+    default: "true"
+    description: '"false" skips tracking this phase in the workspace task plane (saas-baseline-tracking BT): no milestone, no task, an untracked phase/… branch.'
+  epicslug:
+    type: string
+    default: "infra-baselining"
+    description: The epic the bootstrap tracks itself under (its slug); the umbrella creates it, a phase run alone adopts or creates it.
 steps:
   - name: preflight
     envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
@@ -142,7 +150,11 @@ steps:
         # --no-wait: PR verify-deploy lanes DEPLOY the whole fleet, and the main
         # convergence deploys it again — double work, double Actions spend
         # (measured: ~7m of PR deploys on vela). The converge step is the gate.
-        "$L/flows/common/land-pr.sh" --no-wait "$P" 04-workers "phase(04-workers): worker fleet (feedback edges stripped)"
+        key=""
+        if [ "{{ inputs.track }}" = "true" ]; then
+          key="$("$L/flows/common/track.sh" ensure-task "{{ inputs.epicslug }}" 04-workers "phase(04-workers): worker fleet (feedback edges stripped)" "$L/flows/phases/04-workers/task-contract.yaml")"
+        fi
+        "$L/flows/common/land-pr.sh" --no-wait ${key:+--task "$key" --epic "{{ inputs.epicslug }}"} "$P" 04-workers "phase(04-workers): worker fleet (feedback edges stripped)"
     timeout: 30m
   - name: converge
     needs: [land]
@@ -208,6 +220,10 @@ steps:
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: would restore feedback bindings"; exit 0; }
         cd "$P"
         node "$L/tooling/bootstrap/cycle-break.mjs" --restore
-        "$L/flows/common/land-pr.sh" --no-wait "$P" 04-workers-restore "phase(04-workers): restore service-binding feedback edges"
+        key=""
+        if [ "{{ inputs.track }}" = "true" ]; then
+          key="$("$L/flows/common/track.sh" ensure-task "{{ inputs.epicslug }}" 04-workers "phase(04-workers): restore service-binding feedback edges" "$L/flows/phases/04-workers/task-contract-restore.yaml")"
+        fi
+        "$L/flows/common/land-pr.sh" --no-wait ${key:+--task "$key" --epic "{{ inputs.epicslug }}"} "$P" 04-workers-restore "phase(04-workers): restore service-binding feedback edges"
         "$L/flows/common/converge.sh" '' 2
     timeout: 60m

@@ -72,7 +72,10 @@ present it as a copy of anything.
 ## Verify / done means
 
 The repo is on GitHub, main is pushed, and `orun cloud check` passes. The
-first CI run plans zero components and is trivially green.
+first CI run plans zero components and is trivially green. Tracked (the
+default): main was seeded with one commit and the scaffold arrived as
+PR #1 from `orun/BASE-n-01-scaffold`, bound to the phase's task in the
+epic; `track=false` pushes the scaffold straight to main as before.
 
 ## Re-running
 

@@ -58,6 +58,14 @@ ghr_pr_merge() { # PR_NUMBER HEAD_BRANCH — squash-merge; branch delete best-ef
   ghr_curl DELETE "repos/$repo/git/refs/heads/$head" >/dev/null 2>&1 || true
 }
 
+ghr_pr_label() { # PR_NUMBER LABEL — the orun:task/<KEY> channel; needs issues:write, cosmetic when refused
+  local num="$1" label="$2" repo
+  if gh pr edit "$num" --add-label "$label" >/dev/null 2>&1; then return 0; fi
+  repo="$(ghr_repo)"
+  ghr_curl POST "repos/$repo/issues/$num/labels" \
+    "$(python3 -c 'import json,sys;print(json.dumps({"labels":[sys.argv[1]]}))' "$label")" >/dev/null 2>&1
+}
+
 ghr_pr_checks_state() { # HEAD_SHA → "none" | "pending" | "fail:<n>" | "done"
   local sha="$1" repo out
   repo="$(ghr_repo)"

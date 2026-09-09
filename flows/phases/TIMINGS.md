@@ -15,6 +15,7 @@ product pays today with every fix this run produced already landed.
 | 04 workers | **~31m** | PR deploy lanes ~7m · strip-landing convergence 13m18s · restore convergence 10m54s |
 | 05 edge | **5m22s** | apply→land→converge→`/health` probes, end to end |
 | 06 console | **15m37s** | console builds are heavy; convergence needed all 3 auto-resumes (self-healed) |
+| tracking (BT) | **seconds per landing (estimate)** | one `orun task list` and at most two creates per landing, one epic + seven milestones up front; not yet measured here |
 | **total** | **~73m measured** | ~40m projected with `--no-wait` on 04–06 (item 1 below) |
 
 ## Improvements, in impact order
