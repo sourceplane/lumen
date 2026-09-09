@@ -36,6 +36,14 @@ inputs:
     type: string
     default: "false"
     description: '"true" previews the phase (blueprint applied + shown + reverted, no PR, no deploy).'
+  track:
+    type: string
+    default: "true"
+    description: '"false" skips tracking this phase in the workspace task plane (saas-baseline-tracking BT): no milestone, no task, an untracked phase/… branch.'
+  epicslug:
+    type: string
+    default: "infra-baselining"
+    description: The epic the bootstrap tracks itself under (its slug); the umbrella creates it, a phase run alone adopts or creates it.
 steps:
   - name: apply
     envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
@@ -106,7 +114,11 @@ steps:
         # --no-wait: the packages come from the PINNED baseline, already verified
         # there; the converge step re-runs the same verify lanes on main and is
         # the real gate. Waiting on the PR lanes just runs every build twice.
-        "$L/flows/common/land-pr.sh" --no-wait "$P" 02-foundation "phase(02-foundation): shared packages"
+        key=""
+        if [ "{{ inputs.track }}" = "true" ]; then
+          key="$("$L/flows/common/track.sh" ensure-task "{{ inputs.epicslug }}" 02-foundation "phase(02-foundation): shared packages" "$L/flows/phases/02-foundation/task-contract.yaml")"
+        fi
+        "$L/flows/common/land-pr.sh" --no-wait ${key:+--task "$key" --epic "{{ inputs.epicslug }}"} "$P" 02-foundation "phase(02-foundation): shared packages"
     timeout: 30m
   - name: converge
     needs: [land]

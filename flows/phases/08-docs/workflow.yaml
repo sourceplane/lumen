@@ -36,6 +36,14 @@ inputs:
     type: string
     default: "false"
     description: '"true" previews the phase (docs rendered + shown + reverted, nothing pushed).'
+  track:
+    type: string
+    default: "true"
+    description: '"false" skips tracking this phase in the workspace task plane (saas-baseline-tracking BT): no milestone, no task, an untracked phase/… branch.'
+  epicslug:
+    type: string
+    default: "infra-baselining"
+    description: The epic the bootstrap tracks itself under (its slug); the umbrella creates it, a phase run alone adopts or creates it.
 steps:
   - name: preflight
     envInherit: [GITHUB_TOKEN, GH_TOKEN, ORUN_TOKEN, ORUN_TOKEN_FILE, GH_REPO, GH_HOST, ORUN_BACKEND_URL]
@@ -162,7 +170,11 @@ steps:
         # Docs-only change: plans ZERO deploy lanes, so there is no
         # convergence to watch — push-main lands it directly (PR-only
         # repos get the branch→PR→merge path inside push-main.sh).
-        "$L/flows/common/push-main.sh" 08-docs "docs(deployment): record live deployment state" \
+        key=""
+        if [ "{{ inputs.track }}" = "true" ]; then
+          key="$("$L/flows/common/track.sh" ensure-task "{{ inputs.epicslug }}" 08-docs "docs(deployment): record live deployment state" "$L/flows/phases/08-docs/task-contract.yaml")"
+        fi
+        "$L/flows/common/push-main.sh" ${key:+--task "$key" --epic "{{ inputs.epicslug }}"} 08-docs "docs(deployment): record live deployment state" \
           "Rendered by flows/phases/08-docs: verified URLs, identity, secrets inventory (names only), integrations, provenance."
     timeout: 15m
   - name: verify

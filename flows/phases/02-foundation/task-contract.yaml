@@ -1,0 +1,22 @@
+# Task contract template for the 02-foundation landing (saas-baseline-tracking BT1).
+# Unbound to a key on purpose: `orun task create --contract` seals and
+# attaches it to the key the allocator issues. gates: [] is a DECLARATION —
+# merge alone finishes this task; the main convergence is the gate the flow
+# watches, not one the plane observes as a PR check.
+apiVersion: orun.io/v1
+kind: TaskContract
+spec:
+  goal: The 13 shared packages everything later builds on land and verify green
+  affects:
+    - cli
+    - contracts
+    - db
+    - notifications-client
+    - policy-engine
+    - sdk
+    - shared
+    - testing
+    - webhook-verifier
+  doneWhen:
+    - PR verify lanes green (turbo builds + tests)
+  gates: []

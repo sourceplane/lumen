@@ -1,0 +1,26 @@
+# Task contract template for the 04-workers landing (saas-baseline-tracking BT1).
+# Unbound to a key on purpose: `orun task create --contract` seals and
+# attaches it to the key the allocator issues. gates: [] is a DECLARATION —
+# merge alone finishes this task; the main convergence is the gate the flow
+# watches, not one the plane observes as a PR check.
+apiVersion: orun.io/v1
+kind: TaskContract
+spec:
+  goal: The fleet's service-binding feedback edges are restored and the fleet converges again
+  affects:
+    - admin-worker
+    - billing-worker
+    - config-worker
+    - events-worker
+    - identity-worker
+    - integrations-worker
+    - membership-worker
+    - metering-worker
+    - notifications-worker
+    - policy-worker
+    - projects-worker
+    - webhooks-worker
+  doneWhen:
+    - feedback edges restored and convergence green
+    - worker bindings verified
+  gates: []

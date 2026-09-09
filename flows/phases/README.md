@@ -45,6 +45,14 @@ Phase 01 takes the product identity once and writes it into the repo
 - `dryrun` — `"true"` previews the phase with zero side effects (the
   blueprint is applied in the working tree, shown, and reverted; no PR, no
   deploy, nothing pushed)
+- `track` (default `"true"`) — the phase tracks itself in the workspace's
+  task plane (BT): its `land` step ensures the epic's milestone for the
+  phase and a task for the landing (`track.sh ensure-task`), then lands
+  through the pen on `orun/<KEY>-<phase>` (`land-pr.sh --task`). `"false"`
+  lands an untracked `phase/…` branch as before.
+- `epicslug` (default `infra-baselining`) — the epic the tasks club under.
+  The umbrella's first step (`programme`) creates it with one milestone
+  per phase; a phase run on its own adopts it, or creates it on the way.
 
 ```bash
 orun workflow run flows/phases/03-infrastructure/workflow.yaml \
@@ -95,10 +103,28 @@ files.
 |---|---|
 | `preflight.sh` | auth → authoritative integrations probe → 10m poll for the three connections → repo allow-list, self-healing via `orun cloud link` |
 | `apply-blueprint.sh` | apply one blueprint slice into the product repo, rebrand it (identity from `.rebrand/values.json`), archive phase provenance; enforces a clean tree; `dryrun` shows + reverts |
-| `land-pr.sh` | commit → branch → PR → wait for checks (passes when the repo has none yet) → merge (admin bypass when available) → back on main |
+| `land-pr.sh` | commit → branch → PR → wait for checks (passes when the repo has none yet) → merge (admin bypass when available) → back on main. With `--task KEY` (BT2) the branch, push and PR go through the pen — `orun pr open --task KEY --branch-slug <suffix>` — so the landing is `orun/<KEY>-<suffix>`, the commit carries the `Orun-Task` trailer, the body `Task: KEY` + the provenance manifest, and every push, PR and merge binds to the task; a pen that is missing or refuses degrades to the untracked path with one line |
 | `converge.sh` | wait for the main convergence run; auto-resume through transient failures |
 | `verify-endpoints.sh` | probe api-edge `/health` / console URLs, derived from `.rebrand/values.json` |
 | `create-secrets.sh` | the five brokered provider secrets; idempotent, self-heals orphans |
+| `track.sh` | the bootstrap's hand on the task plane (BT): `ensure-epic` / `ensure-milestone` / `ensure-task` find-or-create by identity (slug, name-within-epic, title-within-epic) over `orun task …`; `rollup` / `verdict` read progress. Never blocks a landing — an `orun` without the task-plane verbs, or a refused write, degrades to "untracked" once on stderr |
+
+## Tracking the bootstrap as work (BT)
+
+The umbrella lays the programme out first — epic + one milestone per
+phase (`00-all`'s `programme` step) — and ends its `verify` with the
+epic's rollup (a landing not yet folded to `done` is a warning naming the
+epic, never a failed bootstrap: the observation drain runs on a cron).
+Each phase folder also carries `task-contract.yaml` (phase 04: one per
+landing) — the contract template `track.sh ensure-task` attaches to the
+landing's task through `orun task create --contract`. `gates: []` is a
+declaration: merge alone finishes the task, because the main convergence
+is the gate the flow *watches*, not one the plane observes as a PR check.
+The templates are flow machinery, never product content. The contract
+tests live in `flows/testing/track.test.sh` and `land-pr.test.sh` (a fake
+`orun` and `gh`, bare-repo remotes, no network) and run in this repo's
+CI as the `tests/flows` quick-check component. The whole design, ported
+from cirrus: `specs/epics/saas-baseline-tracking/`.
 
 ## Where the blueprints live
 
