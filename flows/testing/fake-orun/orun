@@ -12,6 +12,34 @@ state="${FAKE_ORUN_STATE:?FAKE_ORUN_STATE}"
 if [ "${FAKE_ORUN_OLD:-}" = "1" ] && [ "${1:-}" = "task" ] && [ "${2:-}" = "epic" ]; then
   echo "Error: unknown command \"epic\" for \"orun task\"" >&2; exit 1
 fi
+# The agent runner (flows/agent/build.sh) needs three more verbs:
+#   --version; `workflow run` (the umbrella — narrated the way the real one
+#   is, phase completion lines included; FAKE_ORUN_UMBRELLA=fail|action
+#   emulates a failed phase or an operator action); `spec push` (records).
+if [ "${1:-}" = "--version" ]; then echo "orun version ${FAKE_ORUN_VERSION:-2.55.0}"; exit 0; fi
+if [ "${1:-}" = "workflow" ] && [ "${2:-}" = "run" ]; then
+  python3 - "$state" "$@" <<'PY'
+import json,sys
+st=json.load(open(sys.argv[1])); st["calls"].append(sys.argv[2:]); json.dump(st,open(sys.argv[1],"w"))
+PY
+  echo "  - programme: succeeded"
+  echo "programme: epic infra-baselining laid out — 0/0 done"
+  for ph in 01-scaffold 02-foundation; do echo "  - land: succeeded"; echo "umbrella: ✓ $ph complete"; done
+  case "${FAKE_ORUN_UMBRELLA:-ok}" in
+    fail) echo "preflight: the product repo is not allow-listed — console → Settings → Git repos" >&2
+          echo "umbrella: phase 03-infrastructure FAILED after 3 attempt(s) — see its last error above (the flows print the exact operator action when one is needed)" >&2; exit 1 ;;
+    action) echo "ACTION REQUIRED: the product repository x/y has no CI workflow files on main, so the build cannot run its deploys through GitHub. Grant the Workflows permission, then run the same build again." >&2; exit 1 ;;
+  esac
+  for ph in 03-infrastructure 04-workers 05-edge 06-console 08-docs; do echo "umbrella: ✓ $ph complete"; done
+  echo "  - verify: succeeded"; exit 0
+fi
+if [ "${1:-}" = "spec" ] && [ "${2:-}" = "push" ]; then
+  python3 - "$state" "$@" <<'PY'
+import json,sys
+st=json.load(open(sys.argv[1])); st["calls"].append(sys.argv[2:]); json.dump(st,open(sys.argv[1],"w"))
+PY
+  echo '{"pushed":2}'; exit 0
+fi
 # `pr open`: the pen's gesture, locally — checks the grammar branch out from
 # HEAD, pushes it to origin (a real git push; the test's remote is a bare
 # repo), and answers with the pen's --json shape. FAKE_ORUN_PEN_REFUSE=1

@@ -1,5 +1,11 @@
 # Agent runbook — bootstrap a product from this baseline
 
+> **In an Orun sandbox this runbook does not apply.** The platform prepares
+> the environment and delivers `flows/agent/BASELINE-TASK.md`, whose one
+> command (`flows/agent/workflow.yaml` → `flows/agent/build.sh`) does
+> everything below itself. This runbook is for an operator driving a
+> bootstrap by hand from their own machine or an unprepared container.
+
 Copy everything below the line into the agent's task prompt, replacing the
 FIVE placeholders: `<REPO>` (product repo slug, e.g. `atlas`),
 `<WS>` (workspace id, e.g. `ws_ABCD1234`), `<PRODUCT_NAME>`,
