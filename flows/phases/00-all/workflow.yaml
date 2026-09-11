@@ -74,8 +74,8 @@ inputs:
     description: '"true" also runs phase 07 (needs the Cloudflare zone to exist) before the docs phase.'
   watch:
     type: string
-    default: "true"
-    description: Passed to every phase — '"false"' skips convergence WATCHING (env cannot see Actions); runs must then be verified out-of-band.
+    default: "auto"
+    description: '"auto" watches the product''s own CI when its workflow files are on main and STOPS with the operator action (the App''s Workflows grant) when they are not; "true"/"false" force it — "false" skips convergence WATCHING (env cannot see Actions) and runs must then be verified out-of-band.'
   dryrun:
     type: string
     default: "false"
@@ -177,6 +177,7 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.fresh }}" = "true" ] && bs_reset
         # Validate the subdomain BEFORE phase 01 bakes it into every file: a
@@ -264,9 +265,11 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
-        run_phase 02-foundation 3 --set "watch={{ inputs.watch }}"
+        w="$(resolve_watch)"
+        run_phase 02-foundation 3 --set "watch=$w"
     timeout: 60m
 
   - name: infrastructure
@@ -301,9 +304,11 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
-        run_phase 03-infrastructure 3 --set "watch={{ inputs.watch }}"
+        w="$(resolve_watch)"
+        run_phase 03-infrastructure 3 --set "watch=$w"
     timeout: 120m
 
   - name: workers
@@ -338,9 +343,11 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
-        run_phase 04-workers 3 --set "watch={{ inputs.watch }}"
+        w="$(resolve_watch)"
+        run_phase 04-workers 3 --set "watch=$w"
     timeout: 180m
 
   - name: edge
@@ -375,9 +382,11 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
-        run_phase 05-edge 3 --set "watch={{ inputs.watch }}"
+        w="$(resolve_watch)"
+        run_phase 05-edge 3 --set "watch=$w"
     timeout: 60m
 
   - name: console
@@ -412,9 +421,11 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
-        run_phase 06-console 3 --set "watch={{ inputs.watch }}"
+        w="$(resolve_watch)"
+        run_phase 06-console 3 --set "watch=$w"
     timeout: 90m
 
   - name: domain
@@ -449,10 +460,12 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         [ "{{ inputs.domain }}" = "true" ] || { echo "domain=false: skipping phase 07 (run it later once the zone exists, then re-run the docs phase)"; exit 0; }
-        run_phase 07-domain 2 --set "watch={{ inputs.watch }}"
+        w="$(resolve_watch)"
+        run_phase 07-domain 2 --set "watch=$w"
     timeout: 60m
 
   - name: docs
@@ -487,6 +500,7 @@ steps:
         ws="{{ inputs.workspace }}"
         export UMB_FROM="{{ inputs.from }}" UMB_FRESH="{{ inputs.fresh }}" UMB_DRYRUN="{{ inputs.dryrun }}"
         export UMB_TRACK="{{ inputs.track }}" UMB_EPICSLUG="{{ inputs.epicslug }}"
+        export UMB_WATCH="{{ inputs.watch }}" UMB_REPO="{{ inputs.githuborg }}/{{ inputs.reponame }}"
         . "$L/flows/common/umbrella.sh"
         [ "{{ inputs.dryrun }}" = "true" ] && { echo "DRY RUN: umbrella stops after the scaffold preview"; exit 0; }
         run_phase 08-docs 2
@@ -556,6 +570,16 @@ steps:
             esac
           else
             echo "epic {{ inputs.epicslug }}: untracked (tracking degraded earlier — see the programme step's note)"
+          fi
+          # The deployment record rides the epic — the docs the console and the
+          # next agent read, beside the tasks. Committed files, idempotent by
+          # content hash; a refusal is a note, never a failed bootstrap.
+          if [ -f ai/context/deployment.md ]; then
+            if orun spec push --epic "{{ inputs.epicslug }}" --workspace "{{ inputs.workspace }}" ai/context/deployment.md ai/context/operations.md >/dev/null 2>&1; then
+              echo "epic {{ inputs.epicslug }}: deployment record attached (deployment.md, operations.md)"
+            else
+              echo "note: could not attach the deployment record to the epic — the docs are on main regardless"
+            fi
           fi
         fi
         echo ""

@@ -218,6 +218,22 @@ _comp_dirs() {  # _comp_dirs <root> [name-glob] — dirs under $out/<root> with 
 # Skips the phase when it is already complete, runs it otherwise, and stamps
 # redeploy markers before any attempt that follows a failure — so a retry
 # re-deploys instead of re-applying identical content into an empty plan.
+# watch=auto: the product's own CI is the engine whenever its workflow files
+# landed on main; when the scaffold could not push them (the App lacks the
+# Workflows grant) this STOPS with the operator action instead of degrading
+# into agent-driven deploys — a build that waits on a grant is recoverable,
+# a half-run one by hand is not. Reads UMB_WATCH / UMB_REPO / $out.
+resolve_watch() {
+  local w="${UMB_WATCH:-auto}"
+  [ "$w" = auto ] || { echo "$w"; return 0; }
+  if git -C "$out" fetch -q origin main 2>/dev/null \
+     && git -C "$out" ls-tree -r --name-only origin/main 2>/dev/null | grep -q '^\.github/workflows/'; then
+    echo true; return 0
+  fi
+  echo "ACTION REQUIRED: the product repository ${UMB_REPO:-} has no CI workflow files on main, so the build cannot run its deploys through GitHub. The GitHub App needs the 'Workflows: Read & write' permission on that repository (GitHub → Settings → Installed GitHub Apps → Orun). Grant it, then run the same build again — finished phases are skipped." >&2
+  return 1
+}
+
 run_phase() {
   local name="$1" attempts="$2"; shift 2
   local i w

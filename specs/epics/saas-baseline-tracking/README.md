@@ -52,3 +52,17 @@ folder records what was ported here and where Lumen differs.
   pre-BT behaviour, byte-identical.
 - **The rehearsal.** One real Lumen bootstrap with `track=true` whose epic
   rollup reads `8/8 done`, recorded here with the task keys.
+
+## Agent brief v2 — one command, four kinds of line
+
+Ported from cirrus (its #36). The brief is 65 lines: ask three questions,
+run `flows/agent/workflow.yaml` with the three values, relay
+`UPDATE:` / `ACTION REQUIRED:` / `FAILED:` / `DONE` lines, post the summary.
+`flows/agent/build.sh` reads the workspace, repository, checkout and
+credentials from the environment the platform prepared, checks the binary
+floor, installs `gh` only if absent, runs the umbrella with tracking on and
+composes the summary. The umbrella's `watch` defaults to `auto`
+(`resolve_watch` in `flows/common/umbrella.sh`: CI on main → watch; no
+workflow files → one `ACTION REQUIRED` naming the App's Workflows grant),
+and `verify` attaches the deployment record to the epic. Contract test:
+`flows/testing/agent-build.test.sh`.
