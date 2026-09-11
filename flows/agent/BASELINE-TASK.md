@@ -20,7 +20,7 @@ Environment contract (already prepared for you by the platform):
   `GH_TOKEN` from your session's repo-token endpoint if the environment
   did not already provide GITHUB_TOKEN; if a very long run outlives it,
   re-mint and re-run the umbrella (it is idempotent).
-- `orun` (installed by the platform, ≥ v2.52.7), `git`, `node`,
+- `orun` (installed by the platform, ≥ v2.55.0 — the task-plane MCP tools and `orun task epic` / `orun pr open --branch-slug` the flows use arrived there), `git`, `node`,
   `python3`, `curl` are present; install `gh` if missing.
 - Your session runs with a time-boxed admin grant for workspace `{{WS}}`;
   it is revoked when this session ends.
