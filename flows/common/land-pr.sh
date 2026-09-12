@@ -45,6 +45,21 @@ suffix="${2:?branch suffix}"
 title="${3:?PR title}"
 body="${4:-Automated phase landing (flows/common/land-pr.sh).}"
 
+# Say what is wrong with the ARGUMENT rather than letting `cd` print the whole
+# bad value as a directory name. A caller that shadowed this path with command
+# output sent a multi-line git transcript here, and the resulting
+# `cd: $'To https://…\n * [new branch] main -> main\n…': No such file or
+# directory` read as a filesystem fault in this script instead of a bad
+# argument from the caller — which cost a live build two identical retries.
+if [ ! -d "$out" ]; then
+  printf 'land-pr: first argument must be the product repo directory; got %s\n' \
+    "$(printf '%s' "$out" | head -1 | cut -c1-80)" >&2
+  case "$out" in
+    *"$(printf '\n')"*) echo "land-pr: (the value spans multiple lines — the caller passed command output, not a path)" >&2 ;;
+  esac
+  exit 2
+fi
+
 cd "$out"
 git add -A
 if git diff --cached --quiet; then

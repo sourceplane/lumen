@@ -309,14 +309,24 @@ steps:
         else
           remote_url="git@github.com:$slug.git"
         fi
+        # `push_out`, NOT `out`: shell functions share the step's variables, and
+        # `out` is the product repo directory this whole step stands on. Naming
+        # the push transcript `out` overwrote the path, and the next user of it
+        # — `land-pr.sh "$out" …` further down — ran `cd` on a git push
+        # transcript and died with the transcript as the directory name:
+        #   land-pr.sh: line 48: cd: $'To https://github.com/…\n * [new branch]
+        #   main -> main\n…': No such file or directory
+        # The push had SUCCEEDED both times; only the variable was wrong.
+        # Observed live on the cirrus baseline, twice (the retry failed
+        # identically, as it must — nothing about it was transient).
         push_main() {
-          out="$(git push -u origin main 2>&1)" && { echo "$out" | tail -1; return 0; }
-          echo "$out" >&2
+          push_out="$(git push -u origin main 2>&1)" && { echo "$push_out" | tail -1; return 0; }
+          echo "$push_out" >&2
           # Two refusal dialects for the same fact: classic PATs/gh OAuth say
           # "without `workflow` scope"; GitHub App installation tokens say
           # "without `workflows` permission" (both hit live).
           wf_refused=false
-          printf '%s' "$out" | grep -qiE "without .workflows?. (scope|permission)" && wf_refused=true
+          printf '%s' "$push_out" | grep -qiE "without .workflows?. (scope|permission)" && wf_refused=true
           if $wf_refused && [ -z "${GITHUB_TOKEN:-}${GH_TOKEN:-}" ]; then
             echo "push rejected for workflow files over https — retrying over SSH"
             git remote set-url origin "git@github.com:$slug.git"
