@@ -1,19 +1,49 @@
-# The lumen blueprint card: what the console's Blueprints page renders and
-# the platform's bootstrap door consumes (epic saas-blueprints-onboarding).
+# The lumen blueprint card: the CONTRACT the platform's bootstrap door reads
+# and the console renders, screen for screen (epic saas-bootstrap-console, BC3).
+#
+# Everything the console shows about this baseline comes from this file. Adding
+# a provider to `requires` grows a row in the Providers step; adding a key to
+# `secrets` grows a row in the Secrets step. Neither needs a console change.
+#
+# The registry (orun-cloud `infra/baselines-registry/baselines.yaml`) owns
+# identity and commerce — id, visibility, tier, the pinned tag, the brief and
+# umbrella paths. This file owns the build contract. NEITHER RESTATES THE
+# OTHER, which is why there is no `tag` here: this file is fetched *at* the tag
+# the registry pins, so a tag here could only rot — as it did, reading
+# `baseline-v17` against a live `baseline-v27`, ten releases adrift.
 apiVersion: orun.io/v1
 kind: Blueprint
 metadata:
   name: lumen
   displayName: Lumen — multi-tenant SaaS baseline
   description: >
-    Cloudflare + Supabase multi-tenant SaaS: 13 bounded-context Workers
+    Cloudflare + Supabase multi-tenant SaaS: 12 bounded-context Workers
     behind one edge API, Next.js console, terraform data plane, migrations,
     CI that converges on merge. Live on stage+prod in ~60–75 minutes.
   tags: [saas, cloudflare, supabase, nextjs]
 spec:
   source:
     repo: sourceplane/lumen
-    tag: baseline-v17          # bumped by the baseline release process
+    # No `tag`. See the header: the registry pins it, this file is fetched at it.
+  # ── What the operator reads first (the flow's step 1) ───────────────────
+  overview:
+    lede: >
+      The same Worker fleet with Postgres underneath it — Cloudflare at the
+      edge, Supabase for data, Terraform holding the data plane.
+    architecture:
+      - layer: Edge
+        items: [api-edge, web-console-next]
+      - layer: Services
+        items: ["12 bounded-context Workers"]
+      - layer: Data
+        items: [Supabase Postgres, Hyperdrive, KV]
+      - layer: Delivery
+        items: [Terraform, GitHub Actions, db-migrate]
+    outcome:
+      - Live on stage and prod
+      - A Terraform-held data plane
+      - Migrations apply on merge
+
   requires:
     integrations: [github, cloudflare, supabase]
     apiKeyRole: admin          # secret writes need the admin floor
@@ -31,6 +61,55 @@ spec:
     - key: subdomain
       label: workers.dev subdomain
       askedBy: agent
+  # ── PREVIEW ONLY. `flows/common/create-secrets.sh` creates these. ────────
+  # Transcribed from that script's `create` calls, so BC2's conformance test
+  # compares this list to the script rather than to a copy of itself. The
+  # console renders them read-only: they are minted from the workspace's
+  # connections at build time, so no credential is ever typed, shown or stored
+  # in the console. Keys that already exist are kept.
+  secrets:
+    - key: CLOUDFLARE_API_TOKEN
+      provider: cloudflare
+      template: workers-deploy
+      why: Workers + KV deploys
+    - key: CLOUDFLARE_HYPERDRIVE_TOKEN
+      provider: cloudflare
+      template: hyperdrive-edit
+      why: Hyperdrive — the deploy token deliberately cannot touch it
+    - key: CLOUDFLARE_ACCOUNT_ID
+      provider: cloudflare
+      template: account-id
+      why: Connection fact, not a secret
+      fact: true
+    - key: SUPABASE_ACCESS_TOKEN
+      provider: supabase
+      template: management-access
+      why: Project create and migrations
+    - key: SUPABASE_ORG_ID
+      provider: supabase
+      template: org-id
+      why: Connection fact, not a secret
+      fact: true
+
+  # ── PREVIEW ONLY. `flows/common/track.sh`, driven by the umbrella, creates
+  # these. Idempotent by identity, so a re-run finds what it made before.
+  programme:
+    epicSlug: infra-baselining         # = 00-all's `epicslug` input default
+    epicName: "Infra baselining — {productname}"
+    milestones:
+      - name: 01-scaffold
+      - name: 02-foundation
+      - name: 03-infrastructure
+      - name: 04-workers
+      - name: 05-edge
+      - name: 06-console
+      # Only ensured when the umbrella's `domain` input is "true" (it needs the
+      # Cloudflare zone to exist). Declared with its condition rather than
+      # silently listed, so the console cannot overstate the programme.
+      - name: 07-domain
+        when: domain
+      - name: 08-docs
+
   bootstrap:
     umbrella: flows/phases/00-all/workflow.yaml
     agentBrief: flows/agent/BASELINE-TASK.md

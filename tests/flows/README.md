@@ -23,6 +23,20 @@ A quick-check component that runs the two contract tests under
   transcript. Also checks that `land-pr.sh` refuses a non-directory first
   argument with a one-line diagnosis instead of a raw `cd` failure.
 
+- `manifest.test.sh` — `blueprint.yaml` against the flows that realize it:
+  `secrets` against `create-secrets.sh`'s `create` calls, `programme` against
+  the umbrella's `ensure-milestone` calls (including the `07-domain` condition
+  and the `epicslug` default), `askedBy: console` inputs against their
+  patterns, declared paths against the tree, `verify` placeholders against the
+  inputs, and `spec.source.tag` refused outright. Every check compares the
+  manifest to a script, never to another copy of the same claim. Needs PyYAML.
+
+> **Where these actually run in CI.** Not here. This component's
+> `quick-check` profile runs setup, install and a package-structure check and
+> no tests. The suite runs as the `flows-contract` job in
+> `.github/workflows/ci.yml`, which is what can fail a pull request. This
+> component stays for `pnpm --filter @saas/flows-tests test` locally.
+
 `bash`, `python3`, `git` — no network, no credential. Run locally with
 `pnpm --filter @saas/flows-tests test` or the scripts directly. This
 component is the baseline's own and never ships to a product.

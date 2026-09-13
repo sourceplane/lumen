@@ -21,6 +21,26 @@ permissions:
   id-token: write
 
 jobs:
+  # The bootstrap flows' contract suite, run directly rather than through the
+  # tests/flows component, whose `quick-check` profile runs setup, install and
+  # a package-structure check — and no tests. Observed live on cirrus: the lane
+  # reported `4 passed, 0 failed` with no test among them. Every turbo-package
+  # uses that profile and the composition is an OCI artifact this repo cannot
+  # read, so this job is what makes the suite able to fail a pull request.
+  # bash, python3 and git — no install, no network, no credential.
+  flows-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Contract tests (track, land-pr, agent-build, phase-vars, manifest)
+        run: |
+          set -euo pipefail
+          python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
+          for t in track land-pr agent-build phase-vars manifest; do
+            echo "── $t"
+            bash "flows/testing/$t.test.sh"
+          done
+
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -98,10 +118,18 @@ jobs:
           # re-open it, so lanes wait out the race instead.
           retry_flag=""
           if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then retry_flag="--retry"; fi
+          # Remote state authenticates over OIDC and the backend refuses a
+          # pull_request OIDC token BY DESIGN — a PR must never hold deploy
+          # credentials. The refusal resource-hides as `not_found`, so every PR
+          # lane died at the exchange BEFORE running a test body. A PR now runs
+          # with no state flag (the verify profile is entirely offline);
+          # push-to-main keeps it. Same fix as cirrus and orun-cloud.
+          state_flag=""
+          if [ "${{ github.event_name }}" != "pull_request" ]; then state_flag="--remote-state"; fi
           orun run \
             --plan plan.json \
             --runner github-actions \
-            --remote-state \
+            $state_flag \
             --job "${{ matrix.job-id }}" \
             --exec-id "${{ github.run_id }}" \
             $retry_flag
