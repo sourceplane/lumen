@@ -44,6 +44,19 @@ while :; do
   fi
   attempt=$((attempt + 1))
   echo "↻ convergence ${conclusion} — resuming failed lanes (${attempt}/${max_resumes})"
-  ghr_run_rerun_failed "${run_id}"
+  # A resume is BEST-EFFORT; the diagnosis is not.
+  #
+  # Under `set -e` this call used to kill the script, so a rerun GitHub
+  # refused (403 on a run with no retriable failed jobs, a token without
+  # `actions: write`, a run past its retention) replaced the real report with
+  # a bare non-zero exit — and the failed-lane listing below, the one thing an
+  # operator needs, never ran. The convergence had already failed; losing the
+  # reason as well is the part that cost a person an afternoon.
+  if ! ghr_run_rerun_failed "${run_id}"; then
+    echo "✕ convergence ${conclusion} (run ${run_id}), and the resume could not be issued — see the reason above." >&2
+    echo "  failed lanes:" >&2
+    ghr_run_failed_jobs "${run_id}" >&2
+    exit 1
+  fi
   sleep 30
 done

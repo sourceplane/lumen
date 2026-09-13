@@ -32,11 +32,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Contract tests (track, land-pr, agent-build, phase-vars, manifest)
+      - name: Contract tests (track, land-pr, agent-build, phase-vars, manifest, converge)
         run: |
           set -euo pipefail
           python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
-          for t in track land-pr agent-build phase-vars manifest; do
+          for t in track land-pr agent-build phase-vars manifest converge; do
             echo "── $t"
             bash "flows/testing/$t.test.sh"
           done
