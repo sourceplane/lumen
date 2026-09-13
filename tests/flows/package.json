@@ -7,6 +7,6 @@
   "scripts": {
     "build": "node -e \"process.exit(0)\"",
     "typecheck": "node -e \"process.exit(0)\"",
-    "test": "bash ../../flows/testing/track.test.sh && bash ../../flows/testing/land-pr.test.sh && bash ../../flows/testing/agent-build.test.sh && bash ../../flows/testing/phase-vars.test.sh && bash ../../flows/testing/manifest.test.sh"
+    "test": "bash ../../flows/testing/track.test.sh && bash ../../flows/testing/land-pr.test.sh && bash ../../flows/testing/agent-build.test.sh && bash ../../flows/testing/phase-vars.test.sh && bash ../../flows/testing/manifest.test.sh && bash ../../flows/testing/converge.test.sh"
   }
 }

@@ -119,9 +119,42 @@ ghr_run_failed_jobs() { # RUN_ID → failed job names
 [print(j["name"]) for j in d.get("jobs",[]) if j.get("conclusion")=="failure"]' || true
 }
 
-ghr_run_rerun_failed() { # RUN_ID
-  local id="$1" repo
-  if gh run rerun "$id" --failed 2>/dev/null; then return 0; fi
+ghr_run_rerun_failed() { # RUN_ID → 0 if the resume was accepted; nonzero WITH A REASON
+  # BOTH failure paths used to be silent, and together they cost a live build
+  # its diagnosis: `gh`'s stderr went to /dev/null, and the REST fallback ran
+  # through `ghr_curl`, whose `curl -sf` exits 22 with the response body
+  # discarded. A 403 from this endpoint therefore surfaced to the operator as
+  #
+  #     ✕ run: /bin/bash exited 22:
+  #
+  # with no message at all — on a phase that had already failed for some other
+  # reason nobody could now see. Whatever this call cannot do, it says so.
+  local id="$1" repo out code body
+  if out="$(gh run rerun "$id" --failed 2>&1)"; then
+    [ -n "$out" ] && printf '%s\n' "$out"
+    return 0
+  fi
+  [ -n "$out" ] && printf 'ghrest: gh run rerun --failed: %s\n' "$out" >&2
+
   repo="$(ghr_repo)"
-  ghr_curl POST "repos/$repo/actions/runs/$id/rerun-failed-jobs" '{}' >/dev/null
+  # Deliberately NOT ghr_curl: `-f` is what throws the body away. `-w` appends
+  # the status on its own line so a 4xx can be reported with GitHub's own
+  # words, which for this endpoint are usually the actionable part ("no failed
+  # jobs to rerun", "not retriable").
+  out="$(curl -s -w '\n%{http_code}' -X POST \
+    -H "Authorization: Bearer ${GH_TOKEN:-${GITHUB_TOKEN:-}}" \
+    -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" \
+    --max-time 60 -d '{}' \
+    "https://api.github.com/repos/$repo/actions/runs/$id/rerun-failed-jobs" 2>&1)" || {
+      printf 'ghrest: POST rerun-failed-jobs: curl failed: %s\n' "$out" >&2
+      return 1
+    }
+  code="${out##*$'\n'}"
+  body="${out%$'\n'*}"
+  case "$code" in
+    2*) return 0 ;;
+  esac
+  printf 'ghrest: POST repos/%s/actions/runs/%s/rerun-failed-jobs → HTTP %s: %s\n' \
+    "$repo" "$id" "$code" "$(printf '%s' "$body" | tr '\n' ' ' | cut -c1-300)" >&2
+  return 1
 }
