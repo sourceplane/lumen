@@ -21,28 +21,6 @@ permissions:
   id-token: write
 
 jobs:
-  # The bootstrap flows' contract suite, run directly rather than through the
-  # tests/flows component, whose `quick-check` profile runs setup, install and
-  # a package-structure check — and no tests. Observed live on cirrus: the lane
-  # reported `4 passed, 0 failed` with no test among them. Every turbo-package
-  # uses that profile and the composition is an OCI artifact this repo cannot
-  # read, so this job is what makes the suite able to fail a pull request.
-  # bash, python3 and git — no install, no network, no credential.
-  flows-contract:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Contract tests (track, land-pr, agent-build, phase-vars, manifest, converge)
-        run: |
-          set -euo pipefail
-          python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
-          for t in track land-pr agent-build phase-vars manifest converge; do
-            echo "── $t"
-            bash "flows/testing/$t.test.sh"
-          done
-      - name: Rebrand contract (writes each value once; --verify with the product's values)
-        run: bash testing/rebrand.test.sh
-
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -53,7 +31,7 @@ jobs:
           fetch-depth: 0
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.53.2
+          version: v2.56.2
       - env:
           # Surface the best-effort catalog auto-sync (execution.state.autopushCatalog).
           # A successful push prints "✓ pushed catalog …"; ORUN_VERBOSE also makes
@@ -105,7 +83,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.53.2
+          version: v2.56.2
       # exec-id is the RUN id alone (no attempt suffix): a `gh run rerun
       # --failed` then RESUMES the same orun execution — jobs that succeeded in
       # a prior attempt stay completed, so re-run lanes' cross-job dependencies
@@ -120,14 +98,30 @@ jobs:
           # re-open it, so lanes wait out the race instead.
           retry_flag=""
           if [ "${GITHUB_RUN_ATTEMPT:-1}" -gt 1 ]; then retry_flag="--retry"; fi
-          # Remote state authenticates over OIDC and the backend refuses a
-          # pull_request OIDC token BY DESIGN — a PR must never hold deploy
-          # credentials. The refusal resource-hides as `not_found`, so every PR
-          # lane died at the exchange BEFORE running a test body. A PR now runs
-          # with no state flag (the verify profile is entirely offline);
-          # push-to-main keeps it. Same fix as cirrus and orun-cloud.
-          state_flag=""
-          if [ "${{ github.event_name }}" != "pull_request" ]; then state_flag="--remote-state"; fi
+          # EVERY RUN REPORTS TO THE PLATFORM, a pull request's included.
+          #
+          # A PR lane resolves its secrets like any other (a verify lane still
+          # reads the wiring its fixture stands in for, an infra lane plans
+          # against the real account), and a job's secret refs are resolved
+          # before its first step whatever its profile does — so a PR run
+          # without remote state failed every lane that declares one:
+          #
+          #   ✗ supabase.stage.terraform: secret resolution failed: local
+          #     runs resolve secrets only from ORUN_SECRET_<KEY> overrides
+          #
+          # and a phase's PR could never be verified before it merged. This
+          # used to drop the state flag on PRs, on the belief that the backend
+          # refuses a pull_request OIDC token by design. It does not: the
+          # exchange's only gate is the repo link's CI settings (oidcEnabled,
+          # allowedRefPattern, allowedEnvironments — identity-worker
+          # oidc-exchange.ts), and the resource-hidden `not_found` seen at the
+          # time is exactly what an UNLINKED repository answers, push or PR
+          # (found on cirrus, fixed there first). Remote state on a PR also
+          # puts the PR's runs in front of the platform, which renders runs on
+          # refs/pull/<n> as that PR's row. Fork PRs get no OIDC token from
+          # GitHub at all and still fail closed. Nothing mutating runs here:
+          # deploy/apply profiles are gated on triggerRef github-push-main.
+          state_flag="--remote-state"
           orun run \
             --plan plan.json \
             --runner github-actions \

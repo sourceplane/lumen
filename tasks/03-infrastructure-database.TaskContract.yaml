@@ -1,0 +1,15 @@
+# Task contract template for the 03-infrastructure-database landing (saas-baseline-tracking BT1).
+# Unbound to a key on purpose: `orun task create --contract` seals and
+# attaches it to the key the allocator issues. gates: [] is a DECLARATION —
+# merge alone finishes this task; the main convergence is the gate the flow
+# watches, not one the plane observes as a PR check.
+apiVersion: orun.io/v1
+kind: TaskContract
+spec:
+  goal: The database's consumers — the schema migrations and Hyperdrive — are applied on stage and prod and Hyperdrive's wiring published
+  affects:
+    - db-migrate
+    - cloudflare-hyperdrive
+  doneWhen:
+    - migrations applied and WIRING_CLOUDFLARE_HYPERDRIVE published on stage and prod
+  gates: []

@@ -9,8 +9,8 @@ public edge API, with a Next.js console on Workers + Static Assets.
 ## Live deployment
 
 <!-- 08-docs:begin -->
-_Not yet recorded — run [`flows/phases/08-docs`](flows/phases/08-docs/README.md)
-after phase 06 to fill this section from verified live state
+_Not yet recorded — run [`08-docs`](docs/phases/08-docs.md) after
+`06-console` to fill this section from verified live state
 ([manifest](ai/context/deployment.md) · [operating contract](ai/context/operations.md))._
 <!-- 08-docs:end -->
 
@@ -40,10 +40,12 @@ after phase 06 to fill this section from verified live state
 
 ## Instantiating products
 
-This baseline births new products through the phased bootstrap
-(**[BOOTSTRAP.md](BOOTSTRAP.md)** → [flows/phases/](flows/phases/README.md)):
-eight idempotent workflows — scaffold, foundation, infrastructure, workers,
-edge, console, optional domain, docs — each landing a verified slice.
+This baseline births new products from one artifact — `repo-blueprint.yaml`,
+run by `orun new` (**[BOOTSTRAP.md](BOOTSTRAP.md)** →
+[docs/phases/](docs/phases/README.md)). It declares ten idempotent phases —
+scaffold, foundation, infrastructure, database, workers, workers-restore,
+edge, console, optional domain, docs — each landing a verified slice, each
+selectable with `--phase <name>`.
 Products receive **product-only content** (source, infra, CI, their own
 docs); none of this baseline's machinery ships, and a product's docs speak
 only about the product.
@@ -95,7 +97,6 @@ packages/notifications-client  Notifications client
 packages/shared           Generic helpers (IDs, errors) — no domain logic
 packages/testing          Test fixtures and utilities
 
-infra/terraform/bootstrap          Verifies AWS state backend + Secrets access
 infra/terraform/supabase           Supabase project provisioning (stage/prod)
 infra/terraform/cloudflare-hyperdrive  Hyperdrive config fronting Supabase
 infra/terraform/cloudflare-kv      api-edge idempotency KV namespace
@@ -104,6 +105,7 @@ infra/db-migrate                   Database migration runner component
 
 tooling/tsconfig          Shared TypeScript configurations
 tooling/eslint            Shared ESLint configuration
+tooling/wire              Deploy-time wrangler config renderer
 tests/*                   Per-component contract and verifier test suites
 ```
 
