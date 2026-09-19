@@ -30,8 +30,8 @@ So the honest status is: the phase, its task and its PR work; the domain
 does not. Wiring it for real means, in the product, finishing the v5
 resource and restoring the `subscribe` block (both are described in the
 component's own comments), then landing that as a normal PR once the zone
-exists. The phase's narration says the domain resolves when it is done —
-it does not, yet.
+exists. The phase's narration says as much when it is done: the component
+is in the repository, and nothing is attached until it subscribes.
 
 ## Prerequisite (hard)
 
