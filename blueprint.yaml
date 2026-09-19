@@ -6,8 +6,11 @@
 # `secrets` grows a row in the Secrets step. Neither needs a console change.
 #
 # The registry (orun-cloud `infra/baselines-registry/baselines.yaml`) owns
-# identity and commerce — id, visibility, tier, the pinned tag, the brief and
-# umbrella paths. This file owns the build contract. NEITHER RESTATES THE
+# identity and commerce — id, visibility, tier, the pinned tag. This file owns
+# the build contract. (The registry owned two more paths, the brief and the
+# umbrella, until the flows layer they named was deleted. This baseline is
+# blueprint-driven: `spec.bootstrap` declares neither, and the registry row
+# that fetches this file declares neither either.) NEITHER RESTATES THE
 # OTHER, which is why there is no `tag` here: this file is fetched *at* the tag
 # the registry pins, so a tag here could only rot — as it did, reading
 # `baseline-v17` against a live `baseline-v27`, ten releases adrift.
@@ -45,13 +48,22 @@ spec:
       - Migrations apply on merge
 
   requires:
+    # GitHub arrives as the App installation plus the repo link; Cloudflare
+    # and Supabase are the two provider connections phase 03 asks for.
     integrations: [github, cloudflare, supabase]
     apiKeyRole: admin          # secret writes need the admin floor
-  inputs:                      # collected via cockpit intake (AG-UI)
+
+  inputs:
+    # Every input is collected by the console (inputs v3). `askedBy` is gone:
+    # it divided inputs into ones a form collects and ones an agent asked for
+    # in the session, and there is no agent in the build path any more.
+    #
+    # The cost lands here. An `askedBy: agent` input was exempt from `pattern`,
+    # because prose asked for it and prose does not validate. Every input now
+    # carries the rule its value is checked against before Continue.
     - key: reponame
       label: Repo name
       pattern: "^[a-z][a-z0-9-]{1,38}$"
-      askedBy: console         # needed before repo creation
       # The console already has this: the operator picked the repository. Say
       # so rather than making the flow ask for the name printed above the
       # field — and say it HERE, because the only alternative was for the
@@ -60,17 +72,45 @@ spec:
       from: repo.name
     - key: productname
       label: Product display name
-      askedBy: agent
+      pattern: "^[A-Za-z0-9][A-Za-z0-9 .,'&-]{1,48}$"
+      help: The name people will see — in the console header, the emails, the docs.
+      example: Acme Cloud
     - key: productdomain
       label: Product domain
-      askedBy: agent
+      pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
+      help: The apex domain the product answers on. It does not need to exist yet.
+      example: acme.dev
+    - key: apibaseurl
+      label: API base URL
+      pattern: "^https://[a-z0-9.-]+$"
+      help: Where the CLI and SDK point by default.
+      # Derived rather than asked: it is the product domain with a prefix, and
+      # a field for it is a field an operator can get subtly wrong (http, a
+      # trailing slash, api. on the wrong half) for no gain.
+      derive: "https://api.{productdomain}"
+    - key: githuborg
+      label: GitHub organisation
+      pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$"
+      help: The GitHub org or user the product repository is created under.
+      # DERIVED FROM THE CHOSEN REPOSITORY, not asked. The operator picks the
+      # product repo in step 1, and its owner IS this value — a form field for
+      # it would be a second chance to get it wrong. `repo-blueprint.yaml`
+      # requires it, so a card that did not declare it would hand a build
+      # every field it showed and still die on `input "githuborg" is required`.
+      from: repo.owner
     - key: subdomain
       label: workers.dev subdomain
-      askedBy: agent
-  # ── PREVIEW ONLY. `flows/common/create-secrets.sh` creates these. ────────
-  # Transcribed from that script's `create` calls, so BC2's conformance test
-  # compares this list to the script rather than to a copy of itself. The
-  # console renders them read-only: they are minted from the workspace's
+      pattern: "^[a-z0-9][a-z0-9-]{0,62}$"
+      help: The workers.dev subdomain on the Cloudflare account this builds into.
+      example: acme
+
+  # ── PREVIEW ONLY. `repo-blueprint.yaml`'s `integrations/reconcile` hooks
+  # mint these, brokered, during phase 03. ────────────────────────────────
+  # Transcribed from those hooks' own `keys:` and `template:` values, so
+  # `testing/manifest.test.sh` compares this list to the document that mints
+  # them rather than to a copy of itself — it used to compare against a shell
+  # script's `create` calls, and that script is gone with `flows/`.
+  # The console renders them read-only: they are minted from the workspace's
   # connections at build time, so no credential is ever typed, shown or stored
   # in the console. Keys that already exist are kept.
   secrets:
@@ -97,10 +137,14 @@ spec:
       why: Connection fact, not a secret
       fact: true
 
-  # ── PREVIEW ONLY. `flows/common/track.sh`, driven by the umbrella, creates
-  # these. Idempotent by identity, so a re-run finds what it made before.
+  # ── PREVIEW ONLY. Each phase's `orun.task/ensure@v1` hook opens
+  # these. Idempotent by identity — epic by slug, milestone by name-within-epic
+  # — so a re-run finds what it made before. The console renders the programme
+  # so an operator can see the shape of the work before pressing Build.
+  # Ten phases, eight milestones: `03-infrastructure-database` and
+  # `04-workers-restore` are second landings of 03 and 04, and file under them.
   programme:
-    epicSlug: infra-baselining         # = 00-all's `epicslug` input default
+    epicSlug: infra-baselining         # = repo-blueprint.yaml's `epicSlug` default
     epicName: "Infra baselining — {productname}"
     milestones:
       - name: 01-scaffold
@@ -109,18 +153,23 @@ spec:
       - name: 04-workers
       - name: 05-edge
       - name: 06-console
-      # Only ensured when the umbrella's `domain` input is "true" (it needs the
-      # Cloudflare zone to exist). Declared with its condition rather than
-      # silently listed, so the console cannot overstate the programme.
+      # 07-domain carries `when: inputs.domain` in repo-blueprint.yaml (it
+      # needs the Cloudflare zone to already exist), so its milestone is
+      # ensured only on a run that asks for it. Declared with its condition
+      # rather than silently listed, so the console can say so.
       - name: 07-domain
         when: domain
       - name: 08-docs
 
   bootstrap:
-    umbrella: flows/phases/00-all/workflow.yaml
-    agentBrief: flows/agent/BASELINE-TASK.md
+    # THE BUILD DOCUMENT: the file whose phases a runner places. This baseline
+    # has no umbrella and no agent brief — the flows layer they named is gone
+    # — so this is the only entry point, and without it a runner that fetched
+    # this repo at its pinned tag would have nothing to run. `manifestPath` in
+    # the registry row names THIS file, the console card; it is not the build.
+    blueprint: repo-blueprint.yaml
     expectedMinutes: 75
-    tokenChannel: ORUN_TOKEN_FILE   # the flows read the runtime's refreshed token
+    tokenChannel: ORUN_TOKEN_FILE   # how a runner hands over its refreshed token
   verify:
     urls:
       - "https://{reponame}-api-edge-{env}.{subdomain}.workers.dev/health"

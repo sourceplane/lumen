@@ -6,7 +6,7 @@
 // -> membership). On a FRESH Cloudflare account this cluster cannot deploy:
 // Cloudflare rejects a deploy whose service binding targets a worker that does
 // not exist yet (error 10143), and re-running never resolves it because the
-// cycle never breaks on its own. See FORKING.md §5 and the
+// cycle never breaks on its own. See docs/phases/04-workers.md and the
 // ACKNOWLEDGED_BINDING_CYCLES set in
 // tests/config-worker/src/deployment-config.test.ts.
 //

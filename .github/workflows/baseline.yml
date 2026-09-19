@@ -1,0 +1,118 @@
+name: Baseline CI
+
+# THE FACTORY'S OWN LANES — tiers 0 to 2 (saas-bootstrap-engine BE5, BE6;
+# ported from cirrus).
+#
+# These test the BASELINE: that its build document parses with the orun a
+# bootstrap actually runs, that every component it ships is placed by exactly
+# one phase, that a placed tree comes up branded and answering, and that a
+# product carries nothing it should not.
+#
+# ─── WHY THIS IS NOT IN ci.yml ──────────────────────────────────────────
+#
+# `repo-blueprint.yaml`'s `github-workflows` module copies the WHOLE `.github`
+# directory, so every workflow here travels into every product built from this
+# repository — unless the blueprint's `ignore` names it, which it does for this
+# file. These jobs run `testing/*.sh`, and `testing/` is deliberately not
+# placed — so in a product they would be steps that cannot pass, red on its
+# very first pull request, in a repository whose owner has no idea what a
+# "blueprint" is.
+#
+# `ci.yml` carried exactly that until now, as its `flows-contract` job. It
+# keeps `plan` and `run`: those are the orun component lanes, and a product
+# genuinely needs them.
+#
+# The split is enforced, not remembered: `testing/coverage.test.sh` fails on
+# any workflow that reads a path under `testing/` and is not in the blueprint's
+# `ignore` list.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: baseline-ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # The baseline's contract suite, run directly rather than through a
+  # component. It used to ride a `tests/flows` component whose `quick-check`
+  # profile runs setup, install and a package-structure check — and no tests
+  # (observed live on cirrus: `4 passed, 0 failed`, none of them a test).
+  # These scripts need bash, python3 and git and nothing else — no workspace
+  # install, no network, no credential.
+  #
+  # THIS is the job that makes the suite able to fail a PR.
+  baseline-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Contract tests (manifest, phases, coverage, rebrand)
+        run: |
+          set -euo pipefail
+          python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
+          for t in manifest phases coverage rebrand; do
+            echo "── $t"
+            bash "testing/$t.test.sh"
+          done
+
+  # THE BLUEPRINT PARSES WITH THE BINARY A BOOTSTRAP ACTUALLY RUNS.
+  #
+  # Every other test here reads the YAML with PyYAML, which will parse anything
+  # well-formed. On cirrus that let a blueprint reach main that no released orun
+  # could read a word of:
+  #
+  #     ✕ unknown flag: --phase
+  #     ✕ parse blueprint: yaml: unmarshal errors:
+  #         line 613: cannot unmarshal !!map into []scaffold.Hook
+  #
+  # So this job pins the same version the bootstrap does and makes orun itself
+  # answer. `--status` derives every phase's state: it parses the document,
+  # validates each phase's hooks against the action registry, compiles every
+  # `when` and every narration template, and writes nothing. It does not probe
+  # — derivation asks the tree, not the network — so it needs no credential.
+  blueprint-parses:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: sourceplane/orun-action@v1.2.0
+        with:
+          # The bootstrap floor (BOOTSTRAP.md), not the product lane pin: the
+          # blueprint's `orun.run/watch@v1` `sha:` exists from v2.58.5, and an
+          # older CLI refuses the whole document at parse; v2.58.6 is where a
+          # landing's check wait covers the whole PR run; v2.58.7 knows
+          # orun.doctor/check@v1's `githubOwner`; v2.58.8 reads
+          # orun.secrets/exists@v1's `environments`; v2.58.10 defers a probe
+          # about a project the bootstrap has not created yet; v2.58.11 fills
+          # an input declared `from: workspace`.
+          version: v2.58.11
+      - name: repo-blueprint.yaml, read by the pinned CLI
+        run: |
+          set -euo pipefail
+          orun --version
+          # Inputs that are `required: true` must be supplied for the document
+          # to resolve; the values are arbitrary and nothing is written.
+          orun new --blueprint repo-blueprint.yaml --status \
+            --out "$(mktemp -d)" \
+            --set reponame=acme-cloud \
+            --set "productname=Acme Cloud" \
+            --set productdomain=acme.dev \
+            --set githuborg=acme-inc
+      # Tier 1's leak gate. It derives what every phase WOULD place and gates
+      # that set — so it needs orun, which is why it rides this job rather than
+      # the bash-only one above.
+      - name: the leak gate — what a product carries
+        run: bash testing/leak.test.sh
+      # Tier 1's other half. This one PLACES the tree, brands it exactly as
+      # 01-scaffold's hooks do, and runs the phases that follow. It needs node
+      # for rebrand alongside orun, and about thirty seconds. Still offline:
+      # placement writes files, and a run with hooks off does not probe.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+      - name: Tier 1 — the tree is placed, branded, and made to answer
+        run: bash testing/placement.test.sh

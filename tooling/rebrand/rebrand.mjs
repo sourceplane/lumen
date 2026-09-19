@@ -10,7 +10,7 @@
 // identity untouched (GitHub org `sourceplane`, the orun state backend,
 // `sourceplane.io` manifest apiVersion, S3 state buckets, company email
 // addresses). The rename map is the codified inverse of Lumen's own instance
-// identity; FORKING.md is the playbook.
+// identity; BOOTSTRAP.md is the playbook.
 //
 // Usage (from the repo root, on a clean tree):
 //   node tooling/rebrand/rebrand.mjs --values my-brand.json [--dry-run]
@@ -60,11 +60,14 @@ if (!verifyOnly && !valuesPath) {
 }
 if (valuesPath) {
   values = JSON.parse(fs.readFileSync(valuesPath, "utf8"));
-  // THE MANIFEST'S KEYS, and the old ones until flows/ is gone. The console
-  // manifest names its inputs `reponame`, `productname`, … and the blueprint
-  // renders values.json with those; the flows' phase slices still render the
-  // camelCase keys this file used to read (`repoName`, `productName`, …).
-  // Both are read, and the manifest's key wins where both are present.
+  // THE MANIFEST'S KEYS, and the old ones for the products that have them.
+  // The console manifest names its inputs `reponame`, `productname`, … and the
+  // blueprint renders values.json with those. Every product born before the
+  // blueprint was the bootstrap (from the flows' phase slices) COMMITTED a
+  // values.json with the camelCase keys this file used to read (`repoName`,
+  // `productName`, …), and a phase run against one later — 07-domain, a docs
+  // refresh — brands with that file. Both are read, and the manifest's key
+  // wins where both are present.
   const LEGACY = {
     reponame: "repoName",
     productname: "productName",
@@ -350,7 +353,7 @@ function scopedPairs() {
   // Re-prefix every Cloudflare worker resource name (`lumen-<base>`) so a fork
   // is safe to deploy even into an account it shares with Lumen. The alternation
   // is the explicit set of worker bases, so `lumen-stage` / `lumen-prod`
-  // (the D1 database names, which are repo-slug-derived) are never matched
+  // (Supabase/Hyperdrive project names, which are repo-slug-derived) are never matched
   // here — they fall to the repo-slug pass below.
   const bases = workerBases(files);
   if (bases.length > 0) {
@@ -365,7 +368,7 @@ function scopedPairs() {
 
   // Repo slug: intent metadata.name + per-env repo: params, component.yaml
   // repo: fields, Terraform repo defaults, Secrets Manager paths, OIDC role
-  // names, D1 database names (`lumen-stage` → `<repo>-stage`), root package
+  // names, Supabase/Hyperdrive project names (`lumen-stage` → `<repo>-stage`), root package
   // name, docs. Runs AFTER the worker pass so `lumen-<worker>` has already
   // been consumed. packages/cli owns the CLI-bin meaning of `lumen` (handled
   // above), so it is excluded here.

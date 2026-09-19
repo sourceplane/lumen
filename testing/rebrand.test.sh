@@ -129,11 +129,12 @@ verify "without them it cannot know, and fails" \
 verify "given the values, a real leftover still fails" \
   "$weather" apps/w/wrangler.template.jsonc '"BASE_DOMAIN": "lumen.app"' fail --values
 
-# THE OLD KEYS STILL WORK until flows/ is gone. The phase slices render
-# values.json with `repoName`, `productName`, … and the blueprint with the
-# manifest's `reponame`, `productname`, …; rebrand reads both, the manifest's
-# key winning where both are given.
-echo "── rebrand: the flows' camelCase keys"
+# THE OLD KEYS STILL WORK. Every product born from the flows' phase slices
+# committed values.json with `repoName`, `productName`, …; the blueprint
+# renders the manifest's `reponame`, `productname`, …. A later phase run
+# against an old product brands with its committed file, so rebrand reads
+# both, the manifest's key winning where both are given.
+echo "── rebrand: the pre-blueprint camelCase keys"
 check "the old keys brand like the new ones" \
   '{"repoName":"altocumulus","productName":"Altocumulus","productDomain":"altocumulus.dev","orunWorkspace":"ws_79BDXAZQ"}' \
   apps/w/component.yaml "$ref" \
