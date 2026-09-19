@@ -40,6 +40,8 @@ jobs:
             echo "── $t"
             bash "flows/testing/$t.test.sh"
           done
+      - name: Rebrand contract (writes each value once; --verify with the product's values)
+        run: bash testing/rebrand.test.sh
 
   plan:
     runs-on: ubuntu-latest
