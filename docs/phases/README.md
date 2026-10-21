@@ -76,7 +76,7 @@ same words.
 | `productname` | yes | display name |
 | `productdomain` | yes | the apex domain the product answers on; it does not need to exist yet |
 | `githuborg` | yes | the org or user the repo lives under. The console fills it from the chosen repository's owner |
-| `subdomain` | — | the Cloudflare **account's** workers.dev subdomain. The default is a placeholder; see below |
+| `subdomain` | — | workers.dev subdomain of the Cloudflare **account** you deploy into. A console or `--from bst_…` build reads it from the Cloudflare connection; pass it only for a hand-run build. The default is a placeholder; see below |
 | `apibaseurl` | — | the CLI/SDK default API base; empty means `https://api.<productdomain>` |
 | `orunWorkspace` | — | workspace id. Unset, it is the workspace the build runs in (`from: workspace`, ORUN_WORKSPACE, which a console build always has); with none anywhere, 01 writes the placeholder `ws_SET_ME`, which fails loudly rather than silently cross-tenanting |
 | `epicSlug` | — | default `infra-baselining`; the epic every phase files its task under, found by slug so a fresh run and a resumed run find the same work |
@@ -89,6 +89,11 @@ api-edge CORS allowlist derive from it, so a wrong value ships a product
 that deploys cleanly and is unreachable at every address it advertises —
 and the `/health` probes of 05, 06 and 08 fail against hosts that were never
 going to exist. Find it under Workers & Pages in the Cloudflare dashboard.
+A build started from the console, or with `orun baseline new --from bst_…`,
+never asks for it: `blueprint.yaml` declares
+`from: connection.cloudflare.workersSubdomain`, so the platform reads it from
+the workspace's Cloudflare connection, the same one the deploy tokens mint
+from. Only a hand-run build passes it.
 
 `01-scaffold` writes the answers into the product as
 `.rebrand/values.json`, which is committed. Every later phase's rebrand hook

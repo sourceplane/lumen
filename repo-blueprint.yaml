@@ -60,7 +60,11 @@ inputs:
   subdomain:
     type: string
     default: "your-workers-subdomain"
-    description: workers.dev subdomain for app-config seams.
+    description: >-
+      workers.dev subdomain for app-config seams. A console or `--from bst_…`
+      build gets it from the workspace's Cloudflare connection (blueprint.yaml
+      declares `from: connection.cloudflare.workersSubdomain`); pass it with
+      --set only for a hand-run build.
   salesEmail:
     type: string
     default: ""
