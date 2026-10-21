@@ -218,9 +218,20 @@ for path in manifests:
         # field for it (saas-bootstrap-console BC-K5). Two ways to get it
         # wrong, and the platform refuses both — check them here too, so the
         # mistake is caught in this repo rather than at a live bootstrap.
+        #
+        # A `connection.<provider>.<fact>` source is read from the connection
+        # the build is bound to, so the provider must be one the manifest
+        # requires — the platform's parser refuses it otherwise.
+        sources_known = ("repo.name", "repo.owner", "repo.fullName",
+                         "connection.cloudflare.workersSubdomain")
         src = field.get("from")
-        if src is not None and src not in ("repo.name", "repo.owner", "repo.fullName"):
-            B(f"inputs[{key}].from is {src!r} — must be repo.name, repo.owner or repo.fullName")
+        if src is not None and src not in sources_known:
+            B(f"inputs[{key}].from is {src!r} — must be one of {', '.join(sources_known)}")
+        if isinstance(src, str) and src.startswith("connection."):
+            provider = src.split(".")[1]
+            if provider not in ((spec.get("requires") or {}).get("integrations") or []):
+                B(f"inputs[{key}].from is {src!r} but spec.requires.integrations "
+                  f"does not list {provider} — there is no connection to read it from")
 
     # ── secrets: BOTH or NEITHER, checked both ways ───────────────────────
     declared = {s.get("key"): (s.get("provider"), s.get("template")) for s in (spec.get("secrets") or [])}
@@ -311,7 +322,7 @@ for path in manifests:
     # refused.
     #
     # ONE DIRECTION ONLY. The blueprint declares more than this file does —
-    # `githuborg`, `epicSlug`, `domain`, `orunWorkspace` and the identity
+    # `githuborg`, `epicSlug`, `orunWorkspace` and the identity
     # defaults are how a BUILD is driven, not what a product is configured
     # with. What must hold is that nothing this file declares arrives at an
     # engine that cannot take it.
@@ -328,7 +339,7 @@ for path in manifests:
     # ── …AND THE OTHER DIRECTION, for REQUIRED inputs only ───────────────
     #
     # The check above is one-directional on purpose: the blueprint declares
-    # more than this card does, because `epicSlug`, `domain` and the identity
+    # more than this card does, because `epicSlug` and the identity
     # defaults are how a BUILD is driven rather than what a product is
     # configured with. That tolerance had no floor, and `githuborg` fell
     # through it — `required: true` in the blueprint, absent from this card,
@@ -361,8 +372,9 @@ for path in manifests:
     #
     # A milestone is what a phase CLUBS ITS TASK UNDER, which the phase states
     # as `orun.task/ensure@v1`'s `milestone:`. Reading that is why nine phases
-    # correctly produce eight milestones: `04-workers-restore` names
-    # `04-workers`, because it is the second landing of one unit of work.
+    # correctly produce seven milestones: `03-infrastructure-database` and
+    # `04-workers-restore` name `03-infrastructure` and `04-workers`, because
+    # each is the second landing of one unit of work.
     #
     # Distinct, in phase order. The old check grepped the umbrella's
     # `ensure-milestone` lines for the same list.

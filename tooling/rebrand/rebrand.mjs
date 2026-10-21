@@ -65,8 +65,8 @@ if (valuesPath) {
   // blueprint renders values.json with those. Every product born before the
   // blueprint was the bootstrap (from the flows' phase slices) COMMITTED a
   // values.json with the camelCase keys this file used to read (`repoName`,
-  // `productName`, …), and a phase run against one later — 07-domain, a docs
-  // refresh — brands with that file. Both are read, and the manifest's key
+  // `productName`, …), and a phase run against one later — a docs refresh —
+  // brands with that file. Both are read, and the manifest's key
   // wins where both are present.
   const LEGACY = {
     reponame: "repoName",

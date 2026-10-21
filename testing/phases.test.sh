@@ -71,8 +71,13 @@ WAS = {
                    "projects-worker", "projects-worker-tests", "webhooks-worker",
                    "webhooks-worker-tests"],
     "05-edge": ["api-edge", "api-edge-tests"],
-    "06-console": ["web-console-next", "web-console-next-tests"],
-    "07-domain": ["cloudflare-domain"],
+    # `cloudflare-domain` was 07-domain's one module. It folded into 06-console
+    # when the `domain` input went: the component ships parked (it subscribes
+    # to no environment until an owner wires a zone), so a landing of its own
+    # deployed nothing, and an on/off switch for a component that is already
+    # off was one more question for nothing. It moved whole, and nothing else
+    # moved with it.
+    "06-console": ["cloudflare-domain", "web-console-next", "web-console-next-tests"],
 }
 # Declared since BE1 and placing nothing: their work is hooks. `discovery-roots`
 # is likewise new — the empty apps/infra/packages/tests roots orun's repo-scale

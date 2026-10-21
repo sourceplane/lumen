@@ -113,11 +113,11 @@ orun integrations list --org <ws> --json && orun cloud check --org <ws>
 | add a runtime secret | `orun secrets set <KEY> --org <ws> --env <env>` |
 | resolve workspace identity | `orun workspace <ws-id-or-slug>` |
 | check integrations | `orun integrations list --org <ws> --json` |
-| custom domain | run the `07-domain` phase once the zone exists, then `08-docs` |
+| custom domain | `infra/terraform/cloudflare-domain` ships parked (`subscribe.environments: []`). Once the zone exists in the Cloudflare account, finish the provider-v5 resource and restore the `subscribe` block its `component.yaml` carries commented out, merge, then run the `08-docs` phase |
 | headless/CI credentials | `ORUN_TOKEN` (workspace-scoped) + `GITHUB_TOKEN` |
 
-The ops phases (docs refresh, custom domain, and the original deployment
-sequence) all live in ONE versioned artifact: `repo-blueprint.yaml` in the
+The ops phases (docs refresh and the original deployment sequence) all
+live in ONE versioned artifact: `repo-blueprint.yaml` in the
 baseline this product was born from. Clone it at a tag and select the phase
 — from anywhere, with the two tokens above exported:
 
@@ -126,10 +126,6 @@ git clone --depth 1 https://github.com/OPSFLOWS baseline && cd baseline
 
 orun new --blueprint repo-blueprint.yaml --out <product-checkout> \
   --run-hooks --phase 08-docs --values <values.yaml>     # docs refresh
-
-orun new --blueprint repo-blueprint.yaml --out <product-checkout> \
-  --run-hooks --phase 07-domain --set domain=true \
-  --values <values.yaml>                                 # custom domain
 ```
 
 `<values.yaml>` carries this product's identity — at minimum `reponame`,

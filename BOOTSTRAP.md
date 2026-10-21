@@ -88,11 +88,16 @@ orun new --blueprint repo-blueprint.yaml \
   --set subdomain=<workers-dev-subdomain>
 ```
 
-`subdomain` is the Cloudflare **account's** workers.dev subdomain, not the
-product name. Every generated URL and the api-edge CORS allowlist derive from
-it, so a wrong value ships a product that deploys cleanly and is unreachable
-at every address it advertises. Find it under Workers & Pages in the
-dashboard.
+`subdomain` is the workers.dev subdomain of the Cloudflare account you deploy
+into, not the product name. Every generated URL and the api-edge CORS
+allowlist derive from it, so a wrong value ships a product that deploys
+cleanly and is unreachable at every address it advertises. Find it under
+Workers & Pages in the dashboard.
+
+A build started from the console, or with `orun baseline new --from bst_…`,
+never asks for it: the platform reads it from the workspace's Cloudflare
+connection, the same one the deploy tokens mint from. Only a hand-run build
+like this one passes it.
 
 **`--run-hooks` is the difference between placing files and bootstrapping a
 product.** Without it `orun new` writes the tree and stops: no repo is
@@ -111,8 +116,10 @@ every phase after `01-scaffold` brands the tree — derives as `drifted`, and
 
 The phases are `01-scaffold`, `02-foundation`, `03-infrastructure`,
 `03-infrastructure-database`, `04-workers`, `04-workers-restore`, `05-edge`,
-`06-console`, `07-domain` (only when `domain=true`), `08-docs` — ten phases
-filed under eight milestones. Each is idempotent, each follows one contract —
+`06-console`, `08-docs` — nine phases filed under seven milestones. The gap
+at 07 is the optional `07-domain` phase, whose parked custom-domain component
+lands in `06-console` since baseline-v30 (the `domain` input that switched it
+on is gone). Each is idempotent, each follows one contract —
 **place its modules → land them as a PR that must go green → watch the
 convergence → verify the outcome** — and each carries its own narration.
 Full guide: [docs/phases/README.md](docs/phases/README.md), with a page per
@@ -132,8 +139,7 @@ orun new --blueprint repo-blueprint.yaml --out ~/sourceplane/acme --run-hooks \
 orun new --blueprint repo-blueprint.yaml --out ~/sourceplane/acme --run-hooks \
   --phase 02-foundation --values ~/sourceplane/acme/.rebrand/values.json
 # … 03-infrastructure, 03-infrastructure-database, 04-workers,
-#   04-workers-restore, 05-edge, 06-console, 08-docs;
-#   07-domain only with --set domain=true.
+#   04-workers-restore, 05-edge, 06-console, 08-docs.
 ```
 
 The flags that shape a run:
@@ -247,7 +253,7 @@ The console renders **`blueprint.yaml`**, the card, and never this file or
 the blueprint directly. The card owns the build contract: the overview, the
 three integrations and the admin key role it requires, the inputs the form
 collects, a read-only preview of the five brokered secrets and of the
-programme (the epic and its eight milestones), and `bootstrap.blueprint:
+programme (the epic and its seven milestones), and `bootstrap.blueprint:
 repo-blueprint.yaml` — the document a runner places. The registry row in
 orun-cloud owns identity and the pinned tag; the card is fetched *at* that
 tag, which is why it carries none.
@@ -255,12 +261,16 @@ tag, which is why it carries none.
 What that means for a console build:
 
 - `reponame` and `githuborg` come from the repository the operator picked;
+  `subdomain` from the workspace's Cloudflare connection
+  (`from: connection.cloudflare.workersSubdomain` — the connection the build
+  is bound to, so it names the account the deploy tokens mint from);
   `apibaseurl` is derived (`https://api.{productdomain}`); only
-  `productname`, `productdomain` and `subdomain` are typed.
+  `productname` and `productdomain` are typed.
 - `orunWorkspace` is not on the form — it cannot be. The build runs inside
   the workspace, and `from: workspace` (orun ≥ v2.58.11) fills it from there.
-- The card collects no `domain`, so a console build skips `07-domain`. Run
-  it later from the CLI (and read its page first).
+- There is no `domain` input. The custom-domain component lands in
+  `06-console`, parked, on every build, and an owner wires it later in an
+  ordinary PR (§4).
 - The runner hands its refreshed token over through `ORUN_TOKEN_FILE`
   (`bootstrap.tokenChannel`), so a session that rotates mid-build does not
   end it.
@@ -273,11 +283,14 @@ that mint them, and its programme and inputs to the blueprint's.
 
 - **Deployment record**: `08-docs` is the close-out, and safe to re-run any
   time as a live-state refresh.
-- **Custom domain**: `07-domain` needs the product zone to exist in
-  Cloudflare, and in this baseline the `cloudflare-domain` component ships
-  parked and mid-migration to provider v5, so the phase lands it without
-  deploying anything. See [docs/phases/07-domain.md](docs/phases/07-domain.md)
-  before running it.
+- **Custom domain**: the `cloudflare-domain` component is already in the
+  product, landed by `06-console`: parked (it subscribes to no environment)
+  and mid-migration to provider v5. Create the product zone in
+  Cloudflare, finish the v5 resource and restore the component's
+  commented-out `subscribe` block in an ordinary PR (see
+  [docs/phases/06-console.md](docs/phases/06-console.md#the-custom-domain--parked)),
+  and re-run `--phase 08-docs` once it converges so the docs pick up the
+  domain URLs.
 - **Runtime secrets** (OAuth client secrets, billing keys, …): seed with
   `orun secrets set <KEY> --org <org> --env <env>`; the next deploy pushes
   them to the workers (`wire-now-seed-later` — nothing blocks on them).
@@ -342,7 +355,7 @@ purpose, written down so they read as instructions rather than breakage.
 | api-edge deploy: `Service binding '<NAME>_WORKER' … not found` | A fleet worker never deployed in phase 04. Resume that convergence, then re-run `05-edge`. |
 | Convergence run fails, lanes look transient | `orun.run/watch@v1` already resumes it up to 3× (`gh run rerun --failed` is a true resume: exec-id + `--retry`). |
 | Convergence still red after the resume budget | Re-running the phase lands nothing new, and CI plans `--changed`, so nothing redeploys what the failed run left undeployed. Resume the run itself — `gh run rerun --failed <run-id>` — then re-run the phase so its `await` hooks verify. |
-| `/health` probes fail against a green deploy | Check `subdomain` first: it must be the Cloudflare account's workers.dev subdomain, and the default is a placeholder. |
+| `/health` probes fail against a green deploy | Check `subdomain` first: it must be the Cloudflare account's workers.dev subdomain, and the default is a placeholder. A console build reads it from the Cloudflare connection; a hand-run build passes it with `--set`. |
 | CLI login dies with 429 `rate_limited` | Fixed ≥ v2.48.1 (redeem honours Retry-After). Upgrade the CLI. |
 | `unknown flag: --phase`, `cannot unmarshal !!map into []scaffold.Hook`, or an action `has no parameter "githubOwner"` / `"sha"` | The CLI is below the v2.58.11 floor. This blueprint is not readable by an older one. |
 | A fresh build stops before 01-scaffold: `✕ phase "04-workers" precondition "wiring" is not met: … project "<repo>" not found` | The CLI is below v2.58.10, which asks the preflight about the product's project before phase 01 has created it and calls the answer a failure. Upgrade; the probe is then deferred to phase 04. |

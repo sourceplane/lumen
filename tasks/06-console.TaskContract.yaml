@@ -9,6 +9,8 @@ spec:
   goal: The web console is live on stage and prod, talking to the edge
   affects:
     - web-console-next
+    # Not cloudflare-domain, though 06-console lands it: it ships parked
+    # (subscribe.environments: []), and a parked component deploys nothing.
   doneWhen:
     - console and edge live on stage and prod
   gates: []

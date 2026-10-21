@@ -1,6 +1,6 @@
-# The phases — one blueprint, ten selections
+# The phases — one blueprint, nine selections
 
-`repo-blueprint.yaml` declares ten phases that take a product from
+`repo-blueprint.yaml` declares nine phases that take a product from
 **nothing** to a **live, documented baseline** on Cloudflare and Supabase.
 Run them one at a time at your own pace with `--phase <name>`, or run the
 whole sequence unattended with `--resume`. There is no wrapper that runs
@@ -41,17 +41,19 @@ deploying is what a merge does and a PR cannot.
 | [`04-workers`](04-workers.md) | 04-workers | the 12-worker fleet, two feedback bindings stripped | convergence green |
 | [`04-workers-restore`](04-workers.md#the-second-landing-04-workers-restore) | 04-workers | the two bindings put back (places no files) | convergence green |
 | [`05-edge`](05-edge.md) | 05-edge | `api-edge` (+ its tests, + `platform-limits-tests`) | `/health` answers on stage and prod |
-| [`06-console`](06-console.md) | 06-console | web console | console + edge live on stage and prod |
-| [`07-domain`](07-domain.md) | 07-domain | custom domain (OPTIONAL — `when: inputs.domain`) | convergence green |
+| [`06-console`](06-console.md) | 06-console | web console, and the custom-domain component (parked until a zone is wired) | console + edge live on stage and prod |
 | [`08-docs`](08-docs.md) | 08-docs | live-deployment docs (places no files; a hook renders them) | the URLs the manifest claims, re-probed |
 
-Ten phases, eight milestones. `03-infrastructure-database` and
+Nine phases, seven milestones. `03-infrastructure-database` and
 `04-workers-restore` are second landings of the unit before them: each has
 its own PR and its own task, and each files under its predecessor's
 milestone. They are documented on their predecessor's page for the same
-reason.
+reason. The numbering keeps its gap at 07: the custom-domain component that
+was the optional `07-domain` phase lands in `06-console`, parked, and an
+owner wires it later in an ordinary PR (see
+[06-console](06-console.md#the-custom-domain--parked)).
 
-Two requirements look odd and are deliberate:
+One requirement looks odd and is deliberate:
 
 - **`05-edge` requires `04-workers`, not `04-workers-restore`.** A phase
   that places no files derives as `unknown` — the product repo cannot be
@@ -61,8 +63,6 @@ Two requirements look odd and are deliberate:
   that catches a phase run against a tree where its predecessor never
   happened. `testing/phases.test.sh` refuses a requirement on a hook-only
   phase.
-- **`08-docs` requires `06-console`, not `07-domain`**, so a bootstrap that
-  skips the custom domain still reaches it.
 
 ## Inputs
 
@@ -76,12 +76,11 @@ same words.
 | `productname` | yes | display name |
 | `productdomain` | yes | the apex domain the product answers on; it does not need to exist yet |
 | `githuborg` | yes | the org or user the repo lives under. The console fills it from the chosen repository's owner |
-| `subdomain` | — | the Cloudflare **account's** workers.dev subdomain. The default is a placeholder; see below |
+| `subdomain` | — | workers.dev subdomain of the Cloudflare **account** you deploy into. A console or `--from bst_…` build reads it from the Cloudflare connection; pass it only for a hand-run build. The default is a placeholder; see below |
 | `apibaseurl` | — | the CLI/SDK default API base; empty means `https://api.<productdomain>` |
 | `orunWorkspace` | — | workspace id. Unset, it is the workspace the build runs in (`from: workspace`, ORUN_WORKSPACE, which a console build always has); with none anywhere, 01 writes the placeholder `ws_SET_ME`, which fails loudly rather than silently cross-tenanting |
 | `epicSlug` | — | default `infra-baselining`; the epic every phase files its task under, found by slug so a fresh run and a resumed run find the same work |
 | `repoPrivate` | — | default `true`; applied only when `01-scaffold` creates the repo — an existing repo keeps its visibility |
-| `domain` | — | default `false`; `true` runs `07-domain` (read that page first) |
 | `pascalName`, `brandSlug`, `cliBin`, `salesEmail` | — | rebrand overrides. Empty, the first three derive from the names above (`brandSlug`, the worker prefix, from `reponame`); an empty `salesEmail` keeps the baseline mailbox |
 
 **`subdomain` is not the product name.** Every generated URL and the
@@ -89,10 +88,15 @@ api-edge CORS allowlist derive from it, so a wrong value ships a product
 that deploys cleanly and is unreachable at every address it advertises —
 and the `/health` probes of 05, 06 and 08 fail against hosts that were never
 going to exist. Find it under Workers & Pages in the Cloudflare dashboard.
+A build started from the console, or with `orun baseline new --from bst_…`,
+never asks for it: `blueprint.yaml` declares
+`from: connection.cloudflare.workersSubdomain`, so the platform reads it from
+the workspace's Cloudflare connection, the same one the deploy tokens mint
+from. Only a hand-run build passes it.
 
 `01-scaffold` writes the answers into the product as
 `.rebrand/values.json`, which is committed. Every later phase's rebrand hook
-reads it, and it carries `githuborg`, `epicSlug` and `domain` too, so a phase
+reads it, and it carries `githuborg` and `epicSlug` too, so a phase
 run months later in a fresh container can recover what the operator
 answered (orun's own record, `.orun/provenance.lock`, is gitignored and does
 not survive a container). The blueprint's **required** inputs are still
@@ -171,8 +175,7 @@ Why it can run unattended:
   reverting your product's identity to `lumen`. Re-place one deliberately
   with `--phase <name>`.
 - `04-workers-restore` and `08-docs` place no files, so they derive as
-  `unknown`; `07-domain` derives as `skipped` unless `domain=true`.
-  `--status` prints all of this without writing anything.
+  `unknown`. `--status` prints all of this without writing anything.
 - **Git-level idempotence is not deploy-level idempotence.** The product's
   CI plans `--changed`: a component deploys only when its files changed in
   the push. If a convergence is still red after the watch has spent its
@@ -264,8 +267,7 @@ never product content. The whole design:
 `specs/epics/saas-baseline-tracking/`.
 
 The console previews the same programme from `blueprint.yaml`'s
-`programme:` block — the epic and its eight milestones, with `07-domain`
-marked conditional.
+`programme:` block — the epic and its seven milestones.
 
 ## Why there is one document
 

@@ -103,6 +103,19 @@ spec:
       pattern: "^[a-z0-9][a-z0-9-]{0,62}$"
       help: The workers.dev subdomain on the Cloudflare account this builds into.
       example: acme
+      # READ FROM THE CLOUDFLARE CONNECTION, not asked. The subdomain belongs
+      # to the account the same way its id does, and there is exactly one
+      # right answer — a typed one could only be wrong, and wrong showed up
+      # after deploy, in CORS, OAuth origins, smoke checks and the verify URLs
+      # below. The integration reads it from Cloudflare at connect and on its
+      # hourly health check; the bootstrap door fills this input from the
+      # connection the build is BOUND to, the same one CLOUDFLARE_ACCOUNT_ID
+      # and the deploy tokens mint from, so all three name one account.
+      #
+      # No orun action and no `probe:` is needed, because the platform already
+      # holds the fact. An account with no workers.dev subdomain refuses the
+      # build at the door, naming the fix, before anything is created.
+      from: connection.cloudflare.workersSubdomain
 
   # ── PREVIEW ONLY. `repo-blueprint.yaml`'s `integrations/reconcile` hooks
   # mint these, brokered, during phase 03. ────────────────────────────────
@@ -141,7 +154,7 @@ spec:
   # these. Idempotent by identity — epic by slug, milestone by name-within-epic
   # — so a re-run finds what it made before. The console renders the programme
   # so an operator can see the shape of the work before pressing Build.
-  # Ten phases, eight milestones: `03-infrastructure-database` and
+  # Nine phases, seven milestones: `03-infrastructure-database` and
   # `04-workers-restore` are second landings of 03 and 04, and file under them.
   programme:
     epicSlug: infra-baselining         # = repo-blueprint.yaml's `epicSlug` default
@@ -152,13 +165,11 @@ spec:
       - name: 03-infrastructure
       - name: 04-workers
       - name: 05-edge
+      # The custom-domain component lands in 06-console, parked (it
+      # subscribes to no environment until an owner wires a zone), so the
+      # optional 07-domain milestone and the `domain` input that switched it
+      # on are gone. The numbering keeps its gaps so 08 keeps its name.
       - name: 06-console
-      # 07-domain carries `when: inputs.domain` in repo-blueprint.yaml (it
-      # needs the Cloudflare zone to already exist), so its milestone is
-      # ensured only on a run that asks for it. Declared with its condition
-      # rather than silently listed, so the console can say so.
-      - name: 07-domain
-        when: domain
       - name: 08-docs
 
   bootstrap:

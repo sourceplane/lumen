@@ -25,8 +25,7 @@ this credential" rather than a failed render.
 
 ## Steps
 
-1. **requires** — `06-console` placed. Not `07-domain`, so a bootstrap that
-   skips the custom domain still reaches this phase.
+1. **requires** — `06-console` placed.
 2. **pre** — the phase's task.
 3. **render** — a `post` hook runs `hooks/render-deployment-docs.sh . <workspace>
    <baseline-dir>` from the baseline checkout. It reads identity from
@@ -46,8 +45,9 @@ this credential" rather than a failed render.
 
 - Right after [phase 06](06-console.md) — the "working baseline" moment —
   to record it.
-- Again after [phase 07](07-domain.md), once the domain actually resolves,
-  so the manifest picks up the custom-domain URLs.
+- Again once the custom domain is wired (see
+  [06-console](06-console.md#the-custom-domain--parked)) and actually
+  resolves, so the manifest picks up the custom-domain URLs.
 - Any time later as a **live-state refresh**: the manifest is regenerated
   from scratch on every run and carries its own render timestamp. The
   product's `ai/context/operations.md` carries the same command for its own
