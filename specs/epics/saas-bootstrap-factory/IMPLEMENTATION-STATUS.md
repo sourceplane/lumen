@@ -49,3 +49,61 @@ with no workers.dev subdomain refuses the build at the door, naming the fix.
 | manifest, phases, coverage, rebrand | all pass |
 | mutation: `cloudflare` removed from the card's `spec.requires.integrations` | `manifest.test.sh` fails (exit 1) naming `inputs[subdomain]` — "there is no connection to read it from"; restored, it passes |
 | `orun new --status`, `testing/leak.test.sh`, `testing/placement.test.sh` (orun 2.58.11, the CI pin) | pass — 1103 files derived and placed, unchanged |
+
+## The `domain` input, removed (2026-10-21, `baseline-v30`)
+
+Ported from cirrus-baseline (its #31). `07-domain` was the one conditional
+phase: `when: inputs.domain`, off by default, landing a single component,
+`cloudflare-domain`. That component ships PARKED — `subscribe.environments:
+[]` — so CI plans no lanes for it and the phase's convergence was a green run
+with nothing in it. A landing that deploys nothing, behind a switch that turns
+on a component which is already off, was one more question and one more PR for
+no effect. Cirrus has one landing and folded the component into `01-product`;
+Lumen keeps its landings, so it folds into `06-console`, the last landing that
+converges a deploy and the one that places `web-console-next`, which the
+component routes and `dependsOn`.
+
+### What shipped
+
+- `repo-blueprint.yaml`: the `domain` input is gone, and with it the
+  `"domain"` key of the `.rebrand/values.json` template; `cloudflare-domain`
+  joins `06-console`'s modules; the `07-domain` phase is deleted. Nine phases
+  remain; the numbering keeps its gap so `08-docs` keeps its name. `08-docs`
+  already required `06-console`.
+- `blueprint.yaml`: the programme lists seven milestones; `07-domain` (and its
+  `when: domain`) is gone.
+- `tasks/07-domain.TaskContract.yaml` and `docs/phases/07-domain.md` are
+  deleted. What the page said that is still true — the component ships parked,
+  its custom-domain attachment is fenced off mid-migration to provider v5, the
+  zone must exist in the account first, wiring it is restoring the
+  commented-out `subscribe` block — is now a section of
+  `docs/phases/06-console.md`, and `ai/context/operations.md` (which ships)
+  says the same without naming a factory path.
+- `06-console`'s task contract leaves `cloudflare-domain` out of `affects`:
+  that list is what the convergence deploys, and a parked component deploys
+  nothing.
+- `tests/fixtures/acme.json` loses `"domain": false`.
+
+### What the tests had to become
+
+- `testing/phases.test.sh` has no FOLDED map, so its partition records the
+  move in place: `06-console` expects `cloudflare-domain`, with a comment
+  saying why, and the gate still proves the component moved whole and nothing
+  moved with it.
+- `testing/leak.test.sh` and `testing/placement.test.sh` no longer force
+  `domain` on: `06-console` places the component on every build, so the gates
+  cover it without help. The placement tier's phased sequence now places
+  `08-docs` after `06-console` — it requires the drifted `06-console`, the
+  exact case BE-O12 fixed.
+- `testing/manifest.test.sh` (comments only) no longer lists `domain` among
+  the blueprint's build-driving inputs.
+
+### Verification
+
+| check | result |
+|---|---|
+| manifest, phases, coverage, rebrand | all pass — 7 milestones agree; 9 phases, 65 modules |
+| `orun new --status` (orun 2.58.11, the CI pin) | parses; nine phases derived |
+| `testing/leak.test.sh` (orun 2.58.11) | pass — 1103 files derived, 2 context files, no factory paths |
+| `testing/placement.test.sh` (orun 2.58.11) | pass — 1103 product files, the same count as with `domain` forced on before; `01 → 08` place through the rebrand; `--resume` keeps the branding |
+| derived file set against `main` with `domain=true` | identical: 1103 files, and `06-console`'s 186 are exactly `main`'s 06-console (176) plus 07-domain (10) |

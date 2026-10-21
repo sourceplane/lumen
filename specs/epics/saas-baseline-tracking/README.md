@@ -53,6 +53,13 @@ folder records what was ported here and where Lumen differs.
 - **The rehearsal.** One real Lumen bootstrap with `track=true` whose epic
   rollup reads `8/8 done`, recorded here with the task keys.
 
+> **Since then.** The flows became `repo-blueprint.yaml`, and in
+> `baseline-v30` the `domain` input was removed: `07-domain`'s one component
+> ships parked, so it lands in `06-console`. A bootstrap today opens seven
+> milestones (`01-scaffold` to `06-console`, then `08-docs`), so the rollup to
+> look for is `7/7`. The text above is the shape BT shipped, kept as the
+> record.
+
 ## Agent brief v2 — one command, four kinds of line
 
 Ported from cirrus (its #36). The brief is 65 lines: ask three questions,

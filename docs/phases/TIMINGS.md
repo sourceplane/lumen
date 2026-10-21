@@ -44,13 +44,12 @@ quotes to an operator ("About N minutes").
 | `04-workers-restore` | 5 | **estimate** | — as its own phase; its convergence was the 10m54s inside vela's 31m | billing + membership redeploy |
 | `05-edge` | 5 | measured | 5m22s vela; 5m03s ambient | land → converge → `/health` probes |
 | `06-console` | 16 | measured | 15m37s vela (all 3 resumes, self-healed); 14m01s ambient (0 resumes) | console builds are heavy |
-| `07-domain` | 5 | **estimate, never run** | — | today its convergence plans nothing ([07-domain.md](07-domain.md)) |
 | `08-docs` | 1 | **estimate** | — (neither run's table records it) | probe + render + land |
 | tracking (BT) | seconds per landing | **estimate** | — | one task lookup and at most two creates per landing, plus the epic once |
 
 **Totals.** Measured: ~73m for 01–06 on vela, ~60m for 02–06 on ambient. The
 card (`blueprint.yaml`) promises ~60–75 minutes and budgets 75. The
-per-phase numbers above sum to 84 without `07-domain` — they overstate,
+per-phase numbers above sum to 84 — they overstate,
 because `04-workers`' 31 is vela's figure for the old phase 04, which already
 contained the restore landing that `04-workers-restore` budgets again.
 Budget **60–75 minutes**, and treat the 04 pair as ~20–31 between them.
@@ -85,7 +84,9 @@ unchanged is a document nobody checked.
    over `ORUN_TOKEN`.
 5. **A convergence that follows a commit touching NO components** plans zero
    lanes and reads "green". The phase's verify hook is the real gate; never
-   trust a green run without one. (`07-domain` is exactly this case today.)
+   trust a green run without one. (It is why the parked custom-domain
+   component no longer has a landing of its own: as `07-domain` it was
+   exactly this case. It lands in `06-console` now.)
 
 ## Defect log from the measured runs
 

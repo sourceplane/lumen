@@ -27,14 +27,12 @@ trap 'rm -rf "$scratch"' EXIT
 
 echo "── deriving what every phase would place"
 # Inputs come from the fixture, so a new required input fails HERE rather than
-# in front of an operator. `domain` is forced on: 07-domain is conditional, and
-# a gate that never looks at a phase cannot vouch for it.
+# in front of an operator.
 sets=()
 while IFS=$'\t' read -r k v; do sets+=( --set "$k=$v" ); done < <(
   python3 - "$root/tests/fixtures/acme.json" <<'PY'
 import json, sys
 vals = json.load(open(sys.argv[1]))
-vals["domain"] = True
 for k, v in vals.items():
     if k.startswith("_"):
         continue

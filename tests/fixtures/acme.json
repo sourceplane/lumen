@@ -16,6 +16,5 @@
   "githuborg": "acme-inc",
   "subdomain": "acme",
   "orunWorkspace": "ws_0000000000000000000000000000000f",
-  "epicSlug": "infra-baselining",
-  "domain": false
+  "epicSlug": "infra-baselining"
 }

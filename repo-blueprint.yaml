@@ -84,9 +84,10 @@ inputs:
       the build runs in; with none anywhere, the scaffold writes a placeholder
       that fails loudly rather than silently cross-tenanting.
   # ── The facts the phases below need and the flows used to hold. They were
-  # workflow inputs (`githuborg`, `epicslug`, `domain` on the flows' per-phase
-  # workflow.yaml), which made them invisible to anything reading this file —
-  # including the console that has to render a form.
+  # workflow inputs (`githuborg`, `epicslug` — and `domain`, gone since the
+  # custom-domain component lands with the console, parked — on the flows'
+  # per-phase workflow.yaml), which made them invisible to anything reading
+  # this file — including the console that has to render a form.
   githuborg:
     type: string
     pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$"
@@ -110,14 +111,6 @@ inputs:
       cannot be un-made retroactively for anything already pushed.
       `orun.repo/ensure@v1` only sets this at creation: an existing repository
       keeps whatever visibility it already has.
-  domain:
-    type: boolean
-    default: false
-    description: >-
-      Whether to wire the product's custom domain (phase 07). It needs the
-      Cloudflare zone to already exist, so it is off unless asked for — the
-      condition the umbrella carried as a shell `[ = "true" ]` test and phase
-      07 now carries as its own `when:`.
 
 # ── SOURCES ───────────────────────────────────────────────────────────────
 # The baseline is this repo itself. Run `orun new` from the Lumen repo root so
@@ -633,7 +626,7 @@ modules:
   #    records the non-secret inputs in .orun/provenance.lock, but `.orun/` is
   #    gitignored in the product, so it has never survived a container — this
   #    file is committed, which is why every input a later phase needs must
-  #    appear here. githuborg/epicSlug/domain are here for exactly that: a
+  #    appear here. githuborg/epicSlug are here for exactly that: a
   #    phase run months later in a fresh container reads them back.
   - name: rebrand-values
     mode: template
@@ -651,8 +644,7 @@ modules:
           "salesEmail": "{{ .salesEmail }}"{{ end }},
           "orunWorkspace": "{{ .orunWorkspace }}",
           "githuborg": "{{ .githuborg }}",
-          "epicSlug": "{{ .epicSlug }}",
-          "domain": {{ if .domain }}true{{ else }}false{{ end }}
+          "epicSlug": "{{ .epicSlug }}"
         }
 
 # ── PHASES ────────────────────────────────────────────────────────────────
@@ -1320,6 +1312,14 @@ phases:
               - "https://{{ .inputs.reponame }}-api-edge-stage.{{ .inputs.subdomain }}.workers.dev/health"
               - "https://{{ .inputs.reponame }}-api-edge-prod.{{ .inputs.subdomain }}.workers.dev/health"
 
+  # The custom-domain component lands here too, PARKED: it subscribes to no
+  # environment until an owner wires a zone (the commented-out `subscribe`
+  # block in infra/terraform/cloudflare-domain/component.yaml), so a landing of
+  # its own changed nothing live. It belongs with the last landing that
+  # converges a deploy because it routes the DEPLOYED console and edge (it
+  # `dependsOn` web-console-next). It was the optional 07-domain phase, behind
+  # a `domain` input, until that input was removed; the numbering keeps its
+  # gap so 08-docs keeps its name.
   - name: 06-console
     title: The web console
     expectedMinutes: 16
@@ -1328,7 +1328,7 @@ phases:
       await:  "The console is building. This is the second-longest wait of the build."
       done:   "The console is live on stage and prod, talking to the edge. {{ .meta.elapsed }}."
       failed: "The console did not build. The build log above carries the error."
-    modules: [web-console-next, web-console-next-tests]
+    modules: [cloudflare-domain, web-console-next, web-console-next-tests]
     requires:
       phases: [05-edge]
     hooks:
@@ -1382,63 +1382,6 @@ phases:
               - "https://{{ .inputs.reponame }}-web-console-next-stage.{{ .inputs.subdomain }}.workers.dev"
               - "https://{{ .inputs.reponame }}-api-edge-prod.{{ .inputs.subdomain }}.workers.dev/health"
               - "https://{{ .inputs.reponame }}-web-console-next-prod.{{ .inputs.subdomain }}.workers.dev"
-
-  # cloudflare-domain trails the console because it wires the DEPLOYED
-  # console's custom domain. `when:` is the condition the umbrella carried as
-  # `[ "{{ inputs.domain }}" = "true" ]` in shell — a phase that declares when
-  # it runs beats a caller remembering not to ask for it.
-  - name: 07-domain
-    title: The custom domain
-    expectedMinutes: 5
-    narrate:
-      start:  "Now placing the custom-domain component for {{ .inputs.productdomain }} — the zone and the console's custom domains."
-      await:  "Waiting for the convergence run that follows the domain PR."
-      done:   "The custom-domain component is in the repository. It subscribes to no environment yet, so nothing is attached until it does — docs/phases/07-domain.md says what to change."
-      failed: "The domain phase did not land. Check that the zone for {{ .inputs.productdomain }} exists in this Cloudflare account."
-    modules: [cloudflare-domain]
-    when: inputs.domain
-    requires:
-      phases: [06-console]
-    hooks:
-      pre:
-        - id: task
-          uses: orun.task/ensure@v1
-          with:
-            kind: task
-            epic: "{{ .inputs.epicSlug }}"
-            milestone: "{{ .phase.name }}"
-            name: "phase({{ .phase.name }}): custom domain"
-            prefix: BASE
-            contract: tasks/07-domain.TaskContract.yaml
-      post:
-        # Brand what this phase placed before it lands (see 02-foundation).
-        - id: stage
-          run: ["git", "add", "-A"]
-        - id: rebrand
-          run: ["node", "{{ .baseline.dir }}/tooling/rebrand/rebrand.mjs", "--values", ".rebrand/values.json", "--allow-dirty"]
-        - id: restage
-          run: ["git", "add", "-A"]
-        - id: rebrand-verify
-          run: ["node", "{{ .baseline.dir }}/tooling/rebrand/rebrand.mjs", "--verify", "--values", ".rebrand/values.json"]
-        - id: pnpm-lockfile
-          run: ["pnpm", "install", "--lockfile-only"]
-        - id: land
-          uses: orun.pr/land@v1
-          narrate: "The domain PR is merged into main."
-          with:
-            task: "{{ .phase.hooks.task.outputs.key }}"
-            epic: "{{ .inputs.epicSlug }}"
-            branchSlug: "{{ .phase.name }}"
-            title: "phase({{ .phase.name }}): custom domain"
-      await:
-        - id: converge
-          uses: orun.run/watch@v1
-          narrate: "The convergence run after the domain PR came back green."
-          with:
-            sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
-            repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
-            resumeBudget: 3
-            waitSeconds: 1800
 
   # Places nothing. It records what the other phases built, from PROBED facts
   # rather than from what the blueprint intended — which is why it runs last

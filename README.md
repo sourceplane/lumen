@@ -42,10 +42,10 @@ _Not yet recorded — run [`08-docs`](docs/phases/08-docs.md) after
 
 This baseline births new products from one artifact — `repo-blueprint.yaml`,
 run by `orun new` (**[BOOTSTRAP.md](BOOTSTRAP.md)** →
-[docs/phases/](docs/phases/README.md)). It declares ten idempotent phases —
+[docs/phases/](docs/phases/README.md)). It declares nine idempotent phases —
 scaffold, foundation, infrastructure, database, workers, workers-restore,
-edge, console, optional domain, docs — each landing a verified slice, each
-selectable with `--phase <name>`.
+edge, console (with the custom-domain component, parked), docs — each landing
+a verified slice, each selectable with `--phase <name>`.
 Products receive **product-only content** (source, infra, CI, their own
 docs); none of this baseline's machinery ships, and a product's docs speak
 only about the product.

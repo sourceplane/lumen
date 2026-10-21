@@ -2,7 +2,8 @@
 
 Lands the **web console** (`repo-blueprint.yaml`, phase `06-console`) — the
 product UI served from Workers static assets — and proves both it and the
-edge it talks to live.
+edge it talks to live. The custom-domain component lands with it, parked
+([below](#the-custom-domain--parked)).
 
 ## What it lands
 
@@ -11,6 +12,52 @@ deployed as a Cloudflare worker with static assets, configured against the
 phase 05 edge. Console builds are the heaviest lane in the product, which is
 why this phase's landing waits up to 45 minutes for its PR and its
 convergence watch up to 45 minutes too.
+
+`infra/terraform/cloudflare-domain` lands in the same pull request, parked.
+`testing/phases.test.sh` holds the set: modules move whole, and nothing else
+moves with them.
+
+## The custom domain — parked
+
+`infra/terraform/cloudflare-domain` — the zone lookup and, once wired, a
+custom domain per environment for the console worker
+(`CONSOLE_CUSTOM_DOMAIN` in the product's `intent.yaml`:
+`stage.<productdomain>` and `prod.<productdomain>` after rebrand, empty for
+`dev`) — lands with the console and **deploys nothing**, for two reasons
+that live in the component rather than in the phase:
+
+1. **It ships parked.** Its `component.yaml` declares
+   `subscribe.environments: []`, so CI plans no lanes for it. The product
+   runs on workers.dev URLs until an owner wires it.
+2. **The attachment is fenced off.** The component is midway through a
+   two-step migration to Cloudflare provider v5: the v4
+   `cloudflare_workers_domain` resource was dropped from state and its block
+   is commented out until the v5 `cloudflare_workers_custom_domain` replaces
+   it. Un-parked as it stands, the root would look up the zone and attach
+   nothing.
+
+It used to land on its own as the optional `07-domain` phase, behind a
+`domain` input. That landing deployed nothing either — its convergence was a
+green run with nothing in it — so the phase and the switch are gone, and
+this phase's task contract leaves the component out of `affects`: there is
+nothing in it to re-plan.
+
+Wiring it is a normal pull request in the product, once the zone exists:
+
+1. **The zone first.** The product zone (e.g. `acme.dev`) must already exist
+   in the Cloudflare account the product deploys into, created in the
+   dashboard; zone creation is an account-plan operation the platform does
+   not broker. The component runs with `zoneMode: existing`: it looks the
+   zone up by `baseDomain` and manages records and custom domains IN it, not
+   the zone itself. Without the zone a plan fails with `no zone found` (or
+   the brokered token's account is not the zone's).
+2. **Finish the v5 resource and restore the `subscribe` block** the
+   component carries commented out — both are described in its own comments,
+   and its `README.md` says where the migration stands.
+3. **Land it.** The convergence on `main` applies it; check the product
+   resolves on its own domain (DNS propagation applies), then re-run
+   [`08-docs`](08-docs.md) so the deployment manifest records the
+   custom-domain URLs.
 
 ## Inputs
 
@@ -79,9 +126,8 @@ nothing new, and the `await` hooks re-probe.
 
 ## Next
 
-[Phase 08 — docs](08-docs.md) records what was built. Optional
-[phase 07 — domain](07-domain.md) comes first only if you set
-`domain=true` — read that page before you do.
+[Phase 08 — docs](08-docs.md) records what was built. The custom domain is
+wired later, in an ordinary PR ([above](#the-custom-domain--parked)).
 
 Post-baseline: seed runtime worker secrets (`orun secrets set <KEY> --org
 <ws> --env <env>`; wire-now-seed-later, nothing blocks on them) and ship

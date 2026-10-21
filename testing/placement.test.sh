@@ -43,14 +43,12 @@ fails=0
 fail() { echo "  ✕ $*" >&2; fails=$((fails + 1)); }
 
 # The fixture is the source of inputs, so a new required input fails HERE rather
-# than in front of an operator. `domain` is forced on: 07-domain is conditional,
-# and a tier that never places a phase cannot vouch for it.
+# than in front of an operator.
 sets=()
 while IFS=$'\t' read -r k v; do sets+=( --set "$k=$v" ); done < <(
   python3 - "$root/tests/fixtures/acme.json" <<'PY'
 import json, sys
 vals = json.load(open(sys.argv[1]))
-vals["domain"] = True
 for k, v in vals.items():
     if k.startswith("_"):
         continue
@@ -221,7 +219,10 @@ name_after_brand="$(python3 -c "import json;print(json.load(open('$seq/package.j
 [ "$name_after_brand" = "acme-cloud" ] \
   || fail "after branding, package.json name is $name_after_brand, not the product's"
 
-for ph in 02-foundation 03-infrastructure 03-infrastructure-database 04-workers 05-edge 06-console 07-domain; do
+# 08-docs requires 06-console, which the rebrand has drifted: the case BE-O12
+# used to refuse. (The custom-domain component used to land after 06-console as
+# 07-domain; it lands in 06-console now, parked.)
+for ph in 02-foundation 03-infrastructure 03-infrastructure-database 04-workers 05-edge 06-console 08-docs; do
   if ! orun new --blueprint "$root/repo-blueprint.yaml" --out "$seq" --phase "$ph" \
        "${sets[@]}" > "$scratch/p-$ph.log" 2>&1; then
     fail "phase $ph refused after the rebrand: $(tail -1 "$scratch/p-$ph.log")"
@@ -241,7 +242,7 @@ name_after_resume="$(python3 -c "import json;print(json.load(open('$seq/package.
      $name_after_resume. A resume between phases must not un-brand a product."
 
 [ "$fails" -eq 0 ] && \
-  echo "   01 → 07 place through the rebrand; --resume leaves the branding alone"
+  echo "   01 → 08 place through the rebrand; --resume leaves the branding alone"
 
 [ "$fails" -eq 0 ] || { echo "placement.test.sh: $fails failure(s)" >&2; exit 1; }
 echo "placement.test.sh: ok"

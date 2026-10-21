@@ -51,7 +51,6 @@ gates the set, so the promise is a test rather than a claim.
 | `apibaseurl` | `https://api.acme.dev` | CLI default API base; empty derives from `productdomain` |
 | `repoPrivate` | `true` (default) | visibility at creation only |
 | `epicSlug` | `infra-baselining` (default) | the epic every phase files its task under |
-| `domain` | `false` (default) | `true` also runs `07-domain` |
 
 The full set, rebrand overrides included, is in the
 [phases README](README.md#inputs) and `repo-blueprint.yaml`'s `inputs:`
