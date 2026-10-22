@@ -107,3 +107,96 @@ component routes and `dependsOn`.
 | `testing/leak.test.sh` (orun 2.58.11) | pass — 1103 files derived, 2 context files, no factory paths |
 | `testing/placement.test.sh` (orun 2.58.11) | pass — 1103 product files, the same count as with `domain` forced on before; `01 → 08` place through the rebrand; `--resume` keeps the branding |
 | derived file set against `main` with `domain=true` | identical: 1103 files, and `06-console`'s 186 are exactly `main`'s 06-console (176) plus 07-domain (10) |
+
+## The domain is set later (2026-10-22, `baseline-v30`)
+
+Ported from turso-starter (its #9). The console card asked for the product's
+domain, with help text that said it did not need to exist — and nothing in
+the build needed one: the product answers on workers.dev from its first
+deploy, every phase probes workers.dev, and the one component that attaches
+a domain, `cloudflare-domain`, ships parked. The owner asked for the domain
+to stop being an input at bootstrap, with the logic that uses it kept where
+it is so it can be set later. Ships in `baseline-v30` with #115: the tag was
+never pushed, and the owner pushes it at this PR's merge commit, so the one
+release carries the subdomain source, the removed `domain` switch and this.
+
+### What shipped
+
+- `blueprint.yaml` declares no `productdomain` and no `apibaseurl`. The card
+  derived `apibaseurl` as `https://api.{productdomain}`, and a card can only
+  derive from inputs it declares, so it left with the domain. The console's
+  Product step asks for the display name alone.
+- `repo-blueprint.yaml`: `productdomain` is optional, default `""`, and its
+  description names where the domain goes and how it is set later;
+  `apibaseurl`'s description states the CLI rule below. The values template
+  still writes `"productdomain": ""`. A hand-run build may pass
+  `--set productdomain=` for a product that already has its domain.
+- `tooling/rebrand/rebrand.mjs` no longer requires `productdomain`. Empty, it
+  brands the reserved placeholder `<reponame>.example.com` (RFC 2606) where
+  `lumen.app` stood — intent's `BASE_DOMAIN` and `CONSOLE_CUSTOM_DOMAIN` (the
+  parked `cloudflare-domain`'s parameters, and the component's own
+  `baseDomain`), api-edge's `CONSOLE_CUSTOM_DOMAIN` (CORS), identity-worker's
+  `OAUTH_ALLOWED_CONSOLE_ORIGINS` (which also lists the workers.dev console,
+  so sign-in works without a domain), the notifications sender
+  `no-reply@mail.<domain>`, billing's `POLAR_SUCCESS_URL`, and the edge's
+  CORS test fixtures. No component logic changed. Lumen's Supabase root
+  configures no auth URLs, so nothing there names the domain.
+- The CLI's default API. `apibaseurl` fell back to `https://api.<domain>`,
+  which with the placeholder is a host that can never answer. With no domain
+  it is now the product's own prod edge on workers.dev,
+  `https://<brandSlug>-api-edge-prod.<subdomain>.workers.dev` — the worker
+  rule's name for `lumen-api-edge` deployed `--env prod`, live from the first
+  deploy. With a domain it stays `https://api.<domain>`; an explicit
+  `apibaseurl` still wins.
+- `hooks/render-deployment-docs.sh` already probed the custom domain only
+  when `.rebrand/values.json` records one, so the empty value skips it; it
+  now also treats the `*.example.com` placeholder as no domain, and its
+  narration no longer names the removed `07-domain`.
+- The shipped `ai/context/operations.md` gains "Setting the domain later":
+  every place the domain goes, then replace the placeholder
+  (`git grep -lF`), create the zone and restore `cloudflare-domain`'s
+  commented-out `subscribe` block, verify the mail domain, Supabase auth URLs
+  (none configured), re-point the CLI default if wanted, merge, run the docs
+  flow. It names the baseline's `lumen.app`, which the rebrand turns into
+  the product's own placeholder, and no factory path.
+- `BOOTSTRAP.md`, `docs/phases/README.md`, `docs/phases/01-scaffold.md` and
+  the required-inputs sentence of five phase pages: three required inputs
+  (`reponame`, `productname`, `githuborg`); `productdomain` NOT ASKED;
+  `06-console.md` and `08-docs.md` say the custom domain is the placeholder
+  until set. The troubleshooting row for a missing input names
+  `productname`.
+
+### What the tests had to become
+
+- `tests/fixtures/acme.json` carries no domain, so the leak gate and the
+  placement tier exercise exactly what a console build supplies.
+- `testing/placement.test.sh` read the card's `derive` and exited "gone
+  blind" without it. It now checks the value a no-domain product gets: its
+  `DEFAULT_API_URL` must be the PLACED, BRANDED api-edge's wrangler name plus
+  `-prod` on the fixture's subdomain (with `--env prod` read from its
+  `component.yaml`), and every `BASE_DOMAIN` / non-empty
+  `CONSOLE_CUSTOM_DOMAIN` in its `intent.yaml` must be the placeholder. It
+  refuses to pass on nothing: a fixture with a domain or an `apibaseurl`, a
+  missing worker name, deploy env, `DEFAULT_API_URL` or `BASE_DOMAIN` each
+  fail it.
+- `testing/rebrand.test.sh` gains nine checks: no domain and an empty domain
+  brand the placeholder; the OAuth origins keep the workers.dev console; the
+  no-domain CLI default is the prod edge, follows `brandSlug`, and survives
+  three passes; a given domain brands itself and `https://api.<domain>`; an
+  explicit `apibaseurl` wins.
+- `testing/manifest.test.sh` (comment only): the derive-agreement check has
+  nothing to hold today and stays for the next derived input.
+- `baseline.yml`'s blueprint read sets no domain, so CI proves the document
+  resolves without one.
+
+### Verification
+
+| check | result |
+|---|---|
+| manifest, phases, coverage, rebrand | all pass — 7 milestones agree; 9 phases, 65 modules; 45 of 45 components; rebrand 23 checks (14 before) |
+| `orun new --status` with no `productdomain` (orun 2.58.11, the CI pin) | parses; nine phases derived |
+| `testing/leak.test.sh` (orun 2.58.11) | pass — 1103 files derived, unchanged; 2 context files, no factory paths |
+| `testing/placement.test.sh` (orun 2.58.11) | pass — 1103 product files, unchanged; `DEFAULT_API_URL` is `https://acme-cloud-api-edge-prod.acme.workers.dev`; the placeholder `acme-cloud.example.com` in `BASE_DOMAIN` ×3 and `CONSOLE_CUSTOM_DOMAIN` ×2, 10 files carry it; `01 → 08` place through the rebrand |
+| mutation: the old CLI rule (`https://api.<domain>` always) | `rebrand.test.sh` fails 3 checks, `placement.test.sh` fails naming `https://api.acme-cloud.example.com`; restored, both pass |
+| mutation: no placeholder (empty domain stays empty) | `rebrand.test.sh` fails 3 checks, `placement.test.sh` fails on `BASE_DOMAIN ''`; restored, both pass |
+| the documented replacement, on a placed product | `git grep -lF acme-cloud.example.com` lists 10 files; the `perl` one-liner leaves 0, and `BASE_DOMAIN` reads `acme.dev` |

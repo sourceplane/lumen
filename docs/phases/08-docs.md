@@ -29,9 +29,10 @@ this credential" rather than a failed render.
 2. **pre** — the phase's task.
 3. **render** — a `post` hook runs `hooks/render-deployment-docs.sh . <workspace>
    <baseline-dir>` from the baseline checkout. It reads identity from
-   `.rebrand/values.json`, probes the four public URLs (and
-   `api.<productdomain>/health` and `app.<productdomain>`, reported as
-   pending when they do not answer), lists secrets and integrations by name
+   `.rebrand/values.json`, probes the four public URLs (and, when that file
+   records a domain, `api.<productdomain>/health` and `app.<productdomain>`,
+   reported as pending when they do not answer — a product built without a
+   domain records none, so they are skipped), lists secrets and integrations by name
    with `orun secrets list` / `orun integrations list`, and renders the files
    above. It refuses to finish if a `TBD_08DOCS` placeholder survives.
 4. **land** — `orun.pr/land@v1`: PR `docs(deployment): record live
@@ -56,7 +57,7 @@ this credential" rather than a failed render.
 ## Inputs
 
 `--out` is the product repo. The blueprint's required inputs — `reponame`,
-`productname`, `productdomain`, `githuborg` — are validated before any phase
+`productname`, `githuborg` — are validated before any phase
 runs, so pass them on every invocation; the product's own
 `.rebrand/values.json` is a complete values file. The renderer also takes
 `orunWorkspace`, which that file records. See

@@ -64,7 +64,7 @@ PRs and two task contracts, are two phases here.
 ## Inputs
 
 `--out` is the product repo. The blueprint's required inputs — `reponame`,
-`productname`, `productdomain`, `githuborg` — are validated before any phase
+`productname`, `githuborg` — are validated before any phase
 runs, so pass them on every invocation; the product's own
 `.rebrand/values.json` is a complete values file. See
 [the phases README](README.md#inputs).

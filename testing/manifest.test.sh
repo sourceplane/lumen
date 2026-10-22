@@ -193,6 +193,13 @@ for path in manifests:
         # run by hand passes nothing and rebrand's fallback wins. One rule, two
         # implementations — which is the thing this file's header warns about,
         # unless something holds them equal. This does.
+        #
+        # Since the console stopped asking for the domain, the card derives
+        # nothing: `apibaseurl` left it with `productdomain` (a card can only
+        # derive from inputs it declares), and rebrand's fallback alone picks
+        # the value — `https://api.<domain>`, or with no domain the product's
+        # prod edge on workers.dev, which placement.test.sh checks in a placed
+        # product. This stays for the next input that derives.
         if derive is not None and (root / REBRAND).exists():
             js = (root / REBRAND).read_text(errors="replace")
             for m in re.finditer(r"const (\w+) = values\.\w+ \?\? `([^`]+)`", js):
