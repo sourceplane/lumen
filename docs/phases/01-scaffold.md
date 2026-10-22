@@ -44,11 +44,11 @@ gates the set, so the promise is a test rather than a claim.
 | `--out` | `$HOME/sourceplane/acme` | a flag, not an input; created if absent |
 | `reponame` | `acme` | REQUIRED. Lowercase slug (`^[a-z][a-z0-9-]*$`); repo becomes `<githuborg>/<reponame>` |
 | `productname` | `Acme Cloud` | REQUIRED. Display name |
-| `productdomain` | `acme.dev` | REQUIRED. Product domain |
+| `productdomain` | — (default empty) | NOT ASKED. Empty brands the placeholder `<reponame>.example.com` where the domain goes, for an owner to replace later; pass it only for a product that already has its domain |
 | `githuborg` | `sourceplane` | REQUIRED. The org or user the repo is created under |
 | `orunWorkspace` | `ws_ABCD1234` | workspace id. Unset, the workspace the build runs in (ORUN_WORKSPACE); with none anywhere, the placeholder `ws_SET_ME` |
 | `subdomain` | `rahulvarghesepullely` | workers.dev subdomain of the Cloudflare account you deploy into — every URL derives from it (worker names are brand-prefixed, so keeping the baseline's account is supported). A console or `--from bst_…` build reads it from the Cloudflare connection; pass it only for a hand-run build |
-| `apibaseurl` | `https://api.acme.dev` | CLI default API base; empty derives from `productdomain` |
+| `apibaseurl` | — (default empty) | CLI default API base; empty derives `https://api.<productdomain>`, or with no domain the prod edge, `https://<brandSlug>-api-edge-prod.<subdomain>.workers.dev` |
 | `repoPrivate` | `true` (default) | visibility at creation only |
 | `epicSlug` | `infra-baselining` (default) | the epic every phase files its task under |
 
@@ -149,7 +149,6 @@ orun new --blueprint repo-blueprint.yaml \
   --out $HOME/sourceplane/acme --run-hooks --phase 01-scaffold \
   --set reponame=acme \
   --set productname="Acme Cloud" \
-  --set productdomain=acme.dev \
   --set githuborg=sourceplane \
   --set orunWorkspace=ws_ABCD1234 \
   --set subdomain=rahulvarghesepullely

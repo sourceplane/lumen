@@ -74,10 +74,10 @@ same words.
 |---|---|---|
 | `reponame` | yes | lowercase slug (`^[a-z][a-z0-9-]*$`); the repo becomes `<githuborg>/<reponame>`, and it prefixes the Supabase projects and every worker. The console fills it from the chosen repository |
 | `productname` | yes | display name |
-| `productdomain` | yes | the apex domain the product answers on; it does not need to exist yet |
+| `productdomain` | — | NOT ASKED, default empty. The product goes live on workers.dev; empty brands the reserved placeholder `<reponame>.example.com` wherever the domain goes (intent's `BASE_DOMAIN` / `CONSOLE_CUSTOM_DOMAIN`, the edge and identity console origins, the mail sender, the billing return URLs), for an owner to replace later (the product's `ai/context/operations.md`, "Setting the domain later"). Pass it only for a product that already has its domain |
 | `githuborg` | yes | the org or user the repo lives under. The console fills it from the chosen repository's owner |
 | `subdomain` | — | workers.dev subdomain of the Cloudflare **account** you deploy into. A console or `--from bst_…` build reads it from the Cloudflare connection; pass it only for a hand-run build. The default is a placeholder; see below |
-| `apibaseurl` | — | the CLI/SDK default API base; empty means `https://api.<productdomain>` |
+| `apibaseurl` | — | the CLI default API base. Empty, it is `https://api.<productdomain>` when a domain is given, and otherwise the product's own prod edge on workers.dev, `https://<brandSlug>-api-edge-prod.<subdomain>.workers.dev`. Not on the card: it was derived from the domain |
 | `orunWorkspace` | — | workspace id. Unset, it is the workspace the build runs in (`from: workspace`, ORUN_WORKSPACE, which a console build always has); with none anywhere, 01 writes the placeholder `ws_SET_ME`, which fails loudly rather than silently cross-tenanting |
 | `epicSlug` | — | default `infra-baselining`; the epic every phase files its task under, found by slug so a fresh run and a resumed run find the same work |
 | `repoPrivate` | — | default `true`; applied only when `01-scaffold` creates the repo — an existing repo keeps its visibility |

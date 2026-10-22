@@ -95,12 +95,13 @@ jobs:
           set -euo pipefail
           orun --version
           # Inputs that are `required: true` must be supplied for the document
-          # to resolve; the values are arbitrary and nothing is written.
+          # to resolve; the values are arbitrary and nothing is written. No
+          # domain: the console asks for none, so the document must resolve
+          # without one.
           orun new --blueprint repo-blueprint.yaml --status \
             --out "$(mktemp -d)" \
             --set reponame=acme-cloud \
             --set "productname=Acme Cloud" \
-            --set productdomain=acme.dev \
             --set githuborg=acme-inc
       # Tier 1's leak gate. It derives what every phase WOULD place and gates
       # that set — so it needs orun, which is why it rides this job rather than

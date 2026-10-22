@@ -61,6 +61,18 @@ spec:
     # The cost lands here. An `askedBy: agent` input was exempt from `pattern`,
     # because prose asked for it and prose does not validate. Every input now
     # carries the rule its value is checked against before Continue.
+    #
+    # THE DOMAIN IS NOT ASKED. The product goes live on workers.dev, and a
+    # domain is an owner's step after the bootstrap: `productdomain` defaults
+    # to empty in repo-blueprint.yaml, and the rebrand writes the reserved
+    # placeholder `<reponame>.example.com` wherever the domain goes (intent's
+    # BASE_DOMAIN and CONSOLE_CUSTOM_DOMAIN, the edge and identity origins, the
+    # mail sender, the billing return URLs) for the product's
+    # ai/context/operations.md, "Setting the domain later", to replace. Nothing
+    # that needs a domain is removed — it waits for one. `apibaseurl` went with
+    # it: it was derived from `{productdomain}`, and a card can only derive
+    # from inputs it declares. With no domain, the CLI's default API is the
+    # product's own prod edge on workers.dev (rebrand.mjs).
     - key: reponame
       label: Repo name
       pattern: "^[a-z][a-z0-9-]{1,38}$"
@@ -75,19 +87,6 @@ spec:
       pattern: "^[A-Za-z0-9][A-Za-z0-9 .,'&-]{1,48}$"
       help: The name people will see — in the console header, the emails, the docs.
       example: Acme Cloud
-    - key: productdomain
-      label: Product domain
-      pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
-      help: The apex domain the product answers on. It does not need to exist yet.
-      example: acme.dev
-    - key: apibaseurl
-      label: API base URL
-      pattern: "^https://[a-z0-9.-]+$"
-      help: Where the CLI and SDK point by default.
-      # Derived rather than asked: it is the product domain with a prefix, and
-      # a field for it is a field an operator can get subtly wrong (http, a
-      # trailing slash, api. on the wrong half) for no gain.
-      derive: "https://api.{productdomain}"
     - key: githuborg
       label: GitHub organisation
       pattern: "^[A-Za-z0-9][A-Za-z0-9-]*$"

@@ -104,6 +104,49 @@ check "a token keeps the word boundaries its value had" \
   "{$base}" apps/w/notes.yaml 'id: lumen.applumen' \
   'id: altocumulus.devlumen'
 
+# THE DOMAIN IS SET LATER. The console asks for none, so the values file a
+# console build writes has an empty `productdomain`, and the rebrand writes the
+# reserved placeholder `<reponame>.example.com` wherever the domain goes. The
+# CLI's default API cannot be `https://api.<placeholder>`, which never answers:
+# it is the product's own prod edge on workers.dev, named by the worker rule
+# (`<brandSlug>-api-edge-prod`). A hand-run build that passes a domain keeps
+# `https://api.<domain>`.
+echo "── rebrand: no domain given, and a domain given"
+nodomain='{"reponame":"acme-cloud","productname":"Acme Cloud","githuborg":"acme-inc","subdomain":"acme"}'
+check "no domain given: the reserved placeholder, for an owner to replace later" \
+  "$nodomain" intent.yaml '      BASE_DOMAIN: lumen.app' \
+  '      BASE_DOMAIN: acme-cloud.example.com'
+check "an empty domain is no domain" \
+  '{"reponame":"acme-cloud","productname":"Acme Cloud","productdomain":""}' \
+  intent.yaml '      BASE_DOMAIN: lumen.app' \
+  '      BASE_DOMAIN: acme-cloud.example.com'
+check "no domain: the OAuth console origins keep the workers.dev console" \
+  "$nodomain" apps/identity-worker/wrangler.template.jsonc \
+  '        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://prod.lumen.app,https://lumen-web-console-next-prod.rahulvarghesepullely.workers.dev",' \
+  '        "OAUTH_ALLOWED_CONSOLE_ORIGINS": "https://prod.acme-cloud.example.com,https://acme-cloud-web-console-next-prod.acme.workers.dev",'
+check "no domain: the CLI defaults to the product's prod edge on workers.dev" \
+  "$nodomain" packages/cli/src/brand.ts 'export const DEFAULT_API_URL = "https://api.lumen.app";' \
+  'export const DEFAULT_API_URL = "https://acme-cloud-api-edge-prod.acme.workers.dev";'
+check "…named by the worker rule, so a brandSlug renames it too" \
+  '{"reponame":"acme-cloud","productname":"Acme Cloud","brandSlug":"acme","subdomain":"acme"}' \
+  packages/cli/src/brand.ts 'export const DEFAULT_API_URL = "https://api.lumen.app";' \
+  'export const DEFAULT_API_URL = "https://acme-api-edge-prod.acme.workers.dev";'
+check "…and survives every later phase's pass" \
+  "$nodomain" packages/cli/src/brand.ts 'export const DEFAULT_API_URL = "https://api.lumen.app";' \
+  'export const DEFAULT_API_URL = "https://acme-cloud-api-edge-prod.acme.workers.dev";' 3
+check "a domain given: the domain where the domain goes" \
+  '{"reponame":"acme-cloud","productname":"Acme Cloud","productdomain":"acme.dev","subdomain":"acme"}' \
+  intent.yaml '      BASE_DOMAIN: lumen.app' \
+  '      BASE_DOMAIN: acme.dev'
+check "a domain given: the CLI defaults to api.<domain>" \
+  '{"reponame":"acme-cloud","productname":"Acme Cloud","productdomain":"acme.dev","subdomain":"acme"}' \
+  packages/cli/src/brand.ts 'export const DEFAULT_API_URL = "https://api.lumen.app";' \
+  'export const DEFAULT_API_URL = "https://api.acme.dev";'
+check "an explicit apibaseurl wins either way" \
+  '{"reponame":"acme-cloud","productname":"Acme Cloud","apibaseurl":"https://edge.acme.dev"}' \
+  packages/cli/src/brand.ts 'export const DEFAULT_API_URL = "https://api.lumen.app";' \
+  'export const DEFAULT_API_URL = "https://edge.acme.dev";'
+
 # --verify runs in every phase of a bootstrap. Without the product's values it
 # cannot tell the product's own identity from a baseline leftover, and a product
 # whose domain contains `lumen` failed it in every phase; with them it passes.

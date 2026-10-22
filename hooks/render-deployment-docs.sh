@@ -3,7 +3,7 @@
 # Called by phase 08-docs as a `run:` hook (and safe to run by hand).
 # Idempotent: the
 # generated files and the README section are fully re-rendered on every run,
-# so re-running after phase 07 (custom domain) or any redeploy refreshes them.
+# so re-running after the custom domain is wired or any redeploy refreshes them.
 #
 #   hooks/render-deployment-docs.sh <out> <workspace> <baseline-dir>
 #
@@ -31,6 +31,10 @@ vals=".rebrand/values.json"
 repo="$(python3 -c "import json;print(json.load(open('$vals'))['reponame'])")"
 sub="$(python3 -c "import json;print(json.load(open('$vals'))['subdomain'])")"
 domain="$(python3 -c "import json;print(json.load(open('$vals')).get('productdomain',''))")"
+# A product is built with no domain (the console asks for none): values.json
+# records "" and the tree carries the reserved placeholder <reponame>.example.com
+# until an owner sets one. Neither is a domain to probe.
+case "$domain" in *.example.com) domain="" ;; esac
 
 # Workspace slug via the direct backend read (works for user sessions AND
 # workspace-scoped ORUN_TOKENs); tolerate failure — slug then shows as "?".
@@ -54,14 +58,14 @@ con_prod="https://${repo}-web-console-next-prod.${sub}.workers.dev"
 p_es="$(probe "$edge_stage/health")"; p_ep="$(probe "$edge_prod/health")"
 p_cs="$(probe "$con_stage")";        p_cp="$(probe "$con_prod")"
 
-# Custom domain (phase 07, optional): probe only if a domain is declared;
+# Custom domain (set later, by an owner): probe only if a domain is recorded;
 # an unreachable domain is reported as pending, never a failure.
 dom_rows=""
 if [ -n "$domain" ]; then
   p_da="$(probe "https://api.${domain}/health")"
   p_dc="$(probe "https://app.${domain}")"
-  dom_rows="| edge (custom domain) | https://api.${domain}/health | $( [ "$p_da" = 000 ] && echo 'pending (phase 07 not run, or DNS propagating)' || badge "$p_da" ) |
-| console (custom domain) | https://app.${domain} | $( [ "$p_dc" = 000 ] && echo 'pending (phase 07 not run, or DNS propagating)' || badge "$p_dc" ) |"
+  dom_rows="| edge (custom domain) | https://api.${domain}/health | $( [ "$p_da" = 000 ] && echo 'pending (not wired yet, or DNS propagating)' || badge "$p_da" ) |
+| console (custom domain) | https://app.${domain} | $( [ "$p_dc" = 000 ] && echo 'pending (not wired yet, or DNS propagating)' || badge "$p_dc" ) |"
 fi
 
 # Inventories — NAMES/status only, never values. Tolerant: a token that
