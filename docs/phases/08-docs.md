@@ -41,6 +41,10 @@ this credential" rather than a failed render.
    a probe alone.
 5. **verify** — an `orun.http/probe@v1` `await` hook re-probes the four URLs
    the manifest claims, trusting nothing the render step said about them.
+   It is `quiet`: the addresses are already on the build page from
+   06-console's probe, so it files no second set of them (orun ≥ the
+   saas-build-panel BV3 release; older orun ignores the key), and its own
+   line still speaks.
 
 ## When to run (and re-run)
 

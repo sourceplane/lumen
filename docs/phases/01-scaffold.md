@@ -24,14 +24,19 @@ The repo ROOT — no deployable components yet:
   ship by accident
 - `.rebrand/values.json` — the identity record every later phase reads
 - root files: `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
-  `turbo.json`, `kiox` locks, `.gitignore`, `README.md`, `.vscode/`
+  `turbo.json`, `kiox` locks, `.gitignore`
+- `README.md` and `AGENTS.md` — the product's own, rendered from
+  `.baseline/product/` with its name and repository: the front page, and the
+  page an agent handed the product reads first (what it is, what to read
+  next, how a change lands, what not to touch)
 - empty discovery roots `apps/ infra/ packages/ tests/` (with `.gitkeep`) so
   `orun new`'s repo-scale gate and the product CI can plan from birth
 
 **What deliberately does NOT land**: this baseline's machinery —
-`repo-blueprint.yaml`, `blueprint.yaml`, `BOOTSTRAP.md`, `docs/phases/`,
-`agents/`, `specs/`, `tasks/`, `hooks/`, `testing/`, the rebrand, bootstrap,
-fork and migration tooling, and `baseline.yml` (the factory's own CI, which
+`repo-blueprint.yaml`, `blueprint.yaml`, `BOOTSTRAP.md`, this repository's
+own `README.md`, `docs/phases/`, `agents/`, `specs/`, `tasks/`, `hooks/`,
+`testing/`, `.vscode/` (its agent loop), the rebrand, bootstrap, fork and
+migration tooling, and `baseline.yml` (the factory's own CI, which
 the blueprint's `ignore` list keeps out of the `.github` copy). A product
 carries product files only, and its docs never present it as a copy of
 anything. `testing/leak.test.sh` derives what every phase would place and
@@ -78,7 +83,10 @@ block.
 
    The `workspace:` rewrite exists because rebrand classifies the orun state
    backend as org-owned and leaves it alone — without it the product's CI
-   would claim the BASELINE's workspace on every remote operation.
+   would claim the BASELINE's workspace on every remote operation. It fails
+   only when `intent.yaml` has no `workspace:` line; a line that already
+   names the workspace (a build into the one the baseline declares, or a
+   re-run) is nothing to do.
 5. **repo — THE GitHub repo creation step**, an `orun.repo/ensure@v1` hook.
    Three states are supported:
    - `origin` already wired locally → push;
@@ -116,7 +124,7 @@ components and is trivially green.
 ## Re-running
 
 Idempotent: placement is additive, rebrand is a no-op on branded files, and
-`git init` / repo-ensure / link are guarded. Once the tree is branded this
+`git init` / the workspace rewrite / repo-ensure / link are guarded. Once the tree is branded this
 phase derives as **`drifted`**, not `done` — so `--resume` leaves it alone
 rather than reverting the product's identity to `lumen`. Re-place it
 deliberately with `--phase 01-scaffold`.

@@ -31,8 +31,11 @@ table labels every row that is an estimate because of them:
 
 ## Per-phase budget
 
-`expectedMinutes` is what the blueprint declares and what the narration
-quotes to an operator ("About N minutes").
+`expectedMinutes` is what the blueprint declares for each phase, and the
+card's `bootstrap.expectedMinutes` is their sum (`testing/manifest.test.sh`
+holds the two equal). The phases' lines no longer quote it: a build page
+shows one short line per step, and the budget is the engine's fact
+(`.meta.expectedMinutes`), not prose.
 
 | phase | `expectedMinutes` | provenance | what was measured | dominated by |
 |---|---|---|---|---|
@@ -48,11 +51,14 @@ quotes to an operator ("About N minutes").
 | tracking (BT) | seconds per landing | **estimate** | — | one task lookup and at most two creates per landing, plus the epic once |
 
 **Totals.** Measured: ~73m for 01–06 on vela, ~60m for 02–06 on ambient. The
-card (`blueprint.yaml`) promises ~60–75 minutes and budgets 75. The
-per-phase numbers above sum to 84 — they overstate,
-because `04-workers`' 31 is vela's figure for the old phase 04, which already
-contained the restore landing that `04-workers-restore` budgets again.
-Budget **60–75 minutes**, and treat the 04 pair as ~20–31 between them.
+per-phase numbers above sum to 84, and the card (`blueprint.yaml`) budgets
+exactly that: it said 75 while the phases said 84, and
+`testing/manifest.test.sh` now holds the two equal. The sum likely
+overstates, because `04-workers`' 31 is vela's figure for the old phase 04,
+which already contained the restore landing that `04-workers-restore`
+budgets again — treat the 04 pair as ~20–31 between them, and expect a clean
+run under 84. Correct the phases and the card together from the first
+measured run (below).
 
 **Replace the estimates with measurements.** After the first full bootstrap
 under the blueprint, take each phase's elapsed time from its `done` event

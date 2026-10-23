@@ -68,14 +68,29 @@ for missing in sorted(ALLOWED_AI - shipped_ai):
     bad(f"{missing} is declared a product file and would not ship")
 
 # ── the factory never ships ────────────────────────────────────────────────
+# `.vscode/tasks.json` is this repository's agent loop: it runs agents with
+# their sandbox and approvals bypassed against `agents/orchestrator.md` and
+# `ai/state.json`, which never ship (orun-cloud saas-build-panel BV4).
+# `.baseline/` holds the templates of the product's README and AGENTS.md,
+# which are placed under their own names, never from there.
 NEVER = ("flows/", "agents/", "tasks/", "specs/", "testing/", "hooks/",
          "docs/phases/", "tooling/rebrand/", "tooling/bootstrap/",
-         "tooling/fork/", "tooling/migrations/",
+         "tooling/fork/", "tooling/migrations/", ".baseline/",
+         ".vscode/tasks.json",
          "FORKING.md", "BOOTSTRAP.md", "repo-blueprint.yaml", "blueprint.yaml")
 for p in placed:
     for never in NEVER:
         if p == never or p.startswith(never):
             bad(f"{p} would ship — it is the factory, not the product")
+
+# ── what an agent handed the product reads first ───────────────────────────
+# A product is ready for an agent to start in: its own front page, and an
+# AGENTS.md at the root saying what to read and what not to touch. The build
+# page's hand-off ends "Then clone <repo> and start building on it", and a
+# product without one hands the agent a repository and nothing else.
+for need in ("README.md", "AGENTS.md"):
+    if need not in placed:
+        bad(f"{need} would not ship — every product carries its own at the root")
 
 # ── and by content: PROVENANCE, which rebrand has no rule for ──────────────
 # Deliberately NOT a search for "lumen". rebrand.mjs rewrites this

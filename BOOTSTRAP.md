@@ -13,10 +13,11 @@ now either a typed action inside the orun binary or a hook this repo still
 owns, which is why the version floor matters and why a phase can be run
 alone, months later, from a fresh container.
 
-Target wall-clock: **60–75 minutes**. The long poles are the worker fleet
-(~31m across its two landings) and the console build (~16m); Supabase
-project creation (5–7m per environment) is the longest wait nobody can
-shorten. Where the numbers come from, and which are still estimates:
+Budget: **84 minutes**, the sum of the phases' own `expectedMinutes` (the
+shell layer this replaced measured ~73 for 01–06). The long poles are the
+worker fleet (~31m across its two landings) and the console build (~16m);
+Supabase project creation (5–7m per environment) is the longest wait nobody
+can shorten. Where the numbers come from, and which are still estimates:
 [docs/phases/TIMINGS.md](docs/phases/TIMINGS.md).
 
 ## 0. What you need

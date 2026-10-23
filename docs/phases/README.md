@@ -138,12 +138,13 @@ modes are the same files.
 ## Unattended: `--resume`
 
 `--resume` places every phase not already derived as done, in dependency
-order, honouring each barrier. Budget **about 75 minutes** on a clean run —
-the card's `expectedMinutes`, and close to the ~73 minutes measured for
-phases 01–06 under the shell layer this replaced. The worker fleet (~31m)
-and the console build (~16m) dominate; Supabase project creation (5–7m) is
-the longest single wait and cannot be engineered away from our side. Where
-each number comes from, and which are estimates: [TIMINGS.md](TIMINGS.md).
+order, honouring each barrier. Budget **84 minutes** — the sum of the
+phases' `expectedMinutes`, which the card carries — against the ~73 minutes
+measured for phases 01–06 under the shell layer this replaced. The worker
+fleet (~31m) and the console build (~16m) dominate; Supabase project creation
+(5–7m) is the longest single wait and cannot be engineered away from our
+side. Where each number comes from, and which are estimates:
+[TIMINGS.md](TIMINGS.md).
 
 Why it can run unattended:
 

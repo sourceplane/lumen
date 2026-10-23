@@ -183,6 +183,20 @@ ignore:
   - "**/apps/webhooks-worker/wrangler.jsonc"
   - "*.tsbuildinfo"
 
+  # A local credential or provider state on the operator's disk. `.gitignore`
+  # keeps these out of THIS repository's history, but `orun new` snapshots the
+  # working tree, so a `.env`, a `.dev.vars`, a `terraform init` cache or a
+  # local state file in the checkout a build runs from would be copied into
+  # the product and pushed — a secret published by a build. The same patterns
+  # the starters carry. This repository ships no `.env.example` or
+  # `.dev.vars.example`; one that should ship would need these narrowed.
+  # `.terraform` is a SEGMENT match, so the committed `.terraform.lock.hcl`
+  # provider locks still ship.
+  - "**/.env*"
+  - "**/.dev.vars*"
+  - .terraform
+  - "**/*.tfstate*"
+
   # THE BASELINE'S OWN CI, which is not a product's.
   #
   # `github-workflows` copies the whole `.github` directory, so anything added
@@ -560,11 +574,12 @@ modules:
     source: baseline
     from: .github
     to: .github
-  - name: vscode
-    mode: copy
-    source: baseline
-    from: .vscode
-    to: .vscode
+  # No `.vscode` module. It shipped `.vscode/tasks.json`, which is THIS
+  # repository's agent loop: it runs coding agents with their sandbox and
+  # approvals bypassed against `agents/orchestrator.md` and `ai/state.json`,
+  # neither of which a product receives. In a product it was a one-click way
+  # to run an unsandboxed agent against files that do not exist. The baseline
+  # keeps it for its own loop; `testing/leak.test.sh` fails if it ships.
 
   # ── Root files (single-file copies). intent.yaml, package.json et al. carry
   #    instance identity; they are copied verbatim and rewritten in place by the
@@ -613,11 +628,31 @@ modules:
     source: baseline
     from: .gitignore
     to: .gitignore
+  # THE PRODUCT'S OWN FRONT PAGE AND AGENT GUIDE, not this repository's.
+  #
+  # `root-readme` copied this README, which describes the BASELINE — how it
+  # births products, links into `docs/phases/`, `BOOTSTRAP.md` and `specs/`
+  # (none of which ship), and an AWS layout that is not how a product runs. It
+  # is the product's catalog front page too (`intent.yaml` `repo.docs.overview`).
+  # So the product gets its own, from `.baseline/product/`, which nothing else
+  # reads. Templates rather than copies: both name the product's repository,
+  # `<githuborg>/<reponame>`, which the rebrand has no rule for (it would turn
+  # this repository's `sourceplane/<name>` into `sourceplane/<reponame>`).
+  #
+  # `AGENTS.md` is what an agent handed this product reads first: what it is,
+  # what to read next, how a change lands and what not to touch.
   - name: root-readme
-    mode: copy
+    mode: template
     source: baseline
-    from: README.md
+    from: .baseline/product/README.md
     to: README.md
+    bind: [README.md]
+  - name: root-agents
+    mode: template
+    source: baseline
+    from: .baseline/product/AGENTS.md
+    to: AGENTS.md
+    bind: [AGENTS.md]
 
   # ── The empty discovery roots, declared.
   #    orun's repo-scale gate — and later `orun plan` in the product's own CI —
@@ -701,12 +736,26 @@ phases:
     title: The repo is born
     description: Root manifests, tooling, compositions, and the rebrand values file.
     expectedMinutes: 2
+    # THE LINES A BUILD PAGE SHOWS, and why every phase's are this short.
+    #
+    # The console's build panel prints each hook's `narrate:` verbatim as the
+    # build's progress, one line per finished step, and a phase's waiting line
+    # under the step it waits on. So a line is a caption for ONE fact, true at
+    # the moment it is shown. `start` is one clause.
+    #
+    # NO PHASE AUTHORS `await`. That line is ALSO shown while a
+    # `requires.probe` waits, before any hook has run: "Terraform is applying"
+    # was printed while 03 waited for a provider connection. With none
+    # authored, orun writes "<title>: <what it waits on>" from its own reason
+    # (an engine too old to know the reason says "<phase> is waiting."), which
+    # is true whichever thing it is waiting on. A generic authored line cannot
+    # do that: the reasons are whole clauses ("waiting for github to be
+    # connected…"), so "Waiting on {{ .meta.waitingOn }}" reads twice.
     narrate:
-      start:  "Creating the repository and writing its foundations — intent, CI, tooling, and the identity every later phase reads back. About {{ .meta.expectedMinutes }} minutes."
-      await:  "Waiting for the first push to settle on main."
-      done:   "{{ .inputs.reponame }} exists on GitHub with {{ .meta.files }} files on main, branded as {{ .inputs.productname }}. That took {{ .meta.elapsed }}."
-      failed: "The repository did not get off the ground. The log above says where it stopped."
-    modules: [ai-deployment, ai-operations, discovery-roots, github-workflows, rebrand-values, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling-eslint, tooling-tsconfig, tooling-wire, vscode]
+      start:  'Creating the repository and its foundations.'
+      done:   '{{ .inputs.githuborg }}/{{ .inputs.reponame }} has its foundations on main, branded as {{ .inputs.productname }}, in {{ .meta.elapsed }}.'
+      failed: 'The repository did not get off the ground; the failing step says why.'
+    modules: [ai-deployment, ai-operations, discovery-roots, github-workflows, rebrand-values, root-agents, root-gitignore, root-intent, root-kiox, root-kiox-lock, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling-eslint, tooling-tsconfig, tooling-wire]
     # THE PLATFORM MUST BE ABLE TO SEE THE REPOSITORY BEFORE IT EXISTS. Every
     # phase lands a pull request that files under its task, and the platform
     # learns of a PR only through the GitHub App installation on the account
@@ -736,6 +785,7 @@ phases:
         # input and not a generated id.
         - id: epic
           uses: orun.task/ensure@v1
+          narrate: 'Epic {{ .hooks.epic.outputs.key }} is open.'
           with:
             kind: epic
             slug: "{{ .inputs.epicSlug }}"
@@ -770,6 +820,13 @@ phases:
         # another tenant's workspace on every remote op. Hook argv is not
         # templated, so the value travels through .rebrand/values.json, which
         # IS a rendered template.
+        #
+        # IDEMPOTENT. A missing `workspace:` line is the one real error. A line
+        # that already names this workspace is nothing to do — a build into
+        # the workspace the baseline itself declares, or a re-run of this
+        # phase over a tree it already wrote. This used to test "the text did
+        # not change", which is both of those AND the real error, so either
+        # failed the scaffold.
         - id: orun-workspace
           run:
             - node
@@ -778,17 +835,20 @@ phases:
               const fs = require("fs");
               const values = JSON.parse(fs.readFileSync(".rebrand/values.json", "utf8"));
               const ws = String(values.orunWorkspace || "").trim() || "ws_SET_ME";
+              const line = /^(\s*workspace:\s*).*$/m;
               const before = fs.readFileSync("intent.yaml", "utf8");
-              const after = before.replace(/^(\s*workspace:\s*).*$/m, "$1" + ws);
-              if (after === before) {
+              if (!line.test(before)) {
                 console.error("orun-workspace: no `workspace:` line in intent.yaml — refusing to guess");
                 process.exit(1);
               }
-              fs.writeFileSync("intent.yaml", after);
+              const after = before.replace(line, "$1" + ws);
+              if (after !== before) fs.writeFileSync("intent.yaml", after);
               console.log(
                 ws === "ws_SET_ME"
                   ? "orun-workspace: wrote placeholder ws_SET_ME — set your Orun Cloud workspace before enabling remote state"
-                  : "orun-workspace: intent.yaml workspace -> " + ws,
+                  : after === before
+                    ? "orun-workspace: intent.yaml already names workspace " + ws
+                    : "orun-workspace: intent.yaml workspace -> " + ws,
               );
         # Re-stage so `git ls-files` and `rebrand --verify` see the rewritten tree.
         - id: git-restage
@@ -800,7 +860,9 @@ phases:
         # The repo has to exist before there is anywhere to land.
         - id: repo
           uses: orun.repo/ensure@v1
-          narrate: "The repository exists at {{ .inputs.githuborg }}/{{ .inputs.reponame }}."
+          # From the action's outputs, not the inputs: the line names the
+          # repository GitHub answered with, and says whether this build made it.
+          narrate: '{{ .hooks.repo.outputs.fullName }} is ready{{ if eq .hooks.repo.outputs.created "true" }} — created for this build{{ end }}.'
           with:
             owner: "{{ .inputs.githuborg }}"
             name: "{{ .inputs.reponame }}"
@@ -824,6 +886,9 @@ phases:
         # best effort and `check` is the gate: an unlinked repository stops
         # here, naming the fix, instead of an hour later in every lane.
         - id: link
+          # True whichever half linked it: the line is shown only once `check`,
+          # the gate, has passed.
+          narrate: '{{ .inputs.githuborg }}/{{ .inputs.reponame }} is linked to the workspace.'
           run:
             - bash
             - -c
@@ -844,9 +909,14 @@ phases:
         # needs a secret resolves it on the PR as it would on main. Every
         # convergence after a merge is still watched, because deploying is
         # what a merge does and a PR cannot.
+        #
+        # Every landing's line names its PR, or says there was nothing to land
+        # (a re-run over a main that already has the phase), and its `label`
+        # names the PR's row on the build page.
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The first commit is merged into main."
+          label: Scaffold
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -857,10 +927,10 @@ phases:
     title: The shared packages
     expectedMinutes: 9
     narrate:
-      start:  "Now placing the thirteen packages every worker builds on — contracts, the database layer, the SDK, the policy engine. Usually about {{ .meta.expectedMinutes }} minutes."
-      await:  "The packages are on main. Waiting for CI to build them."
-      done:   "{{ .meta.files }} files across thirteen packages are on main and building, in {{ .meta.elapsed }}."
-      failed: "The shared packages did not build. The failing lane above names which one."
+      start:  'Placing the shared packages every worker builds on.'
+      # After the convergence is green: built, not "building".
+      done:   'The shared packages are on main and built, in {{ .meta.elapsed }}.'
+      failed: 'The shared packages did not land; the failing step says why.'
     modules: [cli, contracts, contracts-tests, db, db-tests, notifications-client, notifications-client-tests, policy-engine, policy-engine-tests, sdk, shared, testing, webhook-verifier]
     requires:
       phases: [01-scaffold]
@@ -903,7 +973,8 @@ phases:
           run: ["pnpm", "install", "--lockfile-only"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The packages PR is merged into main."
+          label: Packages
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -912,7 +983,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "The convergence run for {{ .phase.name }} came back green."
+          narrate: 'The packages built green on main.'
           with:
             # The run for the commit THIS landing merged, waited for. The
             # branch's newest run, read the moment the merge returns, is the
@@ -932,10 +1003,9 @@ phases:
     title: The data infrastructure
     expectedMinutes: 9
     narrate:
-      start:  "Now the data layer — a Supabase Postgres project and a KV namespace per environment. This is the first phase that touches Cloudflare and Supabase."
-      await:  "Terraform is applying. KV creates in seconds; a Supabase project takes five to seven minutes to come up."
-      done:   "Supabase and KV exist on stage and prod, and their outputs are published for the next phase to read. {{ .meta.elapsed }}."
-      failed: "The data layer did not come up. The convergence log above carries the provider's own error."
+      start:  'Creating a Supabase Postgres project and a KV namespace per environment.'
+      done:   'Supabase and KV are up on stage and prod, their outputs published, in {{ .meta.elapsed }}.'
+      failed: 'The data layer did not come up; the failing step says why.'
     # HALF OF WHAT THIS PHASE USED TO BE, and the half is the point.
     #
     # The flows placed all four data-plane modules here — supabase,
@@ -976,6 +1046,10 @@ phases:
       # read until the next phase: this is the phase that asks for the
       # connections, and a key minted with its siblings is one the card lists
       # in one place.
+      #
+      # Each says "is in place", which is true whether it was minted now or
+      # kept from an earlier run. The lines are static: a hook id with a `-`
+      # cannot be named in a template.
       pre:
         - id: task
           uses: orun.task/ensure@v1
@@ -988,30 +1062,35 @@ phases:
             contract: tasks/03-infrastructure.TaskContract.yaml
         - id: secret-workers-deploy
           uses: orun.integrations/reconcile@v1
+          narrate: 'CLOUDFLARE_API_TOKEN is in place, brokered from the Cloudflare connection.'
           with:
             provider: cloudflare
             keys: [CLOUDFLARE_API_TOKEN]
             template: workers-deploy
         - id: secret-hyperdrive-edit
           uses: orun.integrations/reconcile@v1
+          narrate: 'CLOUDFLARE_HYPERDRIVE_TOKEN is in place, brokered from the Cloudflare connection.'
           with:
             provider: cloudflare
             keys: [CLOUDFLARE_HYPERDRIVE_TOKEN]
             template: hyperdrive-edit
         - id: secret-account-id
           uses: orun.integrations/reconcile@v1
+          narrate: 'CLOUDFLARE_ACCOUNT_ID is in place, read from the Cloudflare connection.'
           with:
             provider: cloudflare
             keys: [CLOUDFLARE_ACCOUNT_ID]
             template: account-id
         - id: secret-supabase-access
           uses: orun.integrations/reconcile@v1
+          narrate: 'SUPABASE_ACCESS_TOKEN is in place, brokered from the Supabase connection.'
           with:
             provider: supabase
             keys: [SUPABASE_ACCESS_TOKEN]
             template: management-access
         - id: secret-supabase-org
           uses: orun.integrations/reconcile@v1
+          narrate: 'SUPABASE_ORG_ID is in place, read from the Supabase connection.'
           with:
             provider: supabase
             keys: [SUPABASE_ORG_ID]
@@ -1030,7 +1109,8 @@ phases:
           run: ["pnpm", "install", "--lockfile-only"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The infrastructure PR is merged into main."
+          label: Data plane
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -1039,7 +1119,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "Terraform applied and the convergence run came back green."
+          narrate: 'Terraform applied; the convergence run on main came back green.'
           with:
             sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
             repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
@@ -1070,10 +1150,9 @@ phases:
     title: The database is migrated and reachable
     expectedMinutes: 6
     narrate:
-      start:  "Now the database's two consumers — the schema migrations, and a Hyperdrive connection pool per environment so the workers can reach Postgres."
-      await:  "Migrations are applying and Hyperdrive is being created on both environments."
-      done:   "The schema is applied and Hyperdrive's ids are published for the workers to bind. {{ .meta.elapsed }}."
-      failed: "The database did not come up behind Hyperdrive. The convergence log above names the lane that stopped it."
+      start:  'Adding the schema migrations and a Hyperdrive pool per environment.'
+      done:   'The schema is applied and Hyperdrive''s ids are published for the workers, in {{ .meta.elapsed }}.'
+      failed: 'The database did not come up behind Hyperdrive; the failing step says why.'
     modules: [cloudflare-hyperdrive, db-migrate]
     requires:
       phases: [03-infrastructure]
@@ -1109,7 +1188,8 @@ phases:
           run: ["pnpm", "install", "--lockfile-only"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The database PR is merged into main."
+          label: Database
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -1118,7 +1198,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "Migrations applied, Hyperdrive created, and the convergence run came back green."
+          narrate: 'Migrations applied and Hyperdrive created; the convergence run on main came back green.'
           with:
             sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
             repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
@@ -1136,10 +1216,9 @@ phases:
     title: The worker fleet
     expectedMinutes: 31
     narrate:
-      start:  "Now the twelve-worker fleet — the longest stretch of the build, usually about {{ .meta.expectedMinutes }} minutes. Four of the workers bind to each other in a loop, so this pass deploys them without the two bindings that close it."
-      await:  "Twelve workers are deploying across two environments. This is the slow part; nothing is stuck."
-      done:   "All twelve workers are live on stage and prod, minus the two feedback bindings the next phase puts back. {{ .meta.elapsed }}."
-      failed: "The fleet did not deploy. The convergence log above names the worker that stopped it."
+      start:  'Deploying the twelve-worker fleet, the longest stretch of the build.'
+      done:   'Twelve workers are live on stage and prod, minus two bindings the next phase restores, in {{ .meta.elapsed }}.'
+      failed: 'The fleet did not deploy; the failing step says why.'
     modules: [admin-worker, admin-worker-tests, billing-worker, billing-worker-tests, config-worker, config-worker-tests, events-worker, events-worker-tests, identity-worker, identity-worker-tests, integrations-worker, integrations-worker-tests, membership-worker, membership-worker-tests, metering-worker, metering-worker-tests, notifications-worker, notifications-worker-tests, policy-worker, policy-worker-tests, projects-worker, projects-worker-tests, webhooks-worker, webhooks-worker-tests]
     requires:
       phases: [03-infrastructure-database]
@@ -1189,7 +1268,8 @@ phases:
           run: ["node", "{{ .baseline.dir }}/tooling/bootstrap/cycle-break.mjs", "--strip"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The fleet PR is merged into main."
+          label: Fleet
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -1200,7 +1280,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "Twelve workers deployed and the convergence run came back green."
+          narrate: 'The fleet deployed; the convergence run on main came back green.'
           with:
             sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
             repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
@@ -1218,10 +1298,9 @@ phases:
     title: The service bindings come back
     expectedMinutes: 5
     narrate:
-      start:  "Now putting back the two service bindings that had to be stripped for the fleet to deploy at all — billing to membership, and membership to notifications."
-      await:  "Redeploying billing and membership with their bindings in place."
-      done:   "The two feedback bindings are live. The fleet is wired the way the blueprint describes it."
-      failed: "The bindings did not go back. The workers are deployed, but billing and membership cannot call across the loop."
+      start:  'Restoring the two service bindings the fleet deployed without.'
+      done:   'Billing and membership are redeployed with their bindings; the fleet is fully wired.'
+      failed: 'The bindings did not go back; the workers are up, but billing and membership cannot call across the loop.'
     modules: []
     requires:
       phases: [04-workers]
@@ -1241,7 +1320,8 @@ phases:
           run: ["node", "{{ .baseline.dir }}/tooling/bootstrap/cycle-break.mjs", "--restore"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The bindings PR is merged into main."
+          label: Bindings
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -1250,7 +1330,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "Billing and membership redeployed with their bindings."
+          narrate: 'Billing and membership redeployed with their bindings.'
           with:
             sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
             repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
@@ -1261,10 +1341,9 @@ phases:
     title: The API edge
     expectedMinutes: 5
     narrate:
-      start:  "Now the API edge — the single front door in front of all twelve services."
-      await:  "Waiting for the edge to deploy and answer /health on both environments. About {{ .meta.expectedMinutes }} minutes."
-      done:   "The edge is live on stage and prod, answering /health. {{ .meta.elapsed }}."
-      failed: "The edge did not come up. The deploy log above says why."
+      start:  'Deploying the API edge in front of the twelve services.'
+      done:   'The edge is live on stage and prod, answering /health, in {{ .meta.elapsed }}.'
+      failed: 'The edge did not come up; the failing step says why.'
     modules: [api-edge, api-edge-tests, platform-limits-tests]
     requires:
       # 04-WORKERS, NOT 04-WORKERS-RESTORE, and the reason is what a gate can
@@ -1306,7 +1385,8 @@ phases:
           run: ["pnpm", "install", "--lockfile-only"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The edge PR is merged into main."
+          label: API edge
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -1315,7 +1395,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "The edge deployed and the convergence run came back green."
+          narrate: 'The edge deployed; the convergence run on main came back green.'
           with:
             sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
             repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
@@ -1323,7 +1403,7 @@ phases:
             waitSeconds: 1800
         - id: verify
           uses: orun.http/probe@v1
-          narrate: "Both /health endpoints answered."
+          narrate: 'Both /health endpoints answered.'
           with:
             urls:
               - "https://{{ .inputs.reponame }}-api-edge-stage.{{ .inputs.subdomain }}.workers.dev/health"
@@ -1341,10 +1421,9 @@ phases:
     title: The web console
     expectedMinutes: 16
     narrate:
-      start:  "Now the web console — the product UI. Console builds are heavy; budget about {{ .meta.expectedMinutes }} minutes."
-      await:  "The console is building. This is the second-longest wait of the build."
-      done:   "The console is live on stage and prod, talking to the edge. {{ .meta.elapsed }}."
-      failed: "The console did not build. The build log above carries the error."
+      start:  'Building and deploying the web console.'
+      done:   'The console is live on stage and prod, in {{ .meta.elapsed }}.'
+      failed: 'The console did not come up; the failing step says why.'
     modules: [cloudflare-domain, web-console-next, web-console-next-tests]
     requires:
       phases: [05-edge]
@@ -1373,7 +1452,8 @@ phases:
           run: ["pnpm", "install", "--lockfile-only"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The console PR is merged into main."
+          label: Console
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
@@ -1384,7 +1464,7 @@ phases:
       await:
         - id: converge
           uses: orun.run/watch@v1
-          narrate: "The console deployed and the convergence run came back green."
+          narrate: 'The console deployed; the convergence run on main came back green.'
           with:
             sha: "{{ .phase.hooks.land.outputs.mergeSha }}"
             repo: "{{ .inputs.githuborg }}/{{ .inputs.reponame }}"
@@ -1392,7 +1472,7 @@ phases:
             waitSeconds: 2700
         - id: verify
           uses: orun.http/probe@v1
-          narrate: "Every console and edge URL answered."
+          narrate: 'Every console and edge URL answered.'
           with:
             urls:
               - "https://{{ .inputs.reponame }}-api-edge-stage.{{ .inputs.subdomain }}.workers.dev/health"
@@ -1407,10 +1487,9 @@ phases:
     title: The deployment, recorded
     expectedMinutes: 1
     narrate:
-      start:  "Now recording what was actually built — probing every URL and writing the deployment manifest into the repository."
-      await:  "Probing the live endpoints one last time."
-      done:   "ai/context/deployment.md now records the live deployment, written from probed facts rather than from what the blueprint intended."
-      failed: "The deployment record did not land. Everything built is still there; only the write-up is missing."
+      start:  'Recording the live deployment in the repository.'
+      done:   'ai/context/deployment.md records the live deployment, from probed facts.'
+      failed: 'The deployment record did not land; everything built is still there, only the write-up is missing.'
     modules: []
     requires:
       phases: [06-console]
@@ -1427,19 +1506,25 @@ phases:
             contract: tasks/08-docs.TaskContract.yaml
       post:
         - id: render
+          narrate: 'ai/context/deployment.md is written from the live probes.'
           run: ["bash", "{{ .baseline.dir }}/hooks/render-deployment-docs.sh", ".", "{{ .inputs.orunWorkspace }}", "{{ .baseline.dir }}"]
         - id: land
           uses: orun.pr/land@v1
-          narrate: "The deployment record is merged into main."
+          label: Docs
+          narrate: '{{ if eq .hooks.land.outputs.landed "true" }}PR #{{ .hooks.land.outputs.number }} is merged into main.{{ else }}Nothing new to land; main already has it.{{ end }}'
           with:
             task: "{{ .phase.hooks.task.outputs.key }}"
             epic: "{{ .inputs.epicSlug }}"
             branchSlug: "{{ .phase.name }}"
             title: "docs(deployment): record live deployment state"
       await:
+        # QUIET: the same four URLs 06-console just probed. Their addresses
+        # are already on the build page; a second set of the same facts is
+        # noise, and the line below still speaks.
         - id: verify
           uses: orun.http/probe@v1
-          narrate: "Every live URL answered on the final probe."
+          quiet: true
+          narrate: 'Every live URL answered on the final probe.'
           with:
             urls:
               - "https://{{ .inputs.reponame }}-api-edge-stage.{{ .inputs.subdomain }}.workers.dev/health"

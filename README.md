@@ -1,7 +1,7 @@
 # lumen
 
 Reusable Cloudflare + Supabase multi-tenant SaaS starter, built as an
-[Orun](https://opencode.ai/docs) component-native desired-state repo. Identity,
+[Orun](https://github.com/sourceplane/orun) component-native desired-state repo. Identity,
 organizations, projects, RBAC, audit, metering, billing, webhooks, and
 notifications ship as separate bounded-context Cloudflare Workers behind a single
 public edge API, with a Next.js console on Workers + Static Assets.
@@ -48,7 +48,9 @@ edge, console (with the custom-domain component, parked), docs — each landing
 a verified slice, each selectable with `--phase <name>`.
 Products receive **product-only content** (source, infra, CI, their own
 docs); none of this baseline's machinery ships, and a product's docs speak
-only about the product.
+only about the product. This README does not ship either: a product gets its
+own `README.md` and an `AGENTS.md`, rendered from
+[`.baseline/product/`](.baseline/product/) with its name and repository.
 
 ## Prerequisites
 
@@ -118,7 +120,7 @@ released there, and adopted here by bumping the pinned tag.
 
 ## CI
 
-CI is powered by [Orun](https://opencode.ai/docs) with the local Stack Tectonic
+CI is powered by [Orun](https://github.com/sourceplane/orun) with the local Stack Tectonic
 composition stack. `.github/workflows/ci.yml` calls only `orun plan` and
 `orun run` — no direct `pnpm`, `turbo`, Wrangler, or Terraform commands run in
 GitHub Actions. The Orun runtime is pinned in `kiox.yaml` (resolved digest in

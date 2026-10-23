@@ -200,3 +200,95 @@ release carries the subdomain source, the removed `domain` switch and this.
 | mutation: the old CLI rule (`https://api.<domain>` always) | `rebrand.test.sh` fails 3 checks, `placement.test.sh` fails naming `https://api.acme-cloud.example.com`; restored, both pass |
 | mutation: no placeholder (empty domain stays empty) | `rebrand.test.sh` fails 3 checks, `placement.test.sh` fails on `BASE_DOMAIN ''`; restored, both pass |
 | the documented replacement, on a placed product | `git grep -lF acme-cloud.example.com` lists 10 files; the `perl` one-liner leaves 0, and `BASE_DOMAIN` reads `acme.dev` |
+
+## The build reads true on the build page (2026-10-23, orun-cloud saas-build-panel BV4)
+
+Lumen's share of orun-cloud's `saas-build-panel` epic, milestone BV4. The
+console's build panel now prints each hook's `narrate:` verbatim as the
+build's progress, a phase's `narrate.await` as what it is waiting on, the
+engine's facts (repository, epic, each PR, live addresses) as pinned rows,
+and at the end hands the product to an agent: "…Then clone <repo> and start
+building on it." So every line has to be true when it is shown, short, and
+the product has to be ready for an agent to start in. No tag is cut here.
+
+### What shipped
+
+- **Honest lines** (`repo-blueprint.yaml`). The `repo` line reads the
+  action's `fullName` and says when the build created it. Every one of the
+  nine landings says `PR #<n> is merged into main.`, or `Nothing new to land;
+  main already has it.` on a re-run, and carries a `label` for its PR's row
+  (Scaffold, Packages, Data plane, Database, Fleet, Bindings, API edge,
+  Console, Docs). The epic, `link`, the five secret reconciles (static: a
+  hook id with a `-` cannot be named in a template) and `render` gained a
+  line. No phase authors `await` any more: it is also the line while a
+  `requires.probe` waits ("Terraform is applying" was shown while 03 waited
+  for a provider connection), and left out, orun writes "<title>: <what it
+  waits on>" from its own reason (an older engine, "<phase> is waiting."). A
+  generic `Waiting on {{ .meta.waitingOn }}.` was tried and dropped: the
+  reasons are whole clauses, so it read "Waiting on waiting for github to be
+  connected…". `start` is one clause; 02's `done` no longer says "building" after the build is green;
+  02's converge line no longer prints the raw phase name; `failed` lines stop
+  pointing at "the log above". 08-docs' re-probe is `quiet: true`.
+- **One budget.** The card's `bootstrap.expectedMinutes` is 84, the sum of
+  the phases' (it said 75), and its description agrees. Nothing is measured
+  under the blueprint yet; TIMINGS.md says so and still says the 04 pair
+  likely overstates.
+- **No `.vscode/tasks.json` in products.** The `vscode` module shipped this
+  repository's agent loop, which runs agents with sandbox and approvals
+  bypassed against `agents/orchestrator.md` and `ai/state.json` — neither
+  ships. The module is gone; the baseline keeps the file.
+- **The product's own README and an `AGENTS.md`**, templates in
+  `.baseline/product/` rendered with the product's name and
+  `<githuborg>/<reponame>` (which no rebrand rule produces). The README this
+  replaced was the baseline's: "Instantiating products", links into
+  `docs/phases/`, `BOOTSTRAP.md` and `specs/`, an AWS layout, Orun linked to
+  opencode.ai. `AGENTS.md` says what the product is, what to read first
+  (`ai/context/operations.md` → `deployment.md` → `intent.yaml` → the edge's
+  and the console's docs), how a change lands and what not to touch.
+- **`operations.md` without `OPSFLOWS`.** The shipped clone line read
+  `https://github.com/OPSFLOWS`; only the 08-docs heal path ever filled it.
+  It now names `<baseline-tag>` and `<baseline-git-url>` like its other
+  placeholders (a literal baseline name would be rebranded into the
+  product's), and the heal path's substitution is gone.
+- **`orun-workspace` is idempotent.** It failed whenever the rewrite changed
+  nothing — a build into the workspace the baseline declares, or a re-run.
+  Only a missing `workspace:` line fails it now.
+- **`ignore`** gains `**/.env*`, `**/.dev.vars*`, `.terraform` and
+  `**/*.tfstate*`: `orun new` snapshots the working tree, so a local
+  credential or state file beside the checkout was a file a build would push.
+
+### What the tests had to become
+
+- `phases.test.sh`: `vscode` leaves 01's partition, `root-agents` joins it;
+  a phase no longer has to author `narrate.await`; and three new rules — no
+  phase authors one, every landing has a `label` and reads its own `landed`
+  and `number`, and `label`/`pin`/`quiet` have their exact types.
+- `manifest.test.sh`: the card's `expectedMinutes` equals the phases' sum.
+- `leak.test.sh`: `.vscode/tasks.json` and `.baseline/` never ship;
+  `README.md` and `AGENTS.md` always do.
+- `placement.test.sh`: in the placed, branded product, `README.md` and
+  `AGENTS.md` name `acme-inc/acme-cloud` and carry no template, `AGENTS.md`
+  points at both context pages, no page links Orun to opencode.ai,
+  `operations.md` has no `OPSFLOWS`, and every relative link in the three
+  pages resolves.
+
+### Verification
+
+| check | result |
+|---|---|
+| manifest, phases, coverage, rebrand | all pass — 9 phases, 65 modules, 57 narration lines; 45 of 45 components |
+| `orun new --status` (orun 2.58.11, the CI pin; orun `main`; the BV3 engine) | parses with all three; 01-scaffold 25 files (`.vscode/tasks.json` out, `AGENTS.md` in) |
+| `testing/leak.test.sh` (2.58.11, `main`, BV3) | pass — 1103 files derived, 17 factory paths refused |
+| `testing/placement.test.sh` (2.58.11) | pass — 8 relative links resolve; `01 → 08` place through the rebrand |
+| `testing/placement.test.sh` (`main`, BV3) | one failure, the same as on untouched `main`: newer orun prints `Verified intent valid…` where the test greps the 2.58.11 wording `repo gate: validate + plan --dry-run passed` |
+| every narration template, rendered with `missingkey=error` | 0 failures; e.g. `acme-inc/acme-cloud is ready — created for this build.`, `PR #12 is merged into main.`, `Nothing new to land; main already has it.` |
+| `orun-workspace`, extracted from the YAML | differs → rewritten; already right → exit 0; no line → exit 1; the old script exited 1 on "already right" |
+| canaries (`.env.local`, `.dev.vars`, `.dev.vars.stage`, `.terraform/…`, `*.tfstate`, `*.tfstate.backup`) | none derived; 4 `.terraform.lock.hcl` still ship; the old `ignore` derived six of them |
+| `hooks/render-deployment-docs.sh` over a placed 01-scaffold | renders the product README's `08-docs` section |
+| mutations: card 75; an authored `await`; a landing without `label`; `quiet: "yes"`; the `vscode` module back; the baseline README back; `OPSFLOWS` back; no `root-agents` | each fails its gate, naming the defect |
+
+### Not here
+
+The per-product `epicSlug` (the platform stamps it), orun-cloud's registry
+and fixtures, labelled probe `targets` (older orun refuses an unknown `with:`
+key), `hooks.preInstantiate`, environment URLs in `intent.yaml`, and a tag.

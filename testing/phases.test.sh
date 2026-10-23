@@ -48,10 +48,15 @@ WAS = {
     # partition below is the pre-migration truth for everything else; this
     # line and the 03 split below are deliberate, argued changes and are
     # recorded as such.
+    #
+    # `vscode` is gone the same way: it shipped `.vscode/tasks.json`, this
+    # repository's agent loop, which runs agents with their sandbox bypassed
+    # against `agents/` and `ai/state.json` — files no product receives
+    # (orun-cloud saas-build-panel BV4; the leak gate refuses it now).
     "01-scaffold": ["ai-deployment", "ai-operations", "github-workflows", "rebrand-values", "root-gitignore",
                     "root-intent", "root-kiox", "root-kiox-lock", "root-package-json",
                     "root-pnpm-lock", "root-pnpm-workspace", "root-readme", "root-turbo",
-                    "tooling-eslint", "tooling-tsconfig", "tooling-wire", "vscode"],
+                    "tooling-eslint", "tooling-tsconfig", "tooling-wire"],
     "02-foundation": ["cli", "contracts", "contracts-tests", "db", "db-tests",
                       "notifications-client", "notifications-client-tests", "policy-engine",
                       "policy-engine-tests", "sdk", "shared", "testing", "webhook-verifier"],
@@ -84,7 +89,9 @@ WAS = {
 # gate requires, which the scaffold flow used to create with a mkdir.
 # `platform-limits-tests` is likewise new here: a component the baseline grew
 # after the slices were cut, which no slice placed (the coverage gate found it).
-ADDED = {"01-scaffold": ["discovery-roots"], "05-edge": ["platform-limits-tests"]}
+# `root-agents` is the product's AGENTS.md (saas-build-panel BV4): the page an
+# agent handed the product reads first.
+ADDED = {"01-scaffold": ["discovery-roots", "root-agents"], "05-edge": ["platform-limits-tests"]}
 HOOK_ONLY = {"04-workers-restore", "08-docs"}
 
 by_name = {p["name"]: p for p in phases}
@@ -271,6 +278,11 @@ for p in phases:
     ids = {h.get("id") for h in hooks_of(p)}
     for slot in ("start", "await", "done", "failed"):
         line = n.get(slot)
+        # `await` is deliberately NOT authored (saas-build-panel BV4; rule
+        # below): orun generates "<title>: <what it waits on>" from its own
+        # reason, which an authored line cannot match.
+        if not line and slot == "await":
+            continue
         if not line:
             bad(f"phase {p['name']} declares no narrate.{slot} — an operator sees "
                 f"a generated line instead of the one this baseline meant")
@@ -292,6 +304,53 @@ for p in phases:
             if h.get("narrate"):
                 check_line(f"phase {p['name']} hook {h.get('id')} narrate",
                            h["narrate"], "start", ids)
+
+# ── the lines a build page shows (orun-cloud saas-build-panel BV4) ────────
+#
+# The console's build panel prints these verbatim, so three rules hold them
+# true at the moment they are shown.
+#
+# A phase's `await` line is ALSO the line of a `waiting` event raised by its
+# `requires.probe` — before any of its hooks has run. "Terraform is applying"
+# was printed while 03 waited for a provider connection. Authored, it guesses;
+# left out, orun writes "<title>: <what it waits on>" from its own reason (an
+# older engine, "<phase> is waiting."), which is true whatever it waits on. A
+# generic authored line does not fix it: the reasons are whole clauses, so
+# "Waiting on {{ .meta.waitingOn }}" renders "Waiting on waiting for github
+# to be connected…".
+for p in phases:
+    if (p.get("narrate") or {}).get("await"):
+        bad(f"phase {p['name']} authors narrate.await — it is also the line while "
+            f"a requires.probe waits, and only the engine knows what it waits on. "
+            f"Leave it out; orun generates it from the reason.")
+
+# A landing names the pull request it merged, or says there was nothing to
+# land (a re-run over a main that has the phase already), and labels its PR's
+# row on the page.
+for p in phases:
+    for h in hooks_of(p):
+        if (h.get("uses") or "") != "orun.pr/land@v1":
+            continue
+        where = f"phase {p['name']} hook {h.get('id')}"
+        if not str(h.get("label") or "").strip():
+            bad(f"{where} declares no label — its pull request's row on the build page has no name")
+        line = h.get("narrate") or ""
+        hid = h.get("id")
+        for out in ("landed", "number"):
+            if f".hooks.{hid}.outputs.{out}" not in line:
+                bad(f"{where} narrate does not read .hooks.{hid}.outputs.{out} — a landing "
+                    f"line names its PR and says when there was nothing to land")
+
+# The keys a build page reads (orun BV3) have exact shapes. Older orun ignores
+# them, which is what makes them safe to add — and also why a wrong shape
+# would go unnoticed until a reader looked for it.
+SHAPES = {"label": str, "pin": bool, "quiet": bool}
+for p in phases:
+    for h in hooks_of(p) + list((p.get("requires") or {}).get("probe") or []):
+        for key, typ in SHAPES.items():
+            if key in h and not isinstance(h[key], typ):
+                bad(f"phase {p['name']} hook {h.get('id')} {key}: must be a "
+                    f"{typ.__name__}, got {h[key]!r}")
 
 # ── what BE1 and BE4 deleted stays deleted ────────────────────────────────
 if (root / "flows").exists():
