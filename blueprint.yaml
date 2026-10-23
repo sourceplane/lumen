@@ -22,7 +22,7 @@ metadata:
   description: >
     Cloudflare + Supabase multi-tenant SaaS: 12 bounded-context Workers
     behind one edge API, Next.js console, terraform data plane, migrations,
-    CI that converges on merge. Live on stage+prod in ~60–75 minutes.
+    CI that converges on merge. Budgeted at 84 minutes to live on stage+prod.
   tags: [saas, cloudflare, supabase, nextjs]
 spec:
   source:
@@ -178,7 +178,12 @@ spec:
     # this repo at its pinned tag would have nothing to run. `manifestPath` in
     # the registry row names THIS file, the console card; it is not the build.
     blueprint: repo-blueprint.yaml
-    expectedMinutes: 75
+    # The sum of the phases' own `expectedMinutes` in repo-blueprint.yaml;
+    # `testing/manifest.test.sh` holds the two equal. It read 75 against a
+    # sum of 84, so the card and the phases disagreed. No build under
+    # the blueprint has been timed end to end yet (docs/phases/TIMINGS.md),
+    # so this is a budget, not a measurement.
+    expectedMinutes: 84
     tokenChannel: ORUN_TOKEN_FILE   # how a runner hands over its refreshed token
   verify:
     urls:

@@ -278,6 +278,18 @@ for path in manifests:
           f"it, so there is no umbrella to name and no session to brief.")
     if not boot.get("expectedMinutes"):
         B("bootstrap.expectedMinutes is missing — the console renders it")
+    # …and it is the budget the PHASES declare, not a second guess at it.
+    # The card said 75 while the phases summed to 84 (orun-cloud
+    # saas-build-panel BV4), so a build page that shows both — the whole
+    # build's budget, and each phase's — disagreed with itself. No build has
+    # been timed end to end under the blueprint (docs/phases/TIMINGS.md):
+    # both numbers are budgets, and they move together.
+    elif bp_phases:
+        want = sum(int(ph.get("expectedMinutes") or 0) for ph in bp_phases)
+        if int(boot["expectedMinutes"]) != want:
+            B(f"bootstrap.expectedMinutes is {boot['expectedMinutes']}, but "
+              f"repo-blueprint.yaml's phases budget {want} between them — "
+              f"one build, one budget")
 
     # ── …and what BE-K1e added in their place ─────────────────────────────
     #

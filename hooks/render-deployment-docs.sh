@@ -90,17 +90,13 @@ mkdir -p ai/context
 if [ ! -f ai/context/operations.md ] && [ -f "$L/ai/context/operations.md" ]; then
   cp "$L/ai/context/operations.md" ai/context/operations.md
   # The template speaks the source repo's name; the product copy must
-  # speak the product's. Reuse the rebrand values, then fill the
-  # rebrand-inert OPSFLOWS placeholder with the baseline this product came
-  # from — the repo whose repo-blueprint.yaml holds the ops phases.
+  # speak the product's, so reuse the rebrand values. (It carried an
+  # `OPSFLOWS` placeholder that only this heal filled in — the copy every
+  # product got at 01-scaffold kept the literal `https://github.com/OPSFLOWS`.
+  # The line names the baseline as `<baseline-git-url>` now, which needs no
+  # filling: a literal baseline name would itself be rebranded into the
+  # product's.)
   node "$L/tooling/rebrand/rebrand.mjs" --values "$vals" --allow-dirty >/dev/null 2>&1 || true
-  opsref="${ORUN_BASELINE_REPO:-sourceplane/lumen}"
-  python3 - "$opsref" <<'PYOPS'
-import sys
-p="ai/context/operations.md"
-s=open(p).read()
-open(p,"w").write(s.replace("OPSFLOWS", sys.argv[1]))
-PYOPS
   echo "render-docs: healed ai/context/operations.md"
 fi
 

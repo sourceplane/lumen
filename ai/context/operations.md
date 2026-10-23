@@ -117,12 +117,13 @@ orun integrations list --org <ws> --json && orun cloud check --org <ws>
 | headless/CI credentials | `ORUN_TOKEN` (workspace-scoped) + `GITHUB_TOKEN` |
 
 The ops phases (docs refresh and the original deployment sequence) all
-live in ONE versioned artifact: `repo-blueprint.yaml` in the
-baseline this product was born from. Clone it at a tag and select the phase
-— from anywhere, with the two tokens above exported:
+live in ONE versioned artifact: `repo-blueprint.yaml` in the baseline this
+product was born from — the one its Orun Cloud build was started from. Clone
+that at the tag the product was built at and select the phase — from
+anywhere, with the two tokens above exported:
 
 ```bash
-git clone --depth 1 https://github.com/OPSFLOWS baseline && cd baseline
+git clone --depth 1 --branch <baseline-tag> <baseline-git-url> baseline && cd baseline
 
 orun new --blueprint repo-blueprint.yaml --out <product-checkout> \
   --run-hooks --phase 08-docs --values <values.yaml>     # docs refresh

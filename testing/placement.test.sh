@@ -133,7 +133,8 @@ for missing in sorted(ALLOWED_AI - shipped_ai):
 
 NEVER = ("flows/", "agents/", "tasks/", "specs/", "testing/", "hooks/",
          "docs/phases/", "tooling/rebrand/", "tooling/bootstrap/",
-         "tooling/fork/", "tooling/migrations/",
+         "tooling/fork/", "tooling/migrations/", ".baseline/",
+         ".vscode/tasks.json",
          "FORKING.md", "BOOTSTRAP.md", "repo-blueprint.yaml", "blueprint.yaml")
 for p in placed:
     for never in NEVER:
@@ -162,6 +163,63 @@ if problems:
     sys.exit(1)
 print(f"   {len(placed)} product files; ai/context is exactly "
       f"{len(ALLOWED_AI)}; no factory, no provenance prose")
+PY
+
+# ── the pages an agent starts from, in the product ─────────────────────────
+# README.md and AGENTS.md are rendered from `.baseline/product/` and then
+# branded like everything else, so they are checked here, after both: they
+# name the product's own repository, leave no template behind, and every
+# relative link in them — and in the operating contract they point at —
+# resolves inside the product. The README this replaced linked
+# `docs/phases/`, `BOOTSTRAP.md` and `specs/`, none of which ship, and the
+# operating contract shipped `https://github.com/OPSFLOWS` as a clone URL.
+echo "── the pages an agent starts from"
+python3 - "$tree" "$root" <<'PY'
+import json, pathlib, re, sys
+tree, root = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+vals = json.loads((root / "tests/fixtures/acme.json").read_text())
+repo = f"{vals['githuborg']}/{vals['reponame']}"
+problems = []
+def bad(m): problems.append(m)
+
+pages = ["README.md", "AGENTS.md", "ai/context/operations.md"]
+missing = [rel for rel in pages if not (tree / rel).is_file()]
+if missing:
+    sys.exit(f"FAIL: {', '.join(missing)} did not ship")
+text = {rel: (tree / rel).read_text() for rel in pages}
+
+for rel in ("README.md", "AGENTS.md"):
+    if "{{" in text[rel]:
+        bad(f"{rel} still carries a template expression")
+    if repo not in text[rel]:
+        bad(f"{rel} does not name the product's repository, {repo}")
+    if "opencode.ai" in text[rel]:
+        bad(f"{rel} links Orun to opencode.ai")
+for need in ("ai/context/operations.md", "ai/context/deployment.md"):
+    if need not in text["AGENTS.md"]:
+        bad(f"AGENTS.md does not point at {need}")
+if "OPSFLOWS" in text["ai/context/operations.md"]:
+    bad("ai/context/operations.md still carries the OPSFLOWS placeholder")
+
+# Relative links only: a URL or an in-page anchor is not a file to find.
+LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+links = 0
+for rel, body in text.items():
+    for target in LINK.findall(body):
+        if re.match(r"[a-z]+:", target) or target.startswith("#"):
+            continue
+        links += 1
+        if not ((tree / rel).parent / target.split("#", 1)[0]).exists():
+            bad(f"{rel} links {target}, which is not in the product")
+if links == 0:
+    bad("no relative links found in the product's pages — this check has gone blind")
+
+if problems:
+    print("FAIL: the pages an agent starts from:", file=sys.stderr)
+    for p in problems:
+        print(f"  - {p}", file=sys.stderr)
+    sys.exit(1)
+print(f"   README.md and AGENTS.md name {repo}; {links} relative links resolve")
 PY
 
 # ── the API base and the domain, in the product ────────────────────────────
