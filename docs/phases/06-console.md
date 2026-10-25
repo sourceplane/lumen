@@ -83,6 +83,42 @@ runs, so pass them on every invocation; the product's own
 5. **verify** — an `orun.http/probe@v1` `await` hook: the console roots AND
    the edge `/health`, on stage and prod.
 
+## The console is fetched, not built
+
+Since saas-console-artifact CA1–CA4 the console carries **no product identity
+and no environment in its build**. Both come from the Worker at runtime:
+
+- `apps/web-console-next/wrangler.jsonc` sets `CONSOLE_PRODUCT_NAME`,
+  `CONSOLE_WORKERS_DEV_SUBDOMAIN`, `CONSOLE_API_WORKER_PREFIX`,
+  `CONSOLE_STORAGE_PREFIX` and `CONSOLE_SALES_EMAIL` as `vars`, which OpenNext
+  copies into `process.env` per request. The rebrand rewrites those values, so
+  a product's console says the product's name even when the bundle was built
+  from the baseline's sources.
+- The environment is read from the `-<env>` the workers.dev host carries
+  (`environmentFromHost`), or from `CONSOLE_DEPLOY_ENV` where a custom domain
+  names none. There is no `environmentBuildVar` any more: baking
+  `NEXT_PUBLIC_DEPLOY_ENV` into the bundle is exactly what stopped one build
+  from serving both environments.
+
+So one build is deployable anywhere, and this phase's `console-artifact` hook
+records the baseline's published artifact — its URL, its sha256 and the
+product's own source hash — in
+`apps/web-console-next/console-artifact.pin.json`. The component's
+`buildCommand` (`node scripts/console-artifact.mjs build`) verifies the digest
+and unpacks it instead of running a cold Next.js build.
+
+**Everything about it degrades to a normal build.** No published artifact
+writes no pin; a tree whose console sources no longer hash to the pin builds
+from source; an artifact that cannot be fetched builds from source. Only a
+**digest mismatch** is fatal — that means something served bytes other than
+the ones published. The rebrand leaves the pin file alone (it names the
+BASELINE's release URL, which is provenance).
+
+`.github/workflows/tag.yml` publishes an artifact as part of cutting a
+`baseline-vN` tag, and `testing/console-artifact.test.sh` holds the whole
+chain: pack determinism, the pin, the fetch, a changed console, a tampered
+asset, no-artifact, and that the rebrand does not touch the pin.
+
 ## Verify / done means
 
 All four URLs answer:

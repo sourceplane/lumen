@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { useSession } from "@/lib/session";
 import { resolvePostAuthDestination } from "@/lib/last-org";
 import { wrap, createClient } from "@/lib/api";
-import { CONSOLE_TITLE } from "@/lib/app-config";
+import { consoleTitle } from "@/lib/app-config";
 import { useToast } from "@/components/ui/toast";
 import { ZodForm } from "@/components/ui/zod-form";
 import type { OAuthProviderInfo } from "@saas/contracts/auth";
@@ -77,7 +77,7 @@ export default function LoginPage() {
             S
           </div>
           <div>
-            <div className="text-base font-semibold tracking-tight">{CONSOLE_TITLE}</div>
+            <div className="text-base font-semibold tracking-tight">{consoleTitle()}</div>
             <div className="text-xs text-muted-foreground">
               {isLocked ? `locked to ${target.name}` : `target: ${target.name}`}
             </div>

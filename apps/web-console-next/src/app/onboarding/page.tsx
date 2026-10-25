@@ -13,7 +13,7 @@ import { useRequireAuth } from "@/lib/use-async";
 import { useApiQuery, qk } from "@/lib/query";
 import { wrap } from "@/lib/api";
 import { defaultOrgDestination, readLastOrgSlug } from "@/lib/last-org";
-import { CONSOLE_TITLE } from "@/lib/app-config";
+import { consoleTitle } from "@/lib/app-config";
 
 /**
  * Mandatory first-run onboarding (Supabase/Vercel-style): a focused, full-screen
@@ -53,7 +53,7 @@ export default function OnboardingPage() {
           <div className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-primary to-primary/40 text-sm font-bold text-primary-foreground">
             S
           </div>
-          <span className="text-sm font-semibold tracking-tight">{CONSOLE_TITLE}</span>
+          <span className="text-sm font-semibold tracking-tight">{consoleTitle()}</span>
         </div>
         <Button
           variant="ghost"

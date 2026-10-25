@@ -11,5 +11,23 @@
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
+  },
+  // THE PRODUCT'S IDENTITY AT RUNTIME, not in the build
+  // (saas-console-artifact CA1). The console is deployed from an artifact
+  // built once from the BASELINE's sources, so its compiled-in defaults say
+  // "Lumen" whoever deploys it — these vars are the only place a product's own
+  // name reaches it. The rebrand rewrites the values here the same way it
+  // rewrites src/lib/app-config.ts, so a fork carries its own.
+  //
+  // There is no CONSOLE_DEPLOY_ENV: the console reads its environment from the
+  // `-<env>` its workers.dev host carries (CA2), which is what lets ONE build
+  // serve stage and prod. A custom-domain deploy, whose host names no
+  // environment, sets it here.
+  "vars": {
+    "CONSOLE_PRODUCT_NAME": "Lumen",
+    "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+    "CONSOLE_API_WORKER_PREFIX": "lumen-api-edge",
+    "CONSOLE_STORAGE_PREFIX": "lumen.next",
+    "CONSOLE_SALES_EMAIL": "sales@sourceplane.ai"
   }
 }

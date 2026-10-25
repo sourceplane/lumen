@@ -185,7 +185,7 @@ spec:
     # (docs/phases/TIMINGS.md has the arithmetic, phase by phase). No build
     # has been timed end to end under these numbers yet, so this is a budget,
     # not a measurement.
-    expectedMinutes: 53
+    expectedMinutes: 45
     tokenChannel: ORUN_TOKEN_FILE   # how a runner hands over its refreshed token
   verify:
     urls:

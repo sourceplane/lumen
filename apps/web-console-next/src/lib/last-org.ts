@@ -17,16 +17,17 @@
  * the server instead so the default follows the user across devices/browsers.
  */
 
-import { STORAGE_PREFIX } from "./app-config";
+import { appConfig } from "./app-config";
 import { SOLO_MODE } from "./solo-mode";
 import { pickAccountBillingOrg } from "@/components/billing/account-org";
 
-const LAST_ORG_KEY = `${STORAGE_PREFIX}.last-org`;
+// Built per call: the storage prefix is runtime config (saas-console-artifact CA1).
+const lastOrgKey = (): string => `${appConfig().storagePrefix}.last-org`;
 
 export function readLastOrgSlug(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(LAST_ORG_KEY);
+    return window.localStorage.getItem(lastOrgKey());
   } catch {
     return null;
   }
@@ -35,7 +36,7 @@ export function readLastOrgSlug(): string | null {
 export function writeLastOrgSlug(slug: string): void {
   if (typeof window === "undefined" || !slug) return;
   try {
-    window.localStorage.setItem(LAST_ORG_KEY, slug);
+    window.localStorage.setItem(lastOrgKey(), slug);
   } catch {
     /* ignore */
   }
@@ -44,7 +45,7 @@ export function writeLastOrgSlug(slug: string): void {
 export function clearLastOrgSlug(): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(LAST_ORG_KEY);
+    window.localStorage.removeItem(lastOrgKey());
   } catch {
     /* ignore */
   }

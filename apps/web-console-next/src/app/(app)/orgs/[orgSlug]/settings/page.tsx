@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CopyButton } from "@/components/ui/copy-button";
 import { SettingsCard } from "@/components/settings/settings-card";
-import { PRODUCT_NAME } from "@/lib/app-config";
+import { appConfig } from "@/lib/app-config";
 import { TENANT_NOUN } from "@/lib/solo-mode";
 
 export default function OrgSettingsPage() {
@@ -24,7 +24,7 @@ function Inner({ org }: { org: { id: string; name: string; slug: string } }) {
     <div className="space-y-6">
       <SettingsCard
         title={`${noun} Name`}
-        description={`This is your ${nounLower}'s visible name within ${PRODUCT_NAME}.`}
+        description={`This is your ${nounLower}'s visible name within ${appConfig().productName}.`}
         footerHint={`Renaming an ${nounLower} isn't available from the console yet.`}
       >
         <Input value={org.name} disabled className="max-w-md" aria-label={`${noun} name`} />
@@ -32,7 +32,7 @@ function Inner({ org }: { org: { id: string; name: string; slug: string } }) {
 
       <SettingsCard
         title={`${noun} Slug`}
-        description={`This is your ${nounLower}'s URL namespace on ${PRODUCT_NAME}. It identifies your ${nounLower} across the console and the API.`}
+        description={`This is your ${nounLower}'s URL namespace on ${appConfig().productName}. It identifies your ${nounLower} across the console and the API.`}
         footerHint="Used in console URLs and API requests."
         footerAction={<CopyButton value={org.slug} />}
       >

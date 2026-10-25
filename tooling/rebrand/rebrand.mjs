@@ -166,6 +166,10 @@ const EXCLUDE_RE = new RegExp(
   [
     "^tooling/rebrand/",
     "^\\.rebrand/",
+    // The prebuilt-console pin (saas-console-artifact CA4) names the BASELINE's
+    // release URL, which is provenance: renaming it would point the product at
+    // a release that does not exist.
+    "^apps/web-console-next/console-artifact\\.pin\\.json$",
     "^FORKING\\.md$",
     "^ai/context/fork-from-baseline\\.md$",
     "^pnpm-lock\\.yaml$",

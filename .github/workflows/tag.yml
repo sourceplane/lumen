@@ -1,0 +1,181 @@
+name: Baseline tag
+
+# CUTS A `baseline-vN` TAG FOR THIS REPOSITORY.
+#
+# A baseline tag is what the platform's registry resolves and what every
+# product bootstrapped from this repository is built out of, so it is cut by a
+# workflow rather than by hand: the version must look like a baseline tag, an
+# existing tag is never moved, and the commit is resolved here, once.
+#
+# Whether a commit is fit to release is decided outside this repository, by
+# whoever cuts the tag; nothing here asks for proof beyond a green `main`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The tag to cut, e.g. baseline-v25."
+        required: true
+        type: string
+      ref:
+        description: "Branch, tag or sha to cut it from. Defaults to main."
+        required: false
+        default: main
+        type: string
+      publish_only:
+        description: "Skip the cut: only publish the prebuilt console for an existing tag."
+        required: false
+        default: false
+        type: boolean
+      replace:
+        description: "Replace a published console for the same sources (a packing fix)."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: baseline-tag
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cut:
+    if: ${{ !inputs.publish_only }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history: the ref being cut from may be any commit, and a
+          # shallow clone cannot resolve one it did not fetch.
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: the version must look like a baseline tag
+        run: |
+          set -euo pipefail
+          # Refused here rather than by the API, because the API's error for a
+          # malformed ref says nothing about the convention it broke — and a
+          # tag that does not match `baseline-v*` is invisible to the backstop
+          # above, which is the one shape of mistake that disables the gate.
+          case "${{ inputs.version }}" in
+            baseline-v[0-9]*) ;;
+            *) echo "✕ '${{ inputs.version }}' is not a baseline-vN tag" >&2; exit 1 ;;
+          esac
+
+      - name: resolve the commit
+        id: commit
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Cutting ${{ inputs.version }} from ${{ inputs.ref }} = $sha"
+
+      - name: the tag must not already exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          code="$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/ref/tags/${{ inputs.version }}")"
+          if [ "$code" = "200" ]; then
+            echo "✕ ${{ inputs.version }} already exists. A baseline tag is never moved:" >&2
+            echo "  products resolve it, and repointing one changes what a build that" >&2
+            echo "  already shipped was made of. Cut the next number." >&2
+            exit 1
+          fi
+          # Anything other than 200 or 404 means the question was not answered,
+          # and "it probably does not exist" is not a thing to guess about a
+          # tag that is about to be created.
+          [ "$code" = "404" ] || { echo "✕ could not check for the tag (HTTP $code)" >&2; exit 1; }
+
+      - name: cut the tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          curl -sS -X POST --fail-with-body \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/refs" \
+            -d "$(printf '{"ref":"refs/tags/%s","sha":"%s"}' \
+                  "${{ inputs.version }}" "${{ steps.commit.outputs.sha }}")"
+          echo ""
+          echo "✓ ${{ inputs.version }} → ${{ steps.commit.outputs.sha }}"
+          echo "  Next: move the registry row in orun-cloud's infra/baselines-registry/baselines.yaml."
+
+  # THE PREBUILT CONSOLE (saas-console-artifact CA3). The console carries no
+  # product identity and no environment in its build (CA1/CA2), so the
+  # OpenNext output of this tag can be any product's first console deploy.
+  # It is CONTENT-ADDRESSED — named by a hash of the sources that produce it
+  # (apps/web-console-next/scripts/console-artifact.mjs) — and kept on one
+  # rolling `console-artifacts` release, so a bootstrap finds it from the
+  # baseline's own files without knowing the tag. Same sources, same name:
+  # an asset that already exists is left as it is.
+  publish-console:
+    needs: cut
+    if: ${{ always() && (needs.cut.result == 'success' || (inputs.publish_only && needs.cut.result == 'skipped')) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.version }}
+      # The PACKER comes from this workflow's own commit, not the tag: the
+      # sources being packed are the tag's (and name the asset), but a fix to
+      # how they are packed must reach an existing tag's console too.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: .packer
+          sparse-checkout: apps/web-console-next/scripts/console-artifact.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10.12.1"
+      - name: build the console
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          # No NEXT_PUBLIC_DEPLOY_ENV: the environment comes from the host.
+          unset NEXT_PUBLIC_DEPLOY_ENV
+          pnpm exec turbo run build --filter=@saas/web-console-next
+      - name: pack it
+        id: pack
+        run: |
+          set -euo pipefail
+          node .packer/apps/web-console-next/scripts/console-artifact.mjs pack --root . --out dist/console-artifact | tee pack.log
+          echo "asset=$(sed -n 's/^asset=//p' pack.log)" >> "$GITHUB_OUTPUT"
+      - name: publish it
+        run: |
+          set -euo pipefail
+          asset="${{ steps.pack.outputs.asset }}"
+          if ! gh release view console-artifacts >/dev/null 2>&1; then
+            gh release create console-artifacts --prerelease \
+              --target "$(git rev-parse HEAD)" \
+              --title "Prebuilt consoles" \
+              --notes "Content-addressed builds of apps/web-console-next, one per set of console sources, used by a bootstrap's first console deploy. See specs/epics/saas-console-artifact."
+          fi
+          if gh release view console-artifacts --json assets --jq '.assets[].name' | grep -qx "$asset"; then
+            if [ "${{ inputs.replace }}" = "true" ]; then
+              gh release upload console-artifacts --clobber "dist/console-artifact/$asset" "dist/console-artifact/$asset.sha256"
+              echo "✓ replaced $asset for ${{ inputs.version }}"
+            else
+              echo "✓ $asset is already published (same sources, same build)"
+            fi
+          else
+            gh release upload console-artifacts "dist/console-artifact/$asset" "dist/console-artifact/$asset.sha256"
+            echo "✓ published $asset for ${{ inputs.version }}"
+          fi
+

@@ -1,18 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import "../styles/globals.css";
 import { Providers } from "./providers";
-import { CONSOLE_TITLE, PRODUCT_DESCRIPTION, PRODUCT_NAME } from "@/lib/app-config";
+import { headers } from "next/headers";
+import { consoleTitle, rememberRequestHost, resolveAppConfig, type AppConfig } from "@/lib/app-config";
 
-export const metadata: Metadata = {
-  title: CONSOLE_TITLE,
-  description: PRODUCT_DESCRIPTION,
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    title: PRODUCT_NAME,
-    statusBarStyle: "black-translucent",
-  },
-};
+// The product's identity for this request, from the Worker's `vars` (OpenNext
+// copies them into process.env per request), falling back to the compiled-in
+// defaults (saas-console-artifact CA1); the deploy environment falls back to
+// the one the host names (CA2). Server only: the client receives it through
+// <Providers config>.
+async function requestConfig(): Promise<AppConfig> {
+  const host = (await headers()).get("host");
+  rememberRequestHost(host);
+  return resolveAppConfig(process.env, undefined, host);
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const config = await requestConfig();
+  return {
+    title: consoleTitle(config),
+    description: config.productDescription,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: config.productName,
+      statusBarStyle: "black-translucent",
+    },
+  };
+}
 
 // `viewport-fit=cover` enables `env(safe-area-inset-*)` on notched devices;
 // theme-color tints the mobile browser chrome to match light/dark surfaces.
@@ -35,7 +50,8 @@ export const viewport: Viewport = {
 // failing code paths live in the layout's Providers.
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const config = await requestConfig();
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="min-h-screen bg-background text-foreground antialiased">
@@ -51,7 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: "globalThis.__name=globalThis.__name||function(t){return t};",
           }}
         />
-        <Providers>{children}</Providers>
+        <Providers config={config}>{children}</Providers>
       </body>
     </html>
   );
