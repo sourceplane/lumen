@@ -73,9 +73,19 @@ if ! orun new --blueprint "$root/repo-blueprint.yaml" --out "$tree" "${sets[@]}"
 fi
 
 # ── the gates that ride inside the placement ───────────────────────────────
-# `orun new` prints this line only after running validate + plan --dry-run in
-# the produced tree. Its absence means the tier lost a check without failing.
-grep -q "repo gate: validate + plan --dry-run passed" "$scratch/place.log" \
+# `orun new` reports this only after running validate + plan --dry-run in the
+# produced tree. Its absence means the tier lost a check without failing.
+#
+# TWO WORDINGS, because the CLI changed its mind about how to say it. Up to
+# v2.58.x it printed `repo gate: validate + plan --dry-run passed`; from the
+# v2.88.0 floor it prints a summary line instead:
+#
+#     ✓ Verified    intent valid · 44 components × 3 envs → 92 jobs
+#
+# Both mean the gate ran, and neither appears when it did not — which is the
+# property this check exists for. Matching only the old one turned a rename
+# into a red tier the day the floor moved.
+grep -qE "repo gate: validate \+ plan --dry-run passed|Verified +intent valid" "$scratch/place.log" \
   || fail "the placement did not report the repo-scale gate — \`orun validate\`
      and \`orun plan --dry-run\` are Tier 1 checks that ride inside \`orun new\`,
      and a silent loss of them is exactly the regression BE1a was about"
