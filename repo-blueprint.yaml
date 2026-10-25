@@ -1681,7 +1681,7 @@ phases:
     narrate:
       start:  'Deploying the API edge in front of the twelve services.'
       done:   'The edge is live on stage and prod, answering /health, in {{ .meta.elapsed }}.'
-      failed: 'The edge did not come up; the failing step says why.'
+      failed: 'The edge did not come up. The failing step says which: a red convergence is the deploy; a verify whose addresses do not resolve means the addresses are wrong — check that `subdomain` is this Cloudflare account''s workers.dev subdomain.'
     modules: [api-edge, api-edge-tests, platform-limits-tests]
     requires:
       # A GATE MAY ONLY NAME A PHASE THAT PLACES FILES. This used to require
@@ -1798,7 +1798,7 @@ phases:
     narrate:
       start:  'Building and deploying the web console.'
       done:   'The console is live on stage and prod, in {{ .meta.elapsed }}.'
-      failed: 'The console did not come up; the failing step says why.'
+      failed: 'The console did not come up. The failing step says which: a red convergence is the deploy; a verify whose addresses do not resolve means the addresses are wrong — check that `subdomain` is this Cloudflare account''s workers.dev subdomain.'
     modules: [cloudflare-domain, web-console-next, web-console-next-tests]
     requires:
       phases: [05-edge]
