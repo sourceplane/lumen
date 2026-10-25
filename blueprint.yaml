@@ -153,8 +153,8 @@ spec:
   # these. Idempotent by identity — epic by slug, milestone by name-within-epic
   # — so a re-run finds what it made before. The console renders the programme
   # so an operator can see the shape of the work before pressing Build.
-  # Nine phases, seven milestones: `03-infrastructure-database` and
-  # `04-workers-restore` are second landings of 03 and 04, and file under them.
+  # Eight phases, seven milestones: `03-infrastructure-database` is a second
+  # landing of 03 and files under it.
   programme:
     epicSlug: infra-baselining         # = repo-blueprint.yaml's `epicSlug` default
     epicName: "Infra baselining — {productname}"
@@ -179,11 +179,13 @@ spec:
     # the registry row names THIS file, the console card; it is not the build.
     blueprint: repo-blueprint.yaml
     # The sum of the phases' own `expectedMinutes` in repo-blueprint.yaml;
-    # `testing/manifest.test.sh` holds the two equal. It read 75 against a
-    # sum of 84, so the card and the phases disagreed. No build under
-    # the blueprint has been timed end to end yet (docs/phases/TIMINGS.md),
-    # so this is a budget, not a measurement.
-    expectedMinutes: 84
+    # `testing/manifest.test.sh` holds the two equal. Re-budgeted from the
+    # measured runs once the duplicate PR verify pass was dropped, the fleet
+    # stopped deploying twice and prod stopped waiting out stage
+    # (docs/phases/TIMINGS.md has the arithmetic, phase by phase). No build
+    # has been timed end to end under these numbers yet, so this is a budget,
+    # not a measurement.
+    expectedMinutes: 53
     tokenChannel: ORUN_TOKEN_FILE   # how a runner hands over its refreshed token
   verify:
     urls:

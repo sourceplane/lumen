@@ -153,7 +153,7 @@ See **Task 0010** for full Worker binding setup and runtime integration.
 
 ```bash
 # Ensure Orun CLI is installed
-which orun  # or: ~/.local/bin/kiox -- orun
+which orun
 
 # Ensure AWS credentials are configured
 aws sts get-caller-identity

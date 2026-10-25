@@ -1,12 +1,15 @@
-# Phase 04 — workers (two landings)
+# Phase 04 — the worker fleet
 
-Lands the **12-worker fleet** in two landings: `04-workers` places the fleet
-with two service-binding feedback edges stripped, so first-boot workers can
-deploy in DAG order; `04-workers-restore` puts those two bindings back once
-every worker they point at exists. Both file under the `04-workers`
-milestone.
+Lands the **12-worker fleet** in ONE landing, and one convergence deploys it
+on stage and prod with every service binding in place.
 
-This is the longest stretch of the bootstrap.
+It used to be two landings: `04-workers` placed the fleet with two
+service-binding feedback edges stripped out of its wrangler configs, and
+`04-workers-restore` put them back once every target existed — two pull
+requests, two convergences, the whole fleet deployed twice. That is gone;
+see **Why one landing** below.
+
+This is still the longest stretch of the bootstrap.
 
 ## What it lands
 
@@ -29,37 +32,34 @@ the only way in is a service binding from another worker. That is why this
 phase verifies by convergence rather than by probe; `05-edge` is where the
 fleet becomes observable from outside.
 
-## Why two landings
+## Why one landing
 
 The `{billing, membership, events, notifications}` cluster binds to itself —
 billing ↔ membership, and membership → notifications → events → membership —
 and a Cloudflare service binding cannot name a worker that does not exist
-yet (error 10143). So a fresh fleet cannot deploy with its bindings intact:
+yet (error 10143). So on a fresh account no order of first deploys works:
 something in the loop is always first.
 
-`tooling/bootstrap/cycle-break.mjs` holds exactly two acknowledged feedback
-edges, `billing-worker → membership-worker` and
-`membership-worker → notifications-worker`:
+`tooling/deploy/fleet-stubs.mjs` is the answer. `policy-worker` binds to
+nothing, and every worker that holds a binding declares
+`dependsOn: policy-worker` with `mode: enforced` (advisory on a pull
+request, which deploys nothing). Its pre-deploy step reads every
+`apps/*/wrangler{.template,}.jsonc` for the environment's
+`services[].service` names and uploads a placeholder Worker — a module that
+answers 503 — for each one that does not exist yet. Every real deploy then
+starts with all its targets present, carries its FULL bindings, and replaces
+its own placeholder.
 
-- `--strip` removes those bindings from the two workers' wrangler configs
-  (byte-preserving markers) before the first landing — the fleet then
-  deploys clean in DAG order;
-- `--restore` puts them back byte-for-byte for the second landing, when
-  every target exists.
+It is race-free because nothing that holds a binding deploys while the
+placeholders are being made: all of them wait on `policy-worker`. On a live
+product every target exists and the tool uploads nothing. If the existence
+check answers anything but 200 or 404 it refuses rather than guessing, so a
+placeholder can never overwrite a real Worker.
 
-Both are idempotent; `--check` reports the current state.
-
-These edges are not in the module DAG and there is no `cycleBreak:` for orun
-to defer: the cycle lives in the wrangler config a deploy reads, not in the
-placement order, so orun never sees it. That is why the script survives the
-move to one blueprint — it is a deploy-time edit to a file, not an ordering
-workaround the DAG could absorb.
-
-The restore is a phase of its own, rather than more hooks on the first,
-because it can only run after `04-workers` has CONVERGED, and `post` hooks all
-run before `await`: "strip, land, converge, restore, land, converge" cannot
-be one phase's hook list. Two units of work that land separately, with two
-PRs and two task contracts, are two phases here.
+`testing/fleet-stubs.test.sh` drives the tool against a fake Cloudflare API
+— a fresh account, a half-built one, a live one, and an erroring one — and
+checks that every binding holder in `apps/` waits on the worker whose
+pre-deploy runs it.
 
 ## Inputs
 
@@ -69,67 +69,70 @@ runs, so pass them on every invocation; the product's own
 `.rebrand/values.json` is a complete values file. See
 [the phases README](README.md#inputs).
 
-## `04-workers`
+## What the phase does
 
-1. **requires** — `03-infrastructure-database` placed, and a
-   `requires.probe`: `orun.secrets/exists@v1` asserts both
-   `WIRING_CLOUDFLARE_HYPERDRIVE` and `WIRING_CLOUDFLARE_KV` on stage and
-   prod before a single file is placed. Missing keys mean phase 03 did not
-   finish, and the phase says which.
-2. **pre** — the phase's task.
-3. **place** → **brand** → **lockfile**, then a `post` hook runs
-   `cycle-break.mjs --strip`.
-4. **land** — PR `phase(04-workers): worker fleet (feedback edges
-   stripped)`. The PR's lanes build, test and plan the fleet on two
-   environments — nothing deploys from a PR — and the landing waits up to an
-   hour for them.
-5. **converge** — the merge deploys the fleet. Budget an hour
-   (`waitSeconds: 3600`), resumed up to three times. Lanes resolve their
-   `WIRING_*` secrets at claim time.
-
-## The second landing: `04-workers-restore`
-
-1. **requires** — `04-workers` placed. It places no files, so it derives as
-   `unknown`; that is also why `05-edge` requires `04-workers` rather than
-   this phase.
-2. **pre** — the task, filed under the `04-workers` milestone.
-3. **restore** — `cycle-break.mjs --restore`.
-4. **land** — PR `phase(04-workers): restore service-binding feedback
-   edges`.
-5. **converge** — billing and membership redeploy with their bindings in
-   place (resumed up to twice).
+1. **requires** — `03-infrastructure-database` placed. There is no wiring
+   probe: `WIRING_CLOUDFLARE_KV` is what `03-infrastructure`'s own `verify`
+   hook waited for and `WIRING_CLOUDFLARE_HYPERDRIVE` what
+   `03-infrastructure-database`'s did, both immediately before this phase,
+   and every worker resolves them from its `component.yaml` secret refs — so
+   a missing document fails that worker's lane rather than passing silently.
+2. **pre** — the phase's task. The run-level `hooks.preInstantiate` list
+   opened it in the background before 01-scaffold placed a file; this finds
+   it and yields its key.
+3. **retouch** → **place** → **brand** → **lockfile**. `retouch` rewrites one
+   trailing marker line in each component the task contract names, so a
+   RE-RUN after a convergence that failed post-merge still has a diff to land
+   (`tooling/bootstrap/retouch.mjs`).
+4. **pen-reset** — clears this landing's own `orun/<task>-04-workers` branch
+   if a stopped build left one behind, which would otherwise make every
+   retry's push fail non-fast-forward (`tooling/bootstrap/pen-reset.mjs`).
+5. **land** — PR `phase(04-workers): the worker fleet`, checked LOCALLY
+   (`checks: local`): `orun validate` and both plans run on the commit before
+   it is pushed, so a tree that fails is never pushed. The PR's CI runs
+   `plan` alone on a bootstrap branch and nothing waits for it — the merge
+   runs every lane on main a minute later, for real.
+6. **converge** — the merge deploys the fleet, each worker with its full
+   bindings. Budget an hour (`waitSeconds: 3600`), polled every 5 seconds,
+   resumed up to three times. Lanes resolve their `WIRING_*` secrets at claim
+   time. During a bootstrap stage and prod deploy side by side: 01-scaffold
+   deferred prod's promotion gate and 08-docs puts it back.
 
 ## Verify / done means
 
-Both convergence runs green: every worker deployed with the two feedback
-bindings stripped, then billing and membership redeployed with them, and
-each deploy lane's smoke passed (the smoke retries over first-deploy
-workers.dev route propagation — stack-tectonic ≥ 0.18.2, which the product's
+One convergence run green: every worker deployed on stage and prod with its
+full service bindings, and each deploy lane's smoke passed (the smoke retries
+over first-deploy workers.dev route propagation, and a first deploy retries
+Cloudflare's 10007 race — stack-tectonic ≥ 0.20.0, which the product's
 `intent.yaml` pins).
 
 ## Troubleshooting
 
-- **The phase refuses: `WIRING_*` missing** — phase 03 is incomplete; its
-  two `verify` hooks assert the same keys. Re-run the phase 03 landing that
-  owns the missing key (`WIRING_CLOUDFLARE_KV` → `03-infrastructure`,
+- **A worker's lane fails resolving `WIRING_*`** — phase 03 is incomplete;
+  its two `verify` hooks assert the same keys. Re-run the phase 03 landing
+  that owns the missing key (`WIRING_CLOUDFLARE_KV` → `03-infrastructure`,
   `WIRING_CLOUDFLARE_HYPERDRIVE` → `03-infrastructure-database`).
-- **Cloudflare 10143 (service binding target not found)** during the FIRST
-  landing — the strip did not cover an edge. From the product repo, run
-  `node <baseline>/tooling/bootstrap/cycle-break.mjs --check` (it reads
-  `apps/*/wrangler.template.jsonc` relative to the working directory); if a
-  new feedback edge was introduced, add it to `FEEDBACK_EDGES`, kept in sync
-  with `ACKNOWLEDGED_BINDING_CYCLES` in
-  `tests/config-worker/src/deployment-config.test.ts`.
-- **10143 during the restore** — a target worker never deployed in the first
-  convergence. Resume that run before retrying the restore.
-- **Convergence trips on runner starvation or resolve throttling** — that
-  is what the auto-resume is for, and `max-parallel: 8` in `ci.yml` is
-  deliberate. A genuinely red lane stays red across resumes: read its log.
-- **Red after the resume budget** — re-running the phase lands nothing new,
-  and CI plans `--changed`, so no push will redeploy what the failed run left
-  undeployed. `gh run rerun --failed <run-id>` resumes the run itself; then
-  re-run the phase so its `await` hook verifies. See
-  [the phases README](README.md#pacing-idempotence-resume).
+- **Cloudflare 10143 (service binding target not found)** — the worker does
+  not wait on `policy-worker`, whose pre-deploy places every target. Check
+  that its `dependsOn: policy-worker` carries `mode: enforced`;
+  `testing/fleet-stubs.test.sh` asserts this for every binding holder. To see
+  what would be placed: `node <baseline>/tooling/deploy/fleet-stubs.mjs
+  --root . --env stage --list`.
+- **Cloudflare 10007 (`This Worker does not exist on your account`)** — a
+  first-deploy race. stack-tectonic ≥ 0.19.0 retries it; the watch hook's
+  resume covers the rest.
+- **The retry's push is rejected non-fast-forward** — a stopped build left
+  the pen branch on the remote. The `pen-reset` hook clears it; if you are on
+  an older baseline, `git push origin --delete orun/BASE-n-04-workers` and
+  re-run the phase. Never `git pull` it: the branches have diverged.
+- **Convergence trips on runner starvation or resolve throttling** — that is
+  what the auto-resume is for, and `max-parallel: 19` in `ci.yml` is sized to
+  the free plan's twenty concurrent jobs. A genuinely red lane stays red
+  across resumes: read its log.
+- **Red after the resume budget** — `gh run rerun --failed <run-id>` resumes
+  the run itself; then re-run the phase so its `await` hook verifies. The
+  `retouch` hook means the re-landing has a diff even when the merge already
+  happened. See [the phases README](README.md#pacing-idempotence-resume).
 
 ## Example commands
 
@@ -138,10 +141,6 @@ From the baseline checkout:
 ```bash
 orun new --blueprint repo-blueprint.yaml --out $HOME/sourceplane/acme \
   --run-hooks --phase 04-workers \
-  --values $HOME/sourceplane/acme/.rebrand/values.json
-
-orun new --blueprint repo-blueprint.yaml --out $HOME/sourceplane/acme \
-  --run-hooks --phase 04-workers-restore \
   --values $HOME/sourceplane/acme/.rebrand/values.json
 ```
 
@@ -155,14 +154,12 @@ git clone --depth 1 --branch <baseline-tag> https://github.com/sourceplane/lumen
 cd lumen
 orun new --blueprint repo-blueprint.yaml --out /work/acme \
   --run-hooks --phase 04-workers --values /work/acme.values.yaml
-orun new --blueprint repo-blueprint.yaml --out /work/acme \
-  --run-hooks --phase 04-workers-restore --values /work/acme.values.yaml
 ```
 
 Preview with zero side effects: drop `--run-hooks` — the phase places files
 and stops, with no landing, no convergence watch and no probe. `--status`
 derives every phase's state and writes nothing at all. Re-running a
-completed phase is safe: the placement is a no-op, strip and restore are
+completed phase is safe: the placement is a no-op, the retouch marker is
 idempotent, the landing finds nothing new, and the `await` hooks re-assert.
 
 The pair measured ~31m end to end on the heaviest recorded run and ~21m on

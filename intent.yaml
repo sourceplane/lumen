@@ -21,6 +21,25 @@ execution:
     # default branch, keeping the org-global catalog head fresh without an
     # explicit `--push-catalog`.
     autopushCatalog: true
+  # Lanes (orun >= v2.76.0): CI runs one GitHub job per LANE, not per orun job.
+  # Auto mode leaves a small plan as one lane per job and packs a bigger one,
+  # keeping each environment on its own runners and every dependency chain
+  # (supabase -> hyperdrive -> db-migrate -> the workers that read their
+  # wiring) inside one lane. web-console-next is isolated (component.yaml):
+  # its build is the longest and must not hold up a lane. Every job still
+  # gets its own check run, named as before, so branch protection is
+  # unaffected.
+  lanes:
+    mode: auto
+    # The budget is the runner pool: a free GitHub plan starts 20 jobs at
+    # once, and `plan` is done before the lanes start, so 18 lanes fit in one
+    # wave. Auto mode shares them between environments by job count, so the
+    # fleet landing (twelve workers on stage and prod, plus dev's verify
+    # jobs) gives stage and prod several lanes each instead of one.
+    maxLanes: 18
+    # Jobs in flight inside a lane = the runner's cores (4 on ubuntu-latest):
+    # above that each job only slows the others down.
+    concurrency: auto
 
 compositions:
   sources:
@@ -31,7 +50,7 @@ compositions:
     # a commit here. Bumping the tag is the deliberate upgrade step.
     - name: stack-tectonic
       kind: oci
-      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.18.2
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.20.0
   resolution:
     precedence:
       - stack-tectonic
@@ -81,6 +100,10 @@ automation:
 
 environments:
   dev:
+    description: Verify-only. Pull requests plan and verify here; nothing is deployed, so there is no door.
+    # dev only ever verifies (no component deploys to it), so nothing in it
+    # has to wait for anything: every dev job starts the moment a runner does.
+    dependencyMode: advisory
     activation:
       triggerRefs:
         - github-pull-request
@@ -100,6 +123,11 @@ environments:
       BASE_DOMAIN: lumen.app
 
   stage:
+    description: The fleet, the API edge and the console, deployed on every merge to main before prod.
+    url: https://lumen-web-console-next-stage.rahulvarghesepullely.workers.dev
+    links:
+      - { title: API, url: https://lumen-api-edge-stage.rahulvarghesepullely.workers.dev }
+      - { title: Health, url: https://lumen-api-edge-stage.rahulvarghesepullely.workers.dev/health }
     activation:
       triggerRefs:
         - github-pull-request
@@ -118,6 +146,11 @@ environments:
       BASE_DOMAIN: lumen.app
 
   prod:
+    description: Where customers are. Deploys after stage converges on the same commit.
+    url: https://lumen-web-console-next-prod.rahulvarghesepullely.workers.dev
+    links:
+      - { title: API, url: https://lumen-api-edge-prod.rahulvarghesepullely.workers.dev }
+      - { title: Health, url: https://lumen-api-edge-prod.rahulvarghesepullely.workers.dev/health }
     activation:
       triggerRefs:
         - github-pull-request

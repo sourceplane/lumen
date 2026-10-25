@@ -24,7 +24,7 @@ The repo ROOT — no deployable components yet:
   ship by accident
 - `.rebrand/values.json` — the identity record every later phase reads
 - root files: `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`,
-  `turbo.json`, `kiox` locks, `.gitignore`
+  `turbo.json`, `.gitignore`
 - `README.md` and `AGENTS.md` — the product's own, rendered from
   `.baseline/product/` with its name and repository: the front page, and the
   page an agent handed the product reads first (what it is, what to read
@@ -114,6 +114,28 @@ block.
 
 This phase has no `await` hook: there is nothing to converge until a later
 phase lands a component.
+
+## What it defers for the rest of the bootstrap
+
+Two rules in `intent.yaml` are right for a live product and wrong for a build
+of one, so this phase turns both off and `08-docs`, the last landing, puts
+them back byte-for-byte:
+
+- `prod.promotion.dependsOn: [stage]` makes every prod deploy wait out the
+  same component's stage deploy, doubling each convergence — twelve workers'
+  worth of it in `04-workers`. During a bootstrap both environments are empty
+  and every phase is watched to green, so the gate protects nothing yet
+  (`tooling/bootstrap/promotion.mjs --defer`).
+- dev's `github-push-main` activation re-verifies every component on the dev
+  rung on every merge, which during a bootstrap proves nothing the pinned
+  baseline's own CI did not and takes runner slots from the deploys
+  (`tooling/bootstrap/dev-lanes.mjs --defer`). Pull requests keep their dev
+  lanes throughout.
+
+Both are deferred, never dropped: a bootstrap that stops before `08-docs`
+leaves a marker comment in `intent.yaml`, and `--restore` (or a re-run of
+`08-docs`) is the whole fix. `testing/bootstrap-defer.test.sh` holds the
+round trip exact.
 
 ## Verify / done means
 

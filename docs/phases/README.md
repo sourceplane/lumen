@@ -1,6 +1,6 @@
 # The phases — one blueprint, nine selections
 
-`repo-blueprint.yaml` declares nine phases that take a product from
+`repo-blueprint.yaml` declares eight phases that take a product from
 **nothing** to a **live, documented baseline** on Cloudflare and Supabase.
 Run them one at a time at your own pace with `--phase <name>`, or run the
 whole sequence unattended with `--resume`. There is no wrapper that runs
@@ -39,13 +39,12 @@ deploying is what a merge does and a PR cannot.
 | [`03-infrastructure`](03-infrastructure.md) | 03-infrastructure | `supabase`, `cloudflare-kv` | `WIRING_CLOUDFLARE_KV` + `SUPABASE_PROJECT_REF` / `SUPABASE_DB_PASSWORD` / `SUPABASE_DB_URL` published on stage and prod |
 | [`03-infrastructure-database`](03-infrastructure.md#the-second-landing-03-infrastructure-database) | 03-infrastructure | `cloudflare-hyperdrive`, `db-migrate` | `WIRING_CLOUDFLARE_HYPERDRIVE` published on stage and prod |
 | [`04-workers`](04-workers.md) | 04-workers | the 12-worker fleet, two feedback bindings stripped | convergence green |
-| [`04-workers-restore`](04-workers.md#the-second-landing-04-workers-restore) | 04-workers | the two bindings put back (places no files) | convergence green |
 | [`05-edge`](05-edge.md) | 05-edge | `api-edge` (+ its tests, + `platform-limits-tests`) | `/health` answers on stage and prod |
 | [`06-console`](06-console.md) | 06-console | web console, and the custom-domain component (parked until a zone is wired) | console + edge live on stage and prod |
 | [`08-docs`](08-docs.md) | 08-docs | live-deployment docs (places no files; a hook renders them) | the URLs the manifest claims, re-probed |
 
-Nine phases, seven milestones. `03-infrastructure-database` and
-`04-workers-restore` are second landings of the unit before them: each has
+Eight phases, seven milestones. `03-infrastructure-database` is a second
+landing of the unit before it: it has
 its own PR and its own task, and each files under its predecessor's
 milestone. They are documented on their predecessor's page for the same
 reason. The numbering keeps its gap at 07: the custom-domain component that
@@ -55,7 +54,7 @@ owner wires it later in an ordinary PR (see
 
 One requirement looks odd and is deliberate:
 
-- **`05-edge` requires `04-workers`, not `04-workers-restore`.** A phase
+- **A gate may only name a phase that places files.** A phase
   that places no files derives as `unknown` — the product repo cannot be
   asked whether a landing happened — and `requires.phases` fails closed on
   `unknown`. A requirement on a hook-only phase could never be satisfied.
@@ -138,7 +137,7 @@ modes are the same files.
 ## Unattended: `--resume`
 
 `--resume` places every phase not already derived as done, in dependency
-order, honouring each barrier. Budget **84 minutes** — the sum of the
+order, honouring each barrier. Budget **53 minutes** — the sum of the
 phases' `expectedMinutes`, which the card carries — against the ~73 minutes
 measured for phases 01–06 under the shell layer this replaced. The worker
 fleet (~31m) and the console build (~16m) dominate; Supabase project creation
@@ -175,7 +174,7 @@ Why it can run unattended:
   there), and `--resume` leaves a drifted phase placed rather than
   reverting your product's identity to `lumen`. Re-place one deliberately
   with `--phase <name>`.
-- `04-workers-restore` and `08-docs` place no files, so they derive as
+- `08-docs` places no files, so it derives as
   `unknown`. `--status` prints all of this without writing anything.
 - **Git-level idempotence is not deploy-level idempotence.** The product's
   CI plans `--changed`: a component deploys only when its files changed in
@@ -249,7 +248,7 @@ verb any bootstrap needs, and each resolves the baseline checkout as
   its `link` step (`orun cloud link`, then `orun cloud check` as the gate);
 - `pnpm install --lockfile-only` — the lanes install with
   `--frozen-lockfile`, and the lockfile grows with every phase;
-- `tooling/bootstrap/cycle-break.mjs --strip` / `--restore` across the two
+- `tooling/deploy/fleet-stubs.mjs`, the pre-deploy that makes one fleet
   worker landings;
 - `hooks/render-deployment-docs.sh`, `08-docs`'s renderer.
 

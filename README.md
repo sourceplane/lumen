@@ -42,10 +42,10 @@ _Not yet recorded — run [`08-docs`](docs/phases/08-docs.md) after
 
 This baseline births new products from one artifact — `repo-blueprint.yaml`,
 run by `orun new` (**[BOOTSTRAP.md](BOOTSTRAP.md)** →
-[docs/phases/](docs/phases/README.md)). It declares nine idempotent phases —
-scaffold, foundation, infrastructure, database, workers, workers-restore,
-edge, console (with the custom-domain component, parked), docs — each landing
-a verified slice, each selectable with `--phase <name>`.
+[docs/phases/](docs/phases/README.md)). It declares eight idempotent phases —
+scaffold, foundation, infrastructure, database, workers, edge, console (with
+the custom-domain component, parked), docs — each landing a verified slice,
+each selectable with `--phase <name>`.
 Products receive **product-only content** (source, infra, CI, their own
 docs); none of this baseline's machinery ships, and a product's docs speak
 only about the product. This README does not ship either: a product gets its
@@ -56,9 +56,10 @@ own `README.md` and an `AGENTS.md`, rendered from
 
 - Node.js >= 20 (CI and components run on Node 22)
 - pnpm >= 10 (`npm install -g pnpm`)
-- (Optional, for local Orun validation) the `kiox` CLI on your `PATH`. `kiox`
-  pins the Orun provider declared in `kiox.yaml`; invoke Orun as
-  `kiox -- orun ...`.
+- (Optional, for local Orun validation) the `orun` CLI on your `PATH`, at the
+  version `.github/workflows/ci.yml` pins. Orun is pinned where it runs — in
+  CI by `orun-action`'s `version:`, and for a bootstrap by the floor
+  BOOTSTRAP.md names — so there is no provider manifest to install.
 
 ## Getting Started
 
@@ -123,16 +124,16 @@ released there, and adopted here by bumping the pinned tag.
 CI is powered by [Orun](https://github.com/sourceplane/orun) with the local Stack Tectonic
 composition stack. `.github/workflows/ci.yml` calls only `orun plan` and
 `orun run` — no direct `pnpm`, `turbo`, Wrangler, or Terraform commands run in
-GitHub Actions. The Orun runtime is pinned in `kiox.yaml` (resolved digest in
-`kiox.lock`); the workflow's `orun-action` `version:` matches that pin.
+GitHub Actions. The Orun runtime is pinned where it runs: the workflow's
+`orun-action` `version:`.
 
 ### Local Orun Verification
 
 ```bash
-kiox -- orun compositions lock --intent intent.yaml
-kiox -- orun validate --intent intent.yaml
-kiox -- orun plan --changed --intent intent.yaml --output plan.json
-kiox -- orun run --plan plan.json --dry-run --runner github-actions
+orun compositions lock --intent intent.yaml
+orun validate --intent intent.yaml
+orun plan --changed --intent intent.yaml --output plan.json
+orun run --plan plan.json --dry-run --runner github-actions
 ```
 
 Use `--changed` for PR-scoped checks; use a full plan when validating
@@ -157,7 +158,7 @@ manual prerequisites.
    typed `parameters` the composition schema requires.
 3. Orun discovers it automatically on the next plan (`discovery.roots` covers
    `apps/`, `infra/`, `packages/`, `tests/`). Validate with
-   `kiox -- orun validate --intent intent.yaml`.
+   `orun validate --intent intent.yaml`.
 
 See `specs/core/orun-golden-path.md` for the intent/component/composition layer
 rules before changing CI, infra, or `intent.yaml`.

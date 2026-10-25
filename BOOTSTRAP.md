@@ -13,18 +13,20 @@ now either a typed action inside the orun binary or a hook this repo still
 owns, which is why the version floor matters and why a phase can be run
 alone, months later, from a fresh container.
 
-Budget: **84 minutes**, the sum of the phases' own `expectedMinutes` (the
-shell layer this replaced measured ~73 for 01–06). The long poles are the
-worker fleet (~31m across its two landings) and the console build (~16m);
-Supabase project creation (5–7m per environment) is the longest wait nobody
-can shorten. Where the numbers come from, and which are still estimates:
+Budget: **53 minutes**, the sum of the phases' own `expectedMinutes`. The
+long poles are the worker fleet (~14m, one landing and one deploy each) and
+the console build (~13m); Supabase project creation (5–7m per environment) is
+the longest wait nobody can shorten. The budget came down from 84 because a
+bootstrap landing is no longer verified twice (its PR runs `plan` alone), the
+fleet no longer deploys twice, and prod no longer waits out stage. Where the
+numbers come from, and which are still estimates:
 [docs/phases/TIMINGS.md](docs/phases/TIMINGS.md).
 
 ## 0. What you need
 
 - **Tools.** `git`, `gh`, `node` (≥ 20), `pnpm`, `python3`, `curl`, and the
-  `orun` CLI **≥ v2.58.11**. That is the floor for RUNNING the bootstrap; the
-  product's own `ci.yml` lane pin is a separate, lower floor (v2.56.2).
+  `orun` CLI **≥ v2.88.0**. That is the floor for RUNNING the bootstrap; the
+  product's own `ci.yml` lane pin is a separate, lower floor (v2.78.4).
   v2.56.0 carried the phase overlay (before it there is no `--phase` and
   `hooks.{pre,post,await}` does not parse); v2.56.2 let a branded phase
   satisfy the next one's requirement; v2.58.4 resolves a milestone name and a
@@ -42,8 +44,14 @@ can shorten. Where the numbers come from, and which are still estimates:
   preflight, without which every fresh build stops before its first phase;
   and v2.58.11 fills `orunWorkspace` from the workspace the build runs in
   (`from: workspace`), which is the only way a console build has of saying
-  it. `baseline.yml`'s `blueprint-parses` job pins the same version, so the
-  floor is tested rather than remembered.
+  it. v2.58.11 was the floor until this document used three keys an older
+  CLI refuses at parse: `hooks.preInstantiate[].background` and
+  `orun.pr/land@v1`'s `checks: local` (both v2.88.0), and
+  `orun.integrations/reconcile@v1`'s `secrets:` list (v2.87.0) — so the floor
+  is v2.88.0. The product's lane pin moved to v2.78.4 for `execution.lanes`
+  (v2.76.0), which is what makes CI run one job per lane instead of one per
+  orun job. `baseline.yml`'s `blueprint-parses` job pins the bootstrap floor,
+  so it is tested rather than remembered.
 - **GitHub.** Access to the org or user the product repo will live under
   (`githuborg`), and the Orun GitHub App installed there and connected to the
   workspace. `01-scaffold` waits for that connection to be to the account
@@ -127,8 +135,10 @@ every phase after `01-scaffold` brands the tree — derives as `drifted`, and
 ## 1b. Or phase by phase — the same document, at your pace
 
 The phases are `01-scaffold`, `02-foundation`, `03-infrastructure`,
-`03-infrastructure-database`, `04-workers`, `04-workers-restore`, `05-edge`,
-`06-console`, `08-docs` — nine phases filed under seven milestones. The gap
+`03-infrastructure-database`, `04-workers`, `05-edge`, `06-console`,
+`08-docs` — eight phases filed under seven milestones. (`04-workers-restore`
+is gone: the fleet deploys once, with its bindings — see
+[docs/phases/04-workers.md](docs/phases/04-workers.md).) The gap
 at 07 is the optional `07-domain` phase, whose parked custom-domain component
 lands in `06-console` since baseline-v30 (the `domain` input that switched it
 on is gone). Each is idempotent, each follows one contract —
@@ -151,7 +161,7 @@ orun new --blueprint repo-blueprint.yaml --out ~/sourceplane/acme --run-hooks \
 orun new --blueprint repo-blueprint.yaml --out ~/sourceplane/acme --run-hooks \
   --phase 02-foundation --values ~/sourceplane/acme/.rebrand/values.json
 # … 03-infrastructure, 03-infrastructure-database, 04-workers,
-#   04-workers-restore, 05-edge, 06-console, 08-docs.
+#   05-edge, 06-console, 08-docs.
 ```
 
 The flags that shape a run:
@@ -235,7 +245,7 @@ none of that happens. To see the *shape* without a real run, use `--status`.
 
 | requirement | detail |
 |---|---|
-| image deps | `git`, `gh`, `node` (≥ 20), `pnpm`, `python3`, `curl`, `orun` ≥ v2.58.11 to run the bootstrap. The product's `ci.yml` lane pin (v2.56.2) is its own floor |
+| image deps | `git`, `gh`, `node` (≥ 20), `pnpm`, `python3`, `curl`, `orun` ≥ v2.88.0 to run the bootstrap. The product's `ci.yml` lane pin (v2.78.4) is its own floor |
 | `ORUN_TOKEN` | orun access token; the typed actions authenticate with it (no login flow). A session token from `orun auth token` lives ~30m, shorter than a full run: use the workspace's admin-role API key, mint one per phase, or point `ORUN_TOKEN_FILE` at a file something keeps fresh (the CLI re-reads it on every call and prefers it) |
 | `GITHUB_TOKEN` | fine-grained PAT: **read** on `sourceplane/lumen` (the clone); on the PRODUCT repo: **contents write** (pushes), **pull-requests write** (landings), **actions read+write** (`orun.run/watch@v1` watches runs and re-runs failed lanes), **checks read**; **repo create** on the org if `01-scaffold` creates the repo (or pre-create it, empty — supported) |
 | pinning | the clone's `--branch <tag>` pins EVERYTHING: the blueprint, its modules, and the hooks' scripts all come from that one commit. Use a tag for reproducible bootstraps; `main` for latest |
@@ -328,7 +338,7 @@ the orun component lanes — and every product gets it.
 | job | what it proves |
 |---|---|
 | `baseline-contract` | bash + python3 + PyYAML only: `testing/manifest.test.sh` (card ↔ blueprint), `phases.test.sh` (the partition, the order, the narration, and `docs/phases/` — every phase has a page and every page a phase), `coverage.test.sh` (every component placed by exactly one phase; the ignore list honest), `rebrand.test.sh` |
-| `blueprint-parses` | orun pinned at the bootstrap floor, v2.58.11: `orun new --status` reads the document the way a bootstrap will; then `testing/leak.test.sh` (what a product carries) and `testing/placement.test.sh` (the tree placed offline from `tests/fixtures/acme.json`, branded, and made to answer, phase by phase through a rebrand) |
+| `blueprint-parses` | orun pinned at the bootstrap floor, v2.88.0: `orun new --status` reads the document the way a bootstrap will; then `testing/leak.test.sh` (what a product carries) and `testing/placement.test.sh` (the tree placed offline from `tests/fixtures/acme.json`, branded, and made to answer, phase by phase through a rebrand) |
 
 All of it runs locally with no credential and no network — `bash
 testing/<name>.test.sh` from the repo root. Leak and placement need `orun` on
@@ -371,13 +381,15 @@ purpose, written down so they read as instructions rather than breakage.
 | Terraform: resource already exists (10014 etc.) with empty platform state | `adopt.tf` imports at plan time — present in the kv, hyperdrive and supabase roots. Roots without adoption must be state-migrated or the resource deleted. |
 | `03-infrastructure-database` refuses: `SUPABASE_*` not published | `03-infrastructure`'s supabase apply did not publish on that environment. Read that lane, fix, re-run `03-infrastructure`. |
 | `04-workers` refuses: `WIRING_*` not published | Phase 03 did not finish — `WIRING_CLOUDFLARE_KV` is `03-infrastructure`'s, `WIRING_CLOUDFLARE_HYPERDRIVE` is `03-infrastructure-database`'s. |
-| Cloudflare 10143 (service binding target not found) in `04-workers` | A feedback edge the strip does not cover. Run `node <baseline>/tooling/bootstrap/cycle-break.mjs --check` from the product repo; add the edge to `FEEDBACK_EDGES` and to the acknowledged-cycles test together. |
+| Cloudflare 10143 (service binding target not found) in `04-workers` | The worker does not wait on `policy-worker`, whose pre-deploy places every binding target (`tooling/deploy/fleet-stubs.mjs`): its `dependsOn: policy-worker` must carry `mode: enforced`. `testing/fleet-stubs.test.sh` checks every binding holder. List what would be placed with `node <baseline>/tooling/deploy/fleet-stubs.mjs --root . --env stage --list`. |
 | api-edge deploy: `Service binding '<NAME>_WORKER' … not found` | A fleet worker never deployed in phase 04. Resume that convergence, then re-run `05-edge`. |
 | Convergence run fails, lanes look transient | `orun.run/watch@v1` already resumes it up to 3× (`gh run rerun --failed` is a true resume: exec-id + `--retry`). |
 | Convergence still red after the resume budget | Re-running the phase lands nothing new, and CI plans `--changed`, so nothing redeploys what the failed run left undeployed. Resume the run itself — `gh run rerun --failed <run-id>` — then re-run the phase so its `await` hooks verify. |
 | `/health` probes fail against a green deploy | Check `subdomain` first: it must be the Cloudflare account's workers.dev subdomain, and the default is a placeholder. A console build reads it from the Cloudflare connection; a hand-run build passes it with `--set`. |
 | CLI login dies with 429 `rate_limited` | Fixed ≥ v2.48.1 (redeem honours Retry-After). Upgrade the CLI. |
-| `unknown flag: --phase`, `cannot unmarshal !!map into []scaffold.Hook`, or an action `has no parameter "githubOwner"` / `"sha"` | The CLI is below the v2.58.11 floor. This blueprint is not readable by an older one. |
+| `unknown flag: --phase`, `cannot unmarshal !!map into []scaffold.Hook`, or an action `has no parameter "githubOwner"` / `"sha"` / `"checks"` / `"secrets"` / `"background"` | The CLI is below the v2.88.0 floor. This blueprint is not readable by an older one. |
+| `! [rejected] orun/BASE-n-<phase> (non-fast-forward)` on a retry | A build that stopped between the pen's push and the merge left that branch on the remote, and the retry commits a sibling of it. Each landing's `pen-reset` hook clears it (`tooling/bootstrap/pen-reset.mjs`); if you are on a baseline without that hook, delete the branch — `git push origin --delete orun/BASE-n-<phase>`, which also closes its pull request — and re-run the phase. Do NOT `git pull`: the branches have diverged, and merging the abandoned commit back in lands a doubled diff. |
+| The build stops with nothing failed, no merge and no convergence | Its `ORUN_TOKEN` very likely expired: `orun auth token` mints a short-lived one (~30m) and a full bootstrap is longer. Use the workspace's admin-role API key, or point `ORUN_TOKEN_FILE` at a file something keeps fresh — the CLI re-reads it on every call. Seen on pullely/multi-tenant-saas (2026-10-25): 46/46 PR checks green at 30m46s, then no merge and no further platform event. |
 | A fresh build stops before 01-scaffold: `✕ phase "04-workers" precondition "wiring" is not met: … project "<repo>" not found` | The CLI is below v2.58.10, which asks the preflight about the product's project before phase 01 has created it and calls the answer a failure. Upgrade; the probe is then deferred to phase 04. |
 | The product's `intent.yaml` says `workspace: ws_SET_ME`, or its secret refs name the repository (`secret://<repo>/…`) | `orunWorkspace` was empty: set it, or run the build in the workspace (ORUN_WORKSPACE) with a CLI ≥ v2.58.11, which fills it from there. |
 | `✕ input "productname" is required` | Required inputs are validated before anything else, so this names the key nobody typed. All three — `reponame`, `productname`, `githuborg` — must be set on every invocation, including single-phase ones. `--values <out>/.rebrand/values.json` carries them. The domain is not required (a baseline before v30 asked for `productdomain` too). |
