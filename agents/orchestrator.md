@@ -400,11 +400,11 @@ Must:
 - run the required Orun verification for the changed components
 - create PR
 - write report
-- run `kiox -- orun validate --intent intent.yaml`
+- run `orun validate --intent intent.yaml`
   when `intent.yaml` exists
-- run `kiox -- orun plan --changed --intent intent.yaml --output plan.json`
+- run `orun plan --changed --intent intent.yaml --output plan.json`
   when Orun is scaffolded
-- run `kiox -- orun run --plan plan.json --dry-run --runner github-actions`
+- run `orun run --plan plan.json --dry-run --runner github-actions`
   when a plan is produced, recording no-op results when the plan has no jobs
 
 Report:
@@ -435,7 +435,7 @@ Must:
 - validate milestone acceptance criteria
 - identify spec drift and ensure proposals exist for non-trivial spec changes
 - run quality gates
-- run local kiox/orun validation when available
+- run local orun validation when available
 - inspect GitHub Actions logs, not just status summaries
 - detect overreach / hidden coupling
 - confirm production-grade basics
@@ -456,10 +456,10 @@ Recommended Next Move
 
 Verifier Merge Protocol:
 
-- Prefer `kiox` when `kiox` is not on `PATH`
-- Run `kiox -- orun validate --intent intent.yaml` when `intent.yaml` exists
-- Run `kiox -- orun plan --changed --intent intent.yaml --output plan.json` when Orun is scaffolded
-- Run `kiox -- orun run --plan plan.json --dry-run --runner github-actions` when a plan is produced; if no jobs are planned, record the no-op result
+- Skip local validation when `orun` is not on `PATH`
+- Run `orun validate --intent intent.yaml` when `intent.yaml` exists
+- Run `orun plan --changed --intent intent.yaml --output plan.json` when Orun is scaffolded
+- Run `orun run --plan plan.json --dry-run --runner github-actions` when a plan is produced; if no jobs are planned, record the no-op result
 - When a task creates or updates Cloudflare, Supabase, AWS IAM, S3, or Secrets Manager resources, verify the resulting resources directly with provider CLIs/APIs, Terraform state, or GitHub Actions logs and include non-secret observed resource state in the verifier report
 - Check PR CI logs with `gh`, including successful jobs, to confirm expected commands actually ran
 - Verify PR CI logs show `orun plan --changed --intent intent.yaml --output plan.json` and `orun run --plan plan.json --runner github-actions --remote-state` when applicable

@@ -51,11 +51,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Contract tests (manifest, phases, coverage, rebrand)
+      - name: Contract tests (manifest, phases, coverage, rebrand, retouch, bootstrap-defer, fleet-stubs, pen-reset)
         run: |
           set -euo pipefail
           python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
-          for t in manifest phases coverage rebrand; do
+          for t in manifest phases coverage rebrand retouch bootstrap-defer fleet-stubs pen-reset; do
             echo "── $t"
             bash "testing/$t.test.sh"
           done
@@ -81,15 +81,15 @@ jobs:
       - uses: actions/checkout@v6
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          # The bootstrap floor (BOOTSTRAP.md), not the product lane pin: the
-          # blueprint's `orun.run/watch@v1` `sha:` exists from v2.58.5, and an
-          # older CLI refuses the whole document at parse; v2.58.6 is where a
-          # landing's check wait covers the whole PR run; v2.58.7 knows
-          # orun.doctor/check@v1's `githubOwner`; v2.58.8 reads
-          # orun.secrets/exists@v1's `environments`; v2.58.10 defers a probe
-          # about a project the bootstrap has not created yet; v2.58.11 fills
-          # an input declared `from: workspace`.
-          version: v2.58.11
+          # The bootstrap floor (BOOTSTRAP.md), not the product lane pin. It
+          # used to be v2.58.11 — the first CLI that could read this document
+          # at all (`orun.run/watch@v1`'s `sha:`, a landing's whole-run check
+          # wait, `githubOwner`, `environments`, a deferred project probe, and
+          # `from: workspace`). It is v2.88.0 now, for three keys an older CLI
+          # refuses at parse: `hooks.preInstantiate[].background`,
+          # `orun.pr/land@v1`'s `checks: local`, and
+          # `orun.integrations/reconcile@v1`'s `secrets:` list (v2.87.0).
+          version: v2.88.0
       - name: repo-blueprint.yaml, read by the pinned CLI
         run: |
           set -euo pipefail

@@ -15,7 +15,19 @@ spec:
   domain: starter-runtime
   path: apps/membership-worker
   dependsOn:
+    # ENFORCED ON MAIN: the data plane before anything that reads its wiring,
+    # and policy-worker before anything that holds a service binding — its
+    # pre-deploy creates a placeholder for every binding target that does not
+    # exist yet (tooling/deploy/fleet-stubs.mjs), so each worker's first
+    # deploy can carry its full bindings. Peer edges stay advisory: they are
+    # runtime calls, not deploy order. A pull request deploys nothing, so
+    # nothing on one waits.
     - component: policy-worker
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
     - component: billing-worker
     # Shared workspace packages this component BUNDLES. Declared so a change
     # to one marks this component changed and redeploys it — without the
@@ -29,6 +41,12 @@ spec:
       - name: dev
         profile: verify
       - name: stage
+        # Peer edges are runtime calls, not deploy order: every binding
+        # target exists before this deploys (policy-worker's pre-deploy
+        # places one, tooling/deploy/fleet-stubs.mjs), so nothing in this
+        # lane waits on a peer. The edges marked `mode: enforced` above
+        # still order.
+        dependencyMode: advisory
         profile: verify
         # wire-live (deploy profile) is the only reader, and dev never
         # deploys — scoping keeps dev jobs from requiring stage+prod
@@ -41,6 +59,12 @@ spec:
             when:
               triggerRef: github-push-main
       - name: prod
+        # Peer edges are runtime calls, not deploy order: every binding
+        # target exists before this deploys (policy-worker's pre-deploy
+        # places one, tooling/deploy/fleet-stubs.mjs), so nothing in this
+        # lane waits on a peer. The edges marked `mode: enforced` above
+        # still order.
+        dependencyMode: advisory
         profile: verify
         # wire-live (deploy profile) is the only reader, and dev never
         # deploys — scoping keeps dev jobs from requiring stage+prod

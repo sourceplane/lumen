@@ -211,7 +211,7 @@ Last updated: 2026-05-26
 ## Watch Items
 
 - Keep `.github/workflows/ci.yml` Orun-only.
-- Verify that local `kiox -- orun ...` behavior and GitHub Actions behavior use
+- Verify that local `orun ...` behavior and GitHub Actions behavior use
   the same rendered plan.
 - Keep reusable SaaS starter work separate from product-specific `specs-v2`
   work.

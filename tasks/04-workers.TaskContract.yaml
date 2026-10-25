@@ -6,7 +6,7 @@
 apiVersion: orun.io/v1
 kind: TaskContract
 spec:
-  goal: The 12-worker fleet lands with service-binding feedback edges stripped so first-boot workers deploy in DAG order
+  goal: The 12-worker fleet lands and deploys once, each worker carrying its full service bindings
   affects:
     - admin-worker
     - billing-worker
@@ -21,5 +21,5 @@ spec:
     - projects-worker
     - webhooks-worker
   doneWhen:
-    - convergence green with feedback edges stripped
+    - convergence green with every service binding in place
   gates: []

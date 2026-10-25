@@ -54,9 +54,9 @@ WAS = {
     # against `agents/` and `ai/state.json` — files no product receives
     # (orun-cloud saas-build-panel BV4; the leak gate refuses it now).
     "01-scaffold": ["ai-deployment", "ai-operations", "github-workflows", "rebrand-values", "root-gitignore",
-                    "root-intent", "root-kiox", "root-kiox-lock", "root-package-json",
+                    "root-intent", "root-package-json",
                     "root-pnpm-lock", "root-pnpm-workspace", "root-readme", "root-turbo",
-                    "tooling-eslint", "tooling-tsconfig", "tooling-wire"],
+                    "tooling-deploy", "tooling-eslint", "tooling-tsconfig", "tooling-wire"],
     "02-foundation": ["cli", "contracts", "contracts-tests", "db", "db-tests",
                       "notifications-client", "notifications-client-tests", "policy-engine",
                       "policy-engine-tests", "sdk", "shared", "testing", "webhook-verifier"],
@@ -92,7 +92,7 @@ WAS = {
 # `root-agents` is the product's AGENTS.md (saas-build-panel BV4): the page an
 # agent handed the product reads first.
 ADDED = {"01-scaffold": ["discovery-roots", "root-agents"], "05-edge": ["platform-limits-tests"]}
-HOOK_ONLY = {"04-workers-restore", "08-docs"}
+HOOK_ONLY = {"08-docs"}
 
 by_name = {p["name"]: p for p in phases}
 names = [p["name"] for p in phases]
@@ -175,10 +175,10 @@ for p in phases:
 # This replaces BE1's "every flows/phases folder has a phase declared here".
 # The folders are gone (BE4), and the thing that can now drift out from under
 # a reader is `docs/phases/`: a page for a phase nobody runs, or a phase
-# nobody documented. `04-workers-restore` is deliberately covered by
+# nobody documented. `03-infrastructure-database` is deliberately covered by
 # `04-workers.md`, and `03-infrastructure-database` by `03-infrastructure.md`
 # — each pair of landings is one story, filed under one milestone.
-DOC_SHARED = {"04-workers-restore": "04-workers", "03-infrastructure-database": "03-infrastructure"}
+DOC_SHARED = {"03-infrastructure-database": "03-infrastructure"}
 docs_dir = root / "docs" / "phases"
 pages = {f.stem for f in docs_dir.glob("*.md")} - {"README", "TIMINGS"}
 for p in phases:

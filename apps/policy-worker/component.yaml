@@ -55,7 +55,12 @@ spec:
     typecheckCommand: pnpm exec turbo run typecheck --filter=@saas/policy-worker
     dryRunCommand: pnpm exec wrangler deploy --dry-run --config wrangler.jsonc --env prod
     deployCommand: pnpm exec wrangler deploy --config wrangler.jsonc --env prod
-    preDeployCommand: "echo 'No pre-deploy step configured.'"
+    # The fleet's binding targets exist before any of it deploys: every worker
+    # that holds a service binding waits on this one (an enforced dependsOn on
+    # main), and this step uploads a placeholder for each target that does not
+    # exist yet, so their first deploys carry their full bindings
+    # (tooling/deploy/fleet-stubs.mjs). On a live product it uploads nothing.
+    preDeployCommand: "node ../../tooling/deploy/fleet-stubs.mjs --root ../.."
     migrationCommand: "echo 'No migrations configured.'"
     smokeCommand: "echo 'No smoke test configured.'"
   labels:

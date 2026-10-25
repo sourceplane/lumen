@@ -23,6 +23,20 @@ No secret VALUE is ever read or written — inventories are names and
 statuses. A credential that cannot list a rung yields "listing unavailable to
 this credential" rather than a failed render.
 
+## What it puts back
+
+Before it writes anything, this landing restores the two rules `01-scaffold`
+deferred for the build: `prod.promotion.dependsOn: [stage]`
+(`tooling/bootstrap/promotion.mjs --restore`) and dev's `github-push-main`
+activation (`tooling/bootstrap/dev-lanes.mjs --restore`). Both reproduce
+`intent.yaml` byte-for-byte. Restoring touches only the `environments`
+section, which `orun plan --changed` maps to no component, so this landing
+redeploys nothing.
+
+From here on a change reaches prod only after stage, and every merge to main
+re-verifies the dev rung. A bootstrap that stopped before this phase leaves
+a marker comment in `intent.yaml`; re-running `08-docs` is the whole fix.
+
 ## Steps
 
 1. **requires** — `06-console` placed.

@@ -35,9 +35,12 @@ runs, so pass them on every invocation; the product's own
 
 ## Steps
 
-1. **requires** — `04-workers` placed. Not `04-workers-restore`: that phase
-   places no files, derives as `unknown`, and a requirement on it could never
-   be satisfied. Run the restore first anyway — `--resume` does.
+1. **requires** — `04-workers` placed. That phase both places files and is
+   this one's predecessor, so the gate answers from the tree. It used to
+   require `04-workers-restore`, which placed none and therefore derived as
+   `unknown` — a requirement that could never be satisfied, and this phase
+   refused for the whole of a real bootstrap. That phase is gone: the fleet
+   deploys once, with its bindings.
 2. **pre** — the phase's task.
 3. **place** → **brand** → **lockfile** → **land** — the standard contract
    (PR `phase(05-edge): api-edge`).

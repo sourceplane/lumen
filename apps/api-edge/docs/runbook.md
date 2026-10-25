@@ -34,8 +34,11 @@ a persistent failure is real.
   infrastructure terraform upstream has not applied — check that lane
   first; within one convergence run the DAG guarantees order.
 - **Service-binding target missing (Cloudflare 10143)**: the target
-  Worker does not exist yet on this account — converge the fleet before
-  this lane (the bootstrap's two-pass landing handles first boot).
+  Worker does not exist yet on this account. Every binding holder waits on
+  `policy-worker`, whose pre-deploy uploads a placeholder for each missing
+  target (`tooling/deploy/fleet-stubs.mjs`), so this should not happen — if
+  it does, this component does not declare `dependsOn: policy-worker` with
+  `mode: enforced`.
 - **Smoke fails right after a first deploy**: a brand-new workers.dev
   route can 4xx for a few seconds; the lane already retries — persistent
   failure means a real regression.

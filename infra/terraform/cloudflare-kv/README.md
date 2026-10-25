@@ -134,19 +134,19 @@ land; the cutover is purely additive.
 
 ```bash
 # Validate intent
-kiox exec -- orun validate
+orun validate
 
 # Discover component
-kiox exec -- orun component | grep cloudflare-kv
+orun component | grep cloudflare-kv
 
 # Plan (dry)
-kiox exec -- orun plan --intent intent.yaml --output plan.json
+orun plan --intent intent.yaml --output plan.json
 
 # Inspect plan
 cat plan.json | jq '.jobs[] | select(.component == "cloudflare-kv") | {id, profile}'
 
 # Dry run
-kiox exec -- orun run --plan plan.json --dry-run --runner github-actions
+orun run --plan plan.json --dry-run --runner github-actions
 
 # Terraform fmt check
 terraform -chdir=infra/terraform/cloudflare-kv/terraform fmt -check
@@ -171,7 +171,7 @@ terraform -chdir=infra/terraform/cloudflare-kv/terraform fmt -check
 | `Error: required field is not set` on `account_id` | `CLOUDFLARE_ACCOUNT_ID` not in env | Export `CLOUDFLARE_ACCOUNT_ID` (Orun CI does this automatically) |
 | `Error: 10000: Authentication error` | Token lacks Workers KV scope | Issue a new API token with `Workers KV Storage: Edit` |
 | Plan shows `0 components × N envs → 0 jobs` | Component not subscribed to PR-active env | Verify `subscribe.environments` matches `intent.yaml#environments.*.activation` |
-| Wrangler `kv namespace list` doesn't show the namespace | apply didn't run, or wrong CF account | Run `kiox exec -- orun plan --intent intent.yaml` and confirm an apply job exists for the env |
+| Wrangler `kv namespace list` doesn't show the namespace | apply didn't run, or wrong CF account | Run `orun plan --intent intent.yaml` and confirm an apply job exists for the env |
 
 ## Security
 

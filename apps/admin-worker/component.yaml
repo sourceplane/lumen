@@ -15,7 +15,19 @@ spec:
   domain: starter-runtime
   path: apps/admin-worker
   dependsOn:
+    # ENFORCED ON MAIN: the data plane before anything that reads its wiring,
+    # and policy-worker before anything that holds a service binding — its
+    # pre-deploy creates a placeholder for every binding target that does not
+    # exist yet (tooling/deploy/fleet-stubs.mjs), so each worker's first
+    # deploy can carry its full bindings. Peer edges stay advisory: they are
+    # runtime calls, not deploy order. A pull request deploys nothing, so
+    # nothing on one waits.
     - component: cloudflare-hyperdrive
+      mode: enforced
+      modeRules:
+        - mode: advisory
+          when:
+            triggerRef: github-pull-request
     # Shared workspace packages this component BUNDLES. Declared so a change
     # to one marks this component changed and redeploys it — without the
     # edge, `orun plan --changed` keys on `path:` alone and a worker can run

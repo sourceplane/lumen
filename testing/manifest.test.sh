@@ -86,13 +86,21 @@ def uses(phase, action):
 # THE SECRETS THE BOOTSTRAP MINTS. `orun.integrations/reconcile@v1` is what
 # `create-secrets.sh` was written out longhand as: one connection, one scope
 # template, the keys it ensures. Read per key so a hook minting two keys under
-# one template is three facts rather than one.
+# one template is two facts rather than one.
+#
+# TWO SHAPES, because orun v2.87.0 added the second. The old one is a hook per
+# template (`keys:` + `template:`); the new one is a hook per CONNECTION whose
+# `secrets:` list carries a template per key — same scopes, one round trip.
+# Both are read here so this check cannot go blind on either.
 blueprint_secrets = {}
 for phase in bp_phases:
     for hook in uses(phase, "orun.integrations/reconcile@v1"):
         w = hook.get("with") or {}
         for key in (w.get("keys") or []):
             blueprint_secrets[key] = (w.get("provider"), w.get("template"))
+        for entry in (w.get("secrets") or []):
+            if entry.get("key"):
+                blueprint_secrets[entry["key"]] = (w.get("provider"), entry.get("template"))
 
 if bp is not None and not bp_phases:
     bad("repo-blueprint.yaml declares no phases — this check has gone blind")

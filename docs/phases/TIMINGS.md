@@ -1,70 +1,78 @@
 # Bootstrap timings — what to budget, and where the numbers come from
 
-**Provenance matters here.** Every measured number on this page comes from
-one of two real Lumen bootstraps, and both ran under the shell layer
-("the flows") that `repo-blueprint.yaml` replaced. **No bootstrap has been
-measured end to end under the blueprint yet.**
+**Provenance matters here.** No bootstrap has been measured end to end under
+the current numbers. The budgets below are arithmetic on measured runs — the
+runs themselves are described under the table — and the second item that used
+to head this page, *"every landing waits for its PR's CI again"*, is no longer
+true: a bootstrap landing's pull request runs `plan` alone
+(`.github/workflows/ci.yml`) and the landing is checked locally before it is
+pushed (`checks: local`), so nothing waits for a runner to re-do work the
+merge is about to do for real.
 
-- **vela** (2026-07-30) — fully headless phased bootstrap into the `seafern`
-  workspace with only `ORUN_TOKEN` + `GITHUB_TOKEN`. Landings waited for PR
-  checks, and PR lanes then deployed. Times are the clean path, with every
-  fix the run produced already landed.
-- **ambient** (2026-08-02) — fully headless again, with a workspace-scoped
-  `sk_` API token instead of a user session (baseline-v8, orun v2.52.4).
-  Landings merged without waiting on PR checks (one deploy per landing),
-  which had shipped between the two runs.
-
-What moved into orun's typed actions is the mechanism, not the work: for
-most phases the numbers carry over. Two changes do move the clock, and the
-table labels every row that is an estimate because of them:
-
-1. **Phase 03 is two landings.** The flows landed supabase, kv, hyperdrive
-   and db-migrate in one PR without waiting on it. The blueprint lands
-   supabase and kv, waits for the apply, then lands hyperdrive and
-   db-migrate (see [03-infrastructure.md](03-infrastructure.md)). Neither
-   half has been timed.
-2. **Every landing waits for its PR's CI again** — orun ≥ v2.58.6 waits for
-   the whole PR run and merges only on green. Unlike vela's, today's PR
-   lanes do not deploy (`ci.yml` gates deploy and apply profiles on a push to
-   `main`), so the wait costs build, test and plan time rather than a second
-   deploy. That should land between vela and ambient; it is not measured.
+What remains true from that header: **phase 03 is two landings** — the flows
+landed supabase, kv, hyperdrive and db-migrate in one PR without waiting on
+it, while the blueprint lands supabase and kv, waits for the apply, then
+lands hyperdrive and db-migrate (see
+[03-infrastructure.md](03-infrastructure.md)).
 
 ## Per-phase budget
 
 `expectedMinutes` is what the blueprint declares for each phase, and the
 card's `bootstrap.expectedMinutes` is their sum (`testing/manifest.test.sh`
-holds the two equal). The phases' lines no longer quote it: a build page
-shows one short line per step, and the budget is the engine's fact
+holds them equal). The phases' lines no longer quote it: a build page shows
+one short line per step, and the budget is the engine's fact
 (`.meta.expectedMinutes`), not prose.
 
-| phase | `expectedMinutes` | provenance | what was measured | dominated by |
-|---|---|---|---|---|
-| `01-scaffold` | 2 | measured | ~2m (vela) | render + rebrand ~1m · repo create + push ~30s · link ~10s |
-| `02-foundation` | 9 | measured | ~9m vela (PR verify lanes 3m29s · convergence 3m56s); 5m08s ambient | verify lanes, twice |
-| `03-infrastructure` | 9 | **estimate** | the old one-landing phase 03: ~10m vela (convergence 6m47s), ~15m ambient (convergence ~11m) | Supabase project creation, 5–7m |
-| `03-infrastructure-database` | 6 | **estimate** | — (its work was inside the old phase 03's numbers) | PR plan lanes · Hyperdrive create · migrations |
-| `04-workers` | 31 | measured — **for both landings** | ~31m vela (PR lanes ~7m · strip convergence 13m18s · restore convergence 10m54s); 20m49s ambient | the fleet deploy |
-| `04-workers-restore` | 5 | **estimate** | — as its own phase; its convergence was the 10m54s inside vela's 31m | billing + membership redeploy |
-| `05-edge` | 5 | measured | 5m22s vela; 5m03s ambient | land → converge → `/health` probes |
-| `06-console` | 16 | measured | 15m37s vela (all 3 resumes, self-healed); 14m01s ambient (0 resumes) | console builds are heavy |
-| `08-docs` | 1 | **estimate** | — (neither run's table records it) | probe + render + land |
-| tracking (BT) | seconds per landing | **estimate** | — | one task lookup and at most two creates per landing, plus the epic once |
+**These are re-budgeted, not re-measured.** The 84 they replace was the sum
+under the old shape; three changes took time out of every phase, and the
+column on the right is the arithmetic, from the measured runs below and from
+`pullely/multi-tenant-saas` (2026-10-25, baseline before these changes).
 
-**Totals.** Measured: ~73m for 01–06 on vela, ~60m for 02–06 on ambient. The
-per-phase numbers above sum to 84, and the card (`blueprint.yaml`) budgets
-exactly that: it said 75 while the phases said 84, and
-`testing/manifest.test.sh` now holds the two equal. The sum likely
-overstates, because `04-workers`' 31 is vela's figure for the old phase 04,
-which already contained the restore landing that `04-workers-restore`
-budgets again — treat the 04 pair as ~20–31 between them, and expect a clean
-run under 84. Correct the phases and the card together from the first
-measured run (below).
+| phase | was | now | why |
+|---|---|---|---|
+| `01-scaffold` | 2 | **2** | unchanged. Measured ~2m (vela), 1m35s (multi-tenant-saas) |
+| `02-foundation` | 9 | **5** | vela's 9m was PR verify lanes 3m29s + convergence 3m56s. The PR pass is gone (`plan` only on a bootstrap branch) |
+| `03-infrastructure` | 9 | **8** | Supabase project creation, 5–7m, is the floor and nobody can shorten it. The PR pass (1m28s on multi-tenant-saas) is gone |
+| `03-infrastructure-database` | 6 | **5** | measured 7m20s on multi-tenant-saas, of which its PR pass was 1m25s |
+| `04-workers` | 31 | **14** | vela's 31m was PR lanes ~7m + strip convergence 13m18s + restore convergence 10m54s. One fleet deploy and no PR pass leaves the 13m18s |
+| `04-workers-restore` | 5 | **gone** | the fleet deploys once, with its bindings (`tooling/deploy/fleet-stubs.mjs`) |
+| `05-edge` | 5 | **4** | measured 5m22s (vela) / 5m03s (ambient) including its PR pass |
+| `06-console` | 16 | **13** | measured 15m37s / 14m01s. The console build is still cold — the prebuilt artifact is NOT in this baseline |
+| `08-docs` | 1 | **2** | it also restores the promotion gate and dev's lanes now |
+| **total** | **84** | **53** | |
 
-**Replace the estimates with measurements.** After the first full bootstrap
-under the blueprint, take each phase's elapsed time from its `done` event
-(`--progress json`) and edit this table and the blueprint's
-`expectedMinutes` together. An estimate that survives its first real run
-unchanged is a document nobody checked.
+Not counted, because they are seconds rather than minutes, and real:
+the task plane opened in the background (~23s per build), each landing
+checked locally instead of by a runner (~24s per landing, eight of them),
+and the convergence watch reading every 5s instead of 40 (~20s per landing).
+
+**What the earlier measurements were.** Two real Lumen bootstraps, both under
+the shell layer that `repo-blueprint.yaml` replaced, and both before any of
+the changes above:
+
+- **vela** (2026-07-30) — fully headless phased bootstrap into the `seafern`
+  workspace with only `ORUN_TOKEN` + `GITHUB_TOKEN`. Landings waited for PR
+  checks, and PR lanes then deployed. ~73m for 01–06.
+- **ambient** (2026-08-02) — fully headless again, with a workspace-scoped
+  `sk_` API token (baseline-v8, orun v2.52.4). Landings merged without
+  waiting on PR checks. ~60m for 02–06.
+
+And one under the blueprint, which did not finish:
+
+- **pullely/multi-tenant-saas** (2026-10-25) — reached the end of
+  `03-infrastructure-database` in 21m35s and `04-workers`' PR check in
+  30m46s, then stopped: 46/46 PR jobs green, no merge, no convergence, no
+  further platform event. Nothing failed. Its `ORUN_TOKEN` is the likeliest
+  cause (`orun auth token` mints ~30m); every retry afterwards died on the
+  pen branch that build left behind, which is what
+  `tooling/bootstrap/pen-reset.mjs` now clears. Its 04-workers PR ran 46 jobs
+  in 6m49s — the duplicated pass that item 1 of this re-budget removes.
+
+**Replace these with measurements.** After the first full bootstrap under
+these numbers, take each phase's elapsed time from its `done` event
+(`--progress json`) and edit this table and the blueprint's `expectedMinutes`
+together. An estimate that survives its first real run unchanged is a
+document nobody checked.
 
 ## Things that shape the total
 
