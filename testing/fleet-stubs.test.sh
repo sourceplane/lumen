@@ -45,6 +45,15 @@ const server = http.createServer((req, res) => {
       res.writeHead(exists ? 200 : 404); return res.end("{}");
     }
     if (req.method === "PUT" && !m[2]) {
+      // `$dir/full` makes every create answer as an account at its Workers
+      // limit does — the condition that took lumen's own fleet down.
+      if (fs.existsSync(`${dir}/full`)) {
+        res.writeHead(403);
+        return res.end(JSON.stringify({
+          success: false,
+          errors: [{ code: 10037, message: "You have exceeded the limit of 500 Workers on your account." }],
+        }));
+      }
       fs.appendFileSync(`${dir}/puts`, `${name}\n`);
       fs.writeFileSync(`${dir}/upload-${name}`, body);
       res.writeHead(200); return res.end("{}");
@@ -79,6 +88,31 @@ ORUN_ENVIRONMENT=stage node "$tool" --root "$root" > "$tmp/out"
 echo "── refusals"
 CLOUDFLARE_API_TOKEN=wrong ORUN_ENVIRONMENT=stage node "$tool" --root "$root" >/dev/null 2>&1 && bad "an unexpected check answer (403) fails" || ok "an unexpected check answer (403) fails"
 env -u ORUN_ENVIRONMENT node "$tool" --root "$root" >/dev/null 2>&1 && bad "no environment fails" || ok "no environment fails"
+
+echo "── a placeholder it cannot create is not this component's failure"
+# THE REGRESSION THIS GUARDS. This step runs in policy-worker's pre-deploy and
+# every binding holder waits on policy-worker with `mode: enforced`, so exiting
+# non-zero here failed the WHOLE fleet on both environments. It did exactly
+# that on lumen's own main convergence (2026-10-25): the account was at its
+# 500-Worker limit, `lumen-billing-worker-stage` could not be created, and ten
+# lanes went red on a step belonging to a component that was itself fine.
+: > "$tmp/exists"; : > "$tmp/puts"; : > "$tmp/full"
+if out="$(node "$tool" --root "$root" --env stage 2>&1)"; then
+  ok "a create it cannot do exits 0 — the real deploys decide"
+else
+  bad "a create it cannot do still fails the step (exit $?) — the fleet-wide regression is back"
+fi
+grep -q "could not create placeholder" <<<"$out" \
+  && ok "it names each placeholder it could not create" \
+  || bad "it is silent about the placeholders it could not create"
+grep -q "10143" <<<"$out" \
+  && ok "it says a still-missing target will fail its own deploy, by error code" \
+  || bad "it does not say what happens next"
+grep -q "Workers limit" <<<"$out" \
+  && ok "it recognises an account at its Workers limit" \
+  || bad "it does not recognise the 10037 limit answer"
+[ ! -s "$tmp/puts" ] && ok "nothing was recorded as created" || bad "something was recorded as created"
+rm -f "$tmp/full"
 
 echo "── the plan's side: every binding holder waits on policy-worker on main"
 holders=0; missing=""

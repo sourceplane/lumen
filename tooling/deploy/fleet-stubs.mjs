@@ -124,12 +124,14 @@ async function main() {
   const script = (name) => `${base}/accounts/${account}/workers/scripts/${encodeURIComponent(name)}`;
 
   const created = [];
+  const refused = [];
   for (const name of targets) {
     const res = await fetch(`${script(name)}/settings`, { headers: auth });
     if (res.ok) continue;
     if (res.status !== 404) {
       // Not "missing" and not "there": refuse to guess, or a placeholder
-      // could replace a real Worker the check failed to see.
+      // could replace a real Worker the check failed to see. This one IS
+      // fatal — it is a safety property, not a convenience.
       console.error(`fleet-stubs: checking ${name}: HTTP ${res.status} ${await res.text()}`);
       process.exit(1);
     }
@@ -138,15 +140,50 @@ async function main() {
     form.append("stub.mjs", new Blob([STUB], { type: "application/javascript+module" }), "stub.mjs");
     const put = await fetch(script(name), { method: "PUT", headers: auth, body: form });
     if (!put.ok) {
-      console.error(`fleet-stubs: creating ${name}: HTTP ${put.status} ${await put.text()}`);
-      process.exit(1);
+      // A PLACEHOLDER THAT CANNOT BE MADE IS NOT THIS COMPONENT'S FAILURE.
+      //
+      // This step runs in policy-worker's pre-deploy, and every binding
+      // holder waits on policy-worker with `mode: enforced` — so exiting
+      // non-zero here failed the ENTIRE fleet, on both environments, for a
+      // placeholder that most of those Workers never needed. It did exactly
+      // that on lumen's own main convergence (2026-10-25): the account was at
+      // its 500-Worker limit, `lumen-billing-worker-stage` could not be
+      // created, and ten lanes went red on a step belonging to a component
+      // that was itself fine.
+      //
+      // So: say what happened, and let each real deploy speak for itself. A
+      // target that is genuinely still missing when its dependent deploys
+      // fails THAT lane with Cloudflare's own 10143, naming the worker that
+      // needs it; an account with no room fails the deploy that needs the
+      // room, with 10037. Both land on the component the operator must act
+      // on, which is never this one.
+      refused.push({ name, status: put.status, body: (await put.text()).slice(0, 400) });
+      continue;
     }
     created.push(name);
+  }
+
+  for (const r of refused) {
+    console.error(`fleet-stubs: could not create placeholder ${r.name}: HTTP ${r.status} ${r.body}`);
+  }
+  if (refused.length) {
+    const atLimit = refused.some((r) => r.body.includes("10037") || /limit of \d+ Workers/.test(r.body));
+    console.error(
+      `fleet-stubs: ${refused.length} of ${targets.length} placeholder(s) in ${env} could not be created; ` +
+        `continuing. A Worker whose binding target is still missing will fail its OWN deploy with ` +
+        `Cloudflare 10143, naming it.` +
+        (atLimit
+          ? ` The account is at its Workers limit (10037) — no new script can be created, placeholder or real, ` +
+            `until some are deleted; the deploys that need a new script will fail next, for the same reason.`
+          : ""),
+    );
   }
   console.log(
     created.length
       ? `fleet-stubs: ${created.length} placeholder(s) in ${env}, replaced by each Worker's first deploy: ${created.join(", ")}`
-      : `fleet-stubs: all ${targets.length} binding targets in ${env} exist; nothing to do`,
+      : refused.length
+        ? `fleet-stubs: no placeholder was created in ${env}`
+        : `fleet-stubs: all ${targets.length} binding targets in ${env} exist; nothing to do`,
   );
 }
 
