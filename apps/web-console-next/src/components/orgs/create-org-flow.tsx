@@ -15,7 +15,7 @@ import { wrap, type ApiErrorBody } from "@/lib/api";
 import { qk } from "@/lib/query";
 import { slugify } from "@/lib/slug";
 import { cn } from "@/lib/cn";
-import { SALES_EMAIL } from "@/lib/app-config";
+import { appConfig } from "@/lib/app-config";
 import { PlanPicker } from "./plan-picker";
 import { SourcePicker } from "./source-picker";
 import {
@@ -141,7 +141,7 @@ export function CreateOrgFlow({
     void qc.invalidateQueries({ queryKey: qk.orgs() });
 
     if (mode === "parent" && plan.contact) {
-      window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(
+      window.location.href = `mailto:${appConfig().salesEmail}?subject=${encodeURIComponent(
         `Enterprise plan enquiry for ${org.name}`,
       )}`;
     } else if (mode === "parent" && plan.code !== "free") {

@@ -14,6 +14,9 @@ spec:
   owner: platform
   domain: starter-ui
   path: apps/web-console-next
+  # Its own lane per environment (execution.lanes in intent.yaml): the Next.js
+  # build is the longest job in the plan, and a shared lane would wait on it.
+  lane: isolated
   # The deploy smoke health-checks the api-edge worker
   # (lumen-api-edge-<env>/health), so api-edge must be live before this
   # component's stage/prod deploy+smoke runs. Without this ordering the smoke
@@ -67,10 +70,21 @@ spec:
     # ${WORKERS_DEV_SUBDOMAIN} and used to build ${DEPLOYED_URL}.
     workersDevSubdomain: rahulvarghesepullely
 
-    environmentBuildVar: NEXT_PUBLIC_DEPLOY_ENV
+    # NO environmentBuildVar (saas-console-artifact CA2): the console learns its
+    # environment at runtime — CONSOLE_DEPLOY_ENV if the deploy sets one, else
+    # the `-<env>` its workers.dev host carries — so the build is the same for
+    # every environment and a build made anywhere can be deployed to any of
+    # them. It used to pass NEXT_PUBLIC_DEPLOY_ENV, which baked the environment
+    # into the bundle and is exactly what stopped one build from serving both.
 
     installCommand: pnpm install --frozen-lockfile
-    buildCommand: pnpm exec turbo run build --filter=@saas/web-console-next
+    # saas-console-artifact CA4: with a console-artifact.pin.json (written by
+    # the bootstrap's 06-console phase) and sources that still hash to it, this
+    # fetches the baseline's prebuilt console and verifies its sha256 instead
+    # of building. No pin, changed sources or an unreachable artifact all fall
+    # back to the normal turbo build, so a product that never saw a published
+    # artifact behaves exactly as before.
+    buildCommand: node scripts/console-artifact.mjs build
 
     # Smoke: follow redirects (root `redirect("/orgs")` is a 307) and confirm
     # the SSR'd page contains the console marker. The api-edge worker is the

@@ -5,7 +5,7 @@
 // clients in `@saas/sdk`. This file keeps only what is intrinsically a
 // console concern:
 //
-//   - `ApiTarget` / `TARGETS` / `DEPLOY_ENV` / `IS_LOCKED` — the multi-target
+//   - `ApiTarget` / `apiTargets` / `deployEnv` / `isLocked` — the multi-target
 //     switcher the console exposes for stage/prod parity testing. The SDK
 //     deliberately doesn't carry "which environment am I pointed at",
 //     because that's a deployment-shape decision.
@@ -19,7 +19,7 @@
 //     happens here — that all comes from the SDK.
 
 import { Lumen, LumenError, type ClientOptions } from "@saas/sdk";
-import { apiEdgeWorkersDevUrl } from "./app-config";
+import { DEPLOY_ENVIRONMENTS, apiEdgeWorkersDevUrl, appConfig, type AppConfig } from "./app-config";
 
 export type ApiClient = Lumen;
 
@@ -28,19 +28,33 @@ export interface ApiTarget {
   url: string;
 }
 
-const ALL_TARGETS: ApiTarget[] = [
-  { name: "stage", url: apiEdgeWorkersDevUrl("stage") },
-  { name: "prod", url: apiEdgeWorkersDevUrl("prod") },
-];
+// FUNCTIONS, NOT CONSTS (saas-console-artifact CA1/CA2). These used to be
+// module-level constants, evaluated once at import from a build-time
+// NEXT_PUBLIC_DEPLOY_ENV — which is exactly what stopped one build of the
+// console from serving both environments. They now read the config in force
+// for the request.
 
-export const DEPLOY_ENV: string | undefined =
-  typeof process !== "undefined" ? process.env.NEXT_PUBLIC_DEPLOY_ENV || undefined : undefined;
+/** Every API target this console can talk to, under the config in force. */
+export function allTargets(config: AppConfig = appConfig()): ApiTarget[] {
+  return DEPLOY_ENVIRONMENTS.map((name) => ({ name, url: apiEdgeWorkersDevUrl(name, config) }));
+}
 
-export const TARGETS: ApiTarget[] = DEPLOY_ENV
-  ? ALL_TARGETS.filter((t) => t.name === DEPLOY_ENV)
-  : ALL_TARGETS;
+/** The single environment this deploy serves, when it is locked to one. */
+export function deployEnv(config: AppConfig = appConfig()): string | undefined {
+  return config.deployEnv;
+}
 
-export const IS_LOCKED: boolean = TARGETS.length === 1 && !!DEPLOY_ENV;
+/** The targets the user may pick: only the deploy's own when it is locked. */
+export function apiTargets(config: AppConfig = appConfig()): ApiTarget[] {
+  const env = deployEnv(config);
+  const all = allTargets(config);
+  return env ? all.filter((t) => t.name === env) : all;
+}
+
+/** True when this deploy serves exactly one environment (no target switcher). */
+export function isLocked(config: AppConfig = appConfig()): boolean {
+  return apiTargets(config).length === 1 && !!deployEnv(config);
+}
 
 export interface ApiErrorBody {
   code: string;

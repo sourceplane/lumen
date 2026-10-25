@@ -3,15 +3,18 @@
 import * as React from "react";
 import type { Lumen } from "@saas/sdk";
 import {
-  TARGETS,
-  DEPLOY_ENV,
+  apiTargets,
+  deployEnv,
+  isLocked,
   createClient,
   type ApiTarget,
 } from "./api";
-import { STORAGE_PREFIX } from "./app-config";
+import { appConfig } from "./app-config";
 
-const TOKEN_KEY = `${STORAGE_PREFIX}.token`;
-const TARGET_KEY = `${STORAGE_PREFIX}.target`;
+// Keys are built per call, not at import: the storage prefix is runtime config
+// (saas-console-artifact CA1), installed by <Providers> before any of these run.
+const tokenKey = (): string => `${appConfig().storagePrefix}.token`;
+const targetKey = (): string => `${appConfig().storagePrefix}.target`;
 
 /**
  * Read the persisted bearer token straight from localStorage (client only).
@@ -22,7 +25,7 @@ const TARGET_KEY = `${STORAGE_PREFIX}.target`;
 export function readStoredToken(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(TOKEN_KEY);
+    return window.localStorage.getItem(tokenKey());
   } catch {
     return null;
   }
@@ -48,12 +51,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // /login on a hard refresh or deep link. SSR returns null and the shell gates
   // on `ready` (set in an effect), so the committed markup stays consistent.
   const [target, setTargetState] = React.useState<ApiTarget>(() => {
-    if (typeof window === "undefined") return TARGETS[0]!;
+    const targets = apiTargets();
+    if (typeof window === "undefined") return targets[0]!;
     try {
-      const saved = window.localStorage.getItem(TARGET_KEY);
-      return TARGETS.find((t) => t.name === saved) ?? TARGETS[0]!;
+      const saved = window.localStorage.getItem(targetKey());
+      return targets.find((t) => t.name === saved) ?? targets[0]!;
     } catch {
-      return TARGETS[0]!;
+      return targets[0]!;
     }
   });
   const [token, setTokenState] = React.useState<string | null>(() => readStoredToken());
@@ -64,8 +68,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setTokenState(t);
     if (typeof window !== "undefined") {
       try {
-        if (t) window.localStorage.setItem(TOKEN_KEY, t);
-        else window.localStorage.removeItem(TOKEN_KEY);
+        if (t) window.localStorage.setItem(tokenKey(), t);
+        else window.localStorage.removeItem(tokenKey());
       } catch {
         /* ignore */
       }
@@ -76,7 +80,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     setTargetState(t);
     if (typeof window !== "undefined") {
       try {
-        window.localStorage.setItem(TARGET_KEY, t.name);
+        window.localStorage.setItem(targetKey(), t.name);
       } catch {
         /* ignore */
       }
@@ -90,9 +94,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       token,
       setToken,
       setTarget,
-      availableTargets: TARGETS,
-      isLocked: TARGETS.length === 1 && !!DEPLOY_ENV,
-      deployEnv: DEPLOY_ENV,
+      availableTargets: apiTargets(),
+      isLocked: isLocked(),
+      deployEnv: deployEnv(),
     }),
     [client, target, token, setToken, setTarget],
   );

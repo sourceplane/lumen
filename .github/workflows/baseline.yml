@@ -51,11 +51,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Contract tests (manifest, phases, coverage, rebrand, retouch, bootstrap-defer, fleet-stubs, pen-reset)
+      - name: Contract tests (manifest, phases, coverage, rebrand, retouch, bootstrap-defer, fleet-stubs, pen-reset, console-artifact)
         run: |
           set -euo pipefail
           python3 -c 'import yaml' 2>/dev/null || pip install --quiet pyyaml
-          for t in manifest phases coverage rebrand retouch bootstrap-defer fleet-stubs pen-reset; do
+          for t in manifest phases coverage rebrand retouch bootstrap-defer fleet-stubs pen-reset console-artifact; do
             echo "── $t"
             bash "testing/$t.test.sh"
           done

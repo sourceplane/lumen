@@ -29,7 +29,7 @@ import {
   pollForPlanChange,
   type PlanChangeAction,
 } from "./plan-actions";
-import { SALES_EMAIL } from "@/lib/app-config";
+import { appConfig } from "@/lib/app-config";
 
 const POLL_ATTEMPTS = 20;
 const POLL_INTERVAL_MS = 1500;
@@ -101,7 +101,7 @@ export function ChangePlanCards({ orgId, orgSlug }: { orgId: string; orgSlug: st
     setConfirmOpen(false);
 
     if (action === "contact") {
-      window.location.href = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent("Enterprise plan enquiry")}`;
+      window.location.href = `mailto:${appConfig().salesEmail}?subject=${encodeURIComponent("Enterprise plan enquiry")}`;
       return;
     }
 

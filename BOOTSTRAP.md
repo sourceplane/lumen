@@ -13,12 +13,13 @@ now either a typed action inside the orun binary or a hook this repo still
 owns, which is why the version floor matters and why a phase can be run
 alone, months later, from a fresh container.
 
-Budget: **53 minutes**, the sum of the phases' own `expectedMinutes`. The
-long poles are the worker fleet (~14m, one landing and one deploy each) and
-the console build (~13m); Supabase project creation (5–7m per environment) is
-the longest wait nobody can shorten. The budget came down from 84 because a
-bootstrap landing is no longer verified twice (its PR runs `plan` alone), the
-fleet no longer deploys twice, and prod no longer waits out stage. Where the
+Budget: **45 minutes**, the sum of the phases' own `expectedMinutes`. The
+long pole is now the worker fleet (~14m, one landing and one deploy each);
+Supabase project creation (5–7m per environment) is the longest wait nobody
+can shorten. The budget came down from 84 because a bootstrap landing is no
+longer verified twice (its PR runs `plan` alone), the fleet no longer deploys
+twice, prod no longer waits out stage, and the console is fetched from a
+prebuilt artifact instead of built cold. Where the
 numbers come from, and which are still estimates:
 [docs/phases/TIMINGS.md](docs/phases/TIMINGS.md).
 

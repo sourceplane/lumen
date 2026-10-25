@@ -209,6 +209,7 @@ ignore:
   #
   # `testing/coverage.test.sh` keeps this list honest: a workflow that reads a
   # path under `testing/` must be named here, or the gate is red.
+  - "**/.github/workflows/tag.yml"
   - "**/.github/workflows/baseline.yml"
 
 # ── MODULES ───────────────────────────────────────────────────────────────
@@ -1794,7 +1795,7 @@ phases:
   # gap so 08-docs keeps its name.
   - name: 06-console
     title: The web console
-    expectedMinutes: 13
+    expectedMinutes: 5
     narrate:
       start:  'Building and deploying the web console.'
       done:   'The console is live on stage and prod, in {{ .meta.elapsed }}.'
@@ -1836,6 +1837,22 @@ phases:
           run: ["node", "{{ .baseline.dir }}/tooling/rebrand/rebrand.mjs", "--verify", "--values", ".rebrand/values.json"]
         - id: pnpm-lockfile
           run: ["pnpm", "install", "--lockfile-only"]
+        # THE CONSOLE IS FETCHED, NOT BUILT, when the baseline has published one
+        # for exactly these sources (saas-console-artifact CA4). This records
+        # the artifact's URL and sha256 in apps/web-console-next/console-artifact.pin.json
+        # alongside the product's own source hash; the component's
+        # `buildCommand` reads it, verifies the digest and unpacks it instead
+        # of running a cold Next.js build, per environment.
+        #
+        # Everything about it degrades to a normal build: no published artifact
+        # writes no pin, a tree whose sources no longer hash to the pin builds
+        # from source, and an artifact that cannot be fetched builds from
+        # source. Only a DIGEST MISMATCH is fatal — that means something served
+        # bytes other than the ones published.
+        - id: console-artifact
+          run: ["node", "{{ .baseline.dir }}/apps/web-console-next/scripts/console-artifact.mjs", "pin", "--baseline", "{{ .baseline.dir }}", "--repo", "sourceplane/lumen", "--root", "."]
+        - id: restage-console-artifact
+          run: ["git", "add", "-A"]
         # CLEAR THIS LANDING'S OWN PEN BRANCH FIRST. A build that stopped
         # between the pen's push and the merge leaves `orun/<task>-<phase>` on
         # the remote; the retry commits a SIBLING of that commit, so the push

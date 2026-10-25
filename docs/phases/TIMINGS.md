@@ -37,14 +37,22 @@ column on the right is the arithmetic, from the measured runs below and from
 | `04-workers` | 31 | **14** | vela's 31m was PR lanes ~7m + strip convergence 13m18s + restore convergence 10m54s. One fleet deploy and no PR pass leaves the 13m18s |
 | `04-workers-restore` | 5 | **gone** | the fleet deploys once, with its bindings (`tooling/deploy/fleet-stubs.mjs`) |
 | `05-edge` | 5 | **4** | measured 5m22s (vela) / 5m03s (ambient) including its PR pass |
-| `06-console` | 16 | **13** | measured 15m37s / 14m01s. The console build is still cold — the prebuilt artifact is NOT in this baseline |
+| `06-console` | 16 | **5** | measured 15m37s / 14m01s, nearly all of it the cold Next.js build. The console is now FETCHED, not built (saas-console-artifact CA4): the Cloudflare-only baseline measured the build step at 0.6s and the whole console job at 1m13s–1m22s, two environments |
 | `08-docs` | 1 | **2** | it also restores the promotion gate and dev's lanes now |
-| **total** | **84** | **53** | |
+| **total** | **84** | **45** | |
 
 Not counted, because they are seconds rather than minutes, and real:
 the task plane opened in the background (~23s per build), each landing
 checked locally instead of by a runner (~24s per landing, eight of them),
 and the convergence watch reading every 5s instead of 40 (~20s per landing).
+
+**One condition on `06-console`'s 5.** The console is fetched only when the
+baseline tag being built from has a published artifact for exactly these
+sources — `.github/workflows/tag.yml` publishes one as part of cutting a tag.
+Without one, or when a product's console sources have changed, the pin is
+absent or stale and the component builds from source exactly as before: the
+phase is then its old ~13 again, and nothing fails. The budget is for the
+tagged case, which is every build a product actually makes.
 
 **What the earlier measurements were.** Two real Lumen bootstraps, both under
 the shell layer that `repo-blueprint.yaml` replaced, and both before any of
