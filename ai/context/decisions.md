@@ -49,6 +49,14 @@ Last updated: 2026-05-26
   was already producing drift against `orun-cloud`. The tag is pinned, never
   `latest`, so a catalog release cannot change this repo's execution contracts
   without a commit here.
+- One exception, temporary (2026-10-26): `turbo-package` is bound to the
+  in-tree `stack-tectonic-fixes/`, which is 0.20.0's copy with its pre-build,
+  build and typecheck guards reading `.parameters.*`. The published guards read
+  keys orun never sets, so pre-build skipped every test suite's tests, and the
+  fix could not be released upstream from the change that found it.
+  `testing/composition-fixes.test.sh` holds the copy to the published files
+  plus those three tokens and fails on any other pin; delete the copy when a
+  release carries the fix.
 - All component types use `spec.parameters` instead of `spec.inputs` on the
   current Orun runtime.
 - Cloudflare/Supabase human-provided resources discovered in Task 0002 remain

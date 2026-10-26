@@ -57,12 +57,12 @@ page beside the first rather than replacing it.
 
 **The run predates two changes to what CI does.** Nineteen components were on
 the `quick-check` profile, which runs no tests, no build and no typecheck. They
-are on `verify` now, which adds a build and a typecheck inside the merge
-convergences of `02-foundation`, `04-workers`, `05-edge` and `06-console` — and
-will add the suites themselves once stack-tectonic's pre-build guard is fixed
-upstream; until then pre-build skips itself (`docs/components/REVIEW.md`). Each
-is its own lane, so the cost should land near the slowest rather than the sum —
-but that is a prediction, and the next measured build is the answer.
+are on `verify` now, and `turbo-package`'s pre-build guard, which skipped
+every suite's tests, is fixed in-tree (`docs/components/REVIEW.md`). Together
+they add the suites, a build and a typecheck inside the merge convergences of
+`02-foundation`, `04-workers`, `05-edge` and `06-console`. Each is its own
+lane, so the cost should land near the slowest rather than the sum — but that
+is a prediction, and the next measured build is the answer.
 
 **One condition on `06-console`'s 2.** The console is fetched only when the
 baseline tag being built from has a published artifact for exactly these

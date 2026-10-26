@@ -130,16 +130,12 @@ This repository had already written the finding down, in
 
 So `quick-check` skipped not only the tests but the build and typecheck as well.
 
-### Half fixed: build and typecheck run now, the tests still do not
+### Two fixes, not one: the profile, and a guard in the composition
 
-Read this first, because the rest of the section is easy to over-read. Flipping
-the profile was necessary and is done, and it brought **build and typecheck** to
-nineteen components that ran neither. **The tests themselves still do not
-execute in CI**, and the reason is not in this repository.
-
-The pull request that flipped the profile went green, and its `db-tests` lane
-reported seven steps where it used to report four — exactly `verify`'s count.
-Neither of those is evidence that a test ran, so the log was read:
+Flipping the profile was necessary and not sufficient. The pull request that
+flipped it went green, and its `db-tests` lane reported seven steps where it
+used to report four — exactly `verify`'s count. Neither of those is evidence
+that a test ran, so the log was read:
 
 ```
 ✓  04 pre-build          0.0s  ·  Skipping pre-build.
@@ -147,11 +143,12 @@ Neither of those is evidence that a test ran, so the log was read:
 ✓  07 typecheck-package  2.3s
 ```
 
-Pre-build skips itself, for every component, whatever it declares. The guard in
-stack-tectonic 0.20.0's `turbo-package` verify job reads the wrong key:
+Pre-build skipped itself, for every component, whatever it declared. The guard
+in stack-tectonic 0.20.0's `turbo-package` verify job reads a key orun never
+sets:
 
 ```
-{{if .preBuildCommand}}            ← a top-level key nothing sets
+{{if .preBuildCommand}}            ← orun's context has .orun, .parameters, .env
 {{.parameters.preBuildCommand}}    ← where the value actually is
 {{else}}
 echo "Skipping pre-build."
@@ -162,18 +159,33 @@ work: their guards are equally always-false, and their `else` defaults happen to
 be the commands every component here declares. Pre-build has no default, so it is
 the one that visibly breaks.
 
-**The fix is upstream**, in `sourceplane/stack-tectonic` — three guards, each
-`.<key>` → `.parameters.<key>` — released as a new version, and then this
-repository's `compositions.sources` pin moved to it. orun-cloud carries an
-in-tree copy of the composition that already reads `.parameters.*`, which is
-both why its suites run and the proof that the corrected guard works: its
+**The fix belongs upstream** — three guards in `sourceplane/stack-tectonic`,
+each `.<key>` → `.parameters.<key>` — and could not be made there from this
+change. stack-tectonic's own `main` is still `0.20.0` with the broken guards.
+orun-cloud carries an in-tree copy that already reads `.parameters.*`, which is
+why its suites run, and the proof the corrected guard works: its
 `agents-worker-tests` pre-build ran for 29.9s and failed on real assertions.
-stack-tectonic's own `main` is still `0.20.0` with the broken guards; the fix
-never went back upstream.
 
-Every consumer pins an exact version, so a release changes nobody until they
-move their pin. When lumen does, these nineteen start running — and all nineteen
-have been run locally and pass (below).
+**So the fix lives here until it ships there.** `stack-tectonic-fixes/` is
+0.20.0's `turbo-package` with those three guards corrected and nothing else, and
+`intent.yaml` binds that one composition type to it; every other composition is
+still the pinned OCI artifact. It breaks this repository's rule that
+compositions are not vendored, and it is fenced accordingly:
+
+- `testing/composition-fixes.test.sh` undoes the three fixes and requires every
+  file to hash to what 0.20.0 published, so the copy cannot become the place a
+  step gets changed;
+- the same gate fails on any stack-tectonic pin other than 0.20.0 while the
+  directory exists, so moving the pin is when somebody decides whether the copy
+  is still needed;
+- the directory ships to products in `01-scaffold`, the phase that ships the
+  `intent.yaml` naming it — a product's first plan needs both.
+
+**Checked by rendering, not by reading.** `orun plan --all-envs` before and
+after: 92 jobs and 610 steps either way, and exactly 19 steps differ — the
+pre-build of the nineteen components below, from `echo "Skipping pre-build."` to
+`pnpm exec turbo run test --filter=./`. A product placed and branded from the
+blueprint receives the directory byte for byte and plans the same command.
 
 ### The profile, and the suites made ready to run
 
@@ -229,8 +241,8 @@ typecheck lanes — defensible, but a different change from making tests run.
 The 18 measured minutes in `docs/phases/TIMINGS.md` were taken under
 `quick-check`. On `verify` the nineteen add a **build and a typecheck** to the
 merge convergences of four phases — `02-foundation` (6), `04-workers` (11),
-`05-edge` (2), `06-console` (1) — and, once the composition is fixed, the
-suites themselves. Each is its own lane, so the cost should sit near the slowest
+`05-edge` (2), `06-console` (1) — and the suites
+themselves. Each is its own lane, so the cost should sit near the slowest
 one rather than the sum, but that is a prediction; the next measured build is
 what will say.
 

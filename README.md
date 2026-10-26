@@ -119,6 +119,11 @@ consumed from the published catalog at
 [sourceplane/stack-tectonic](https://github.com/sourceplane/stack-tectonic),
 released there, and adopted here by bumping the pinned tag.
 
+One composition is the temporary exception: `stack-tectonic-fixes/` carries
+0.20.0's `turbo-package` with its step guards fixed, because the published one
+skips every test suite's tests. Its README says what changed and how to delete
+it once a release carries the fix.
+
 ## CI
 
 CI is powered by [Orun](https://github.com/sourceplane/orun) with the local Stack Tectonic

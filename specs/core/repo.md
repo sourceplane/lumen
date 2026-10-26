@@ -230,7 +230,10 @@ for Terraform, S3 backend, and environment structure.
 - **The composition stack** is owned by `sourceplane/stack-tectonic` and consumed
   as a pinned OCI artifact. It is not vendored in this repo; composition changes
   are made, verified and released there, then adopted here by bumping the pinned
-  version in `intent.yaml`.
+  version in `intent.yaml`. The one temporary exception is
+  `stack-tectonic-fixes/` — 0.20.0's `turbo-package` with its step guards
+  fixed, bound alone in `intent.yaml`, held to the published files by
+  `testing/composition-fixes.test.sh` and deleted once a release carries the fix.
 - **`intent.yaml`** records discovery roots, composition sources and bindings,
   trigger bindings, and `dev` -> `stage` -> `prod` environment promotion. It
   uses `parameterDefaults.terraform` and `env.AWS_REGION` like `aws-admin`.

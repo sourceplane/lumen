@@ -90,8 +90,10 @@ WAS = {
 # `platform-limits-tests` is likewise new here: a component the baseline grew
 # after the slices were cut, which no slice placed (the coverage gate found it).
 # `root-agents` is the product's AGENTS.md (saas-build-panel BV4): the page an
-# agent handed the product reads first.
-ADDED = {"01-scaffold": ["discovery-roots", "root-agents"], "05-edge": ["platform-limits-tests"]}
+# agent handed the product reads first. `stack-tectonic-fixes` is the one
+# composition patched in-tree until stack-tectonic releases the fix; it lands
+# with the intent that names it, and goes when the intent stops naming it.
+ADDED = {"01-scaffold": ["discovery-roots", "root-agents", "stack-tectonic-fixes"], "05-edge": ["platform-limits-tests"]}
 HOOK_ONLY = {"08-docs"}
 
 by_name = {p["name"]: p for p in phases}
