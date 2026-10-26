@@ -130,7 +130,52 @@ This repository had already written the finding down, in
 
 So `quick-check` skipped not only the tests but the build and typecheck as well.
 
-### Fixed
+### Half fixed: build and typecheck run now, the tests still do not
+
+Read this first, because the rest of the section is easy to over-read. Flipping
+the profile was necessary and is done, and it brought **build and typecheck** to
+nineteen components that ran neither. **The tests themselves still do not
+execute in CI**, and the reason is not in this repository.
+
+The pull request that flipped the profile went green, and its `db-tests` lane
+reported seven steps where it used to report four — exactly `verify`'s count.
+Neither of those is evidence that a test ran, so the log was read:
+
+```
+✓  04 pre-build          0.0s  ·  Skipping pre-build.
+✓  06 build-package      3.8s
+✓  07 typecheck-package  2.3s
+```
+
+Pre-build skips itself, for every component, whatever it declares. The guard in
+stack-tectonic 0.20.0's `turbo-package` verify job reads the wrong key:
+
+```
+{{if .preBuildCommand}}            ← a top-level key nothing sets
+{{.parameters.preBuildCommand}}    ← where the value actually is
+{{else}}
+echo "Skipping pre-build."
+```
+
+`buildCommand` and `typecheckCommand` have the same mistake and only appear to
+work: their guards are equally always-false, and their `else` defaults happen to
+be the commands every component here declares. Pre-build has no default, so it is
+the one that visibly breaks.
+
+**The fix is upstream**, in `sourceplane/stack-tectonic` — three guards, each
+`.<key>` → `.parameters.<key>` — released as a new version, and then this
+repository's `compositions.sources` pin moved to it. orun-cloud carries an
+in-tree copy of the composition that already reads `.parameters.*`, which is
+both why its suites run and the proof that the corrected guard works: its
+`agents-worker-tests` pre-build ran for 29.9s and failed on real assertions.
+stack-tectonic's own `main` is still `0.20.0` with the broken guards; the fix
+never went back upstream.
+
+Every consumer pins an exact version, so a release changes nobody until they
+move their pin. When lumen does, these nineteen start running — and all nineteen
+have been run locally and pass (below).
+
+### The profile, and the suites made ready to run
 
 Nineteen components carry tests in `preBuildCommand`: the **seventeen**
 `tests/*` suites and two packages with their own, `cli` and `sdk`. An earlier
@@ -175,17 +220,19 @@ template and its `wrangler.jsonc` is real. None of those passes was vacuous.
 
 `contracts`, `db`, `notifications-client`, `policy-engine`, `shared`,
 `testing`, `webhook-verifier`. None has a `preBuildCommand`: their tests live
-in the matching `tests/*` suite, which now builds and typechecks them on every
-plan that includes it. Moving them to `verify` would add their own build and
+in the matching `tests/*` suite, which builds and typechecks them on every plan
+that includes it. Moving them to `verify` would add their own build and
 typecheck lanes — defensible, but a different change from making tests run.
 
 ### What this costs a build
 
-The 18 measured minutes in `docs/phases/TIMINGS.md` were taken **with these
-suites not running.** They now run in the merge convergence of four phases —
-`02-foundation` (6), `04-workers` (11), `05-edge` (2), `06-console` (1). Each
-is its own lane, so the cost should sit near the slowest suite rather than the
-sum, but that is a prediction; the next measured build is what will say.
+The 18 measured minutes in `docs/phases/TIMINGS.md` were taken under
+`quick-check`. On `verify` the nineteen add a **build and a typecheck** to the
+merge convergences of four phases — `02-foundation` (6), `04-workers` (11),
+`05-edge` (2), `06-console` (1) — and, once the composition is fixed, the
+suites themselves. Each is its own lane, so the cost should sit near the slowest
+one rather than the sum, but that is a prediction; the next measured build is
+what will say.
 
 ## Declared product URLs
 
