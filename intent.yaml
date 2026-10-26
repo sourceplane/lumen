@@ -98,6 +98,44 @@ automation:
       on:
         provider: local
 
+    # ON-DEMAND DEPLOY OF ONE COMPONENT (orun >= v2.84.0, `scope: selected`).
+    #
+    # Everything else here plans from a diff: a pull request verifies what
+    # changed, a merge converges what changed. Neither can answer "put
+    # api-edge back on stage" — the most common thing anyone actually wants
+    # from a deployed fleet, and the reason a build whose edge is missing has
+    # no move short of an empty commit.
+    #
+    # A dispatch IS its scope: the components and environments named in the
+    # event are the whole plan, `--changed` is ignored, and an empty selection
+    # or an unknown component name is an error rather than "everything" (which
+    # is what a hand-written `--component` branch in ci.yml would have given
+    # on a typo).
+    #
+    # `autopush: false` because a one-component deploy is not a statement
+    # about the catalog: the convergence on main owns that, and a dispatch
+    # that pushed a partial snapshot would make the catalog describe a plan
+    # nobody ran.
+    #
+    # `requireRule` is DELIBERATELY off. Turning it on means a component is
+    # dispatchable only if one of its `profileRules` names this binding —
+    # safer, and 45 components' worth of opt-in. The guard that matters here
+    # is the environment list below: a dispatch can only reach an environment
+    # that activates this binding, so dev (verify-only) cannot be deployed
+    # into by anybody.
+    github-dispatch:
+      description: Deploy named components to one environment, on demand
+      on:
+        provider: github
+        event: workflow_dispatch
+        branches:
+          - main
+      plan:
+        scope: selected
+        components: inputs.component
+        environments: inputs.environment
+        autopush: false
+
 environments:
   dev:
     description: Verify-only. Pull requests plan and verify here; nothing is deployed, so there is no door.
@@ -132,6 +170,7 @@ environments:
       triggerRefs:
         - github-pull-request
         - github-push-main
+        - github-dispatch
     parameterDefaults:
       terraform:
         lane: verify
@@ -155,6 +194,7 @@ environments:
       triggerRefs:
         - github-pull-request
         - github-push-main
+        - github-dispatch
     promotion:
       dependsOn:
         - environment: stage

@@ -2,6 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: contracts
+  description: The wire contracts every worker and the console share — request and response shapes, error envelopes, and the ids they are keyed on.
 spec:
   docs:
     overview: docs/overview.md

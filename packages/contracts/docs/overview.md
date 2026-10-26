@@ -1,6 +1,6 @@
 # contracts
 
-Shared workspace package.
+The wire contracts every worker and the console share: request and response shapes, error envelopes, and the ids they are keyed on.
 
 A shared package of the lumen workspace, consumed by the components
 below at build time.

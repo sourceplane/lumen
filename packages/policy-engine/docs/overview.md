@@ -1,6 +1,6 @@
 # policy-engine
 
-Shared workspace package.
+The pure authorization decision function the policy worker and its callers evaluate, with no I/O of its own.
 
 A shared package of the lumen workspace, consumed by the components
 below at build time.

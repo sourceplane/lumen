@@ -1,19 +1,26 @@
-# Bootstrap timings — what to budget, and where the numbers come from
+# Bootstrap timings — what a build takes, and where the number comes from
 
-**Provenance matters here.** No bootstrap has been measured end to end under
-the current numbers. The budgets below are arithmetic on measured runs — the
-runs themselves are described under the table — and the second item that used
-to head this page, *"every landing waits for its PR's CI again"*, is no longer
-true: a bootstrap landing's pull request runs `plan` alone
-(`.github/workflows/ci.yml`) and the landing is checked locally before it is
-pushed (`checks: local`), so nothing waits for a runner to re-do work the
-merge is about to do for real.
+**This page used to open by admitting that no bootstrap had been measured end
+to end.** One has: `pullely/multi-tenant-saas-2` built on 2026-10-26, 13:14 →
+13:32 UTC, in **18 minutes**, and every number below is that run's own elapsed
+rather than arithmetic on older ones.
 
-What remains true from that header: **phase 03 is two landings** — the flows
-landed supabase, kv, hyperdrive and db-migrate in one PR without waiting on
-it, while the blueprint lands supabase and kv, waits for the apply, then
-lands hyperdrive and db-migrate (see
-[03-infrastructure.md](03-infrastructure.md)).
+The 45 these replace was honest arithmetic and **2.5x the truth**. Two of its
+line items were not just conservative but wrong about the shape of the build,
+and the run says which:
+
+- **"Supabase project creation, 5–7m, is the floor and nobody can shorten
+  it."** `03-infrastructure`, which creates the Supabase project *and* the KV
+  namespace per environment and applies Terraform, took **2m5s** in total. The
+  floor was not where the page thought it was.
+- **`04-workers` at 14.** The twelve-worker fleet deployed to both
+  environments in **3m53s**. The budget carried the memory of two convergences
+  (a strip and a restore); there is one.
+
+What the run confirms, as designed: **eight landings and no ninth** (PR #1
+through #8 — `04-workers-restore` is gone), and `06-console` at **2m29s**
+rather than the ~13 a cold Next.js build took, which is the fetched console
+artifact doing what it was built to do.
 
 ## Per-phase budget
 
@@ -23,36 +30,43 @@ holds them equal). The phases' lines no longer quote it: a build page shows
 one short line per step, and the budget is the engine's fact
 (`.meta.expectedMinutes`), not prose.
 
-**These are re-budgeted, not re-measured.** The 84 they replace was the sum
-under the old shape; three changes took time out of every phase, and the
-column on the right is the arithmetic, from the measured runs below and from
-`pullely/multi-tenant-saas` (2026-10-25, baseline before these changes).
+**These are measured.** The column on the right is what the run took; the
+declared number is that, rounded to the nearest whole minute. `08-docs`
+finished inside the minute it started, and the card's reader requires a
+positive number, so it declares 1.
 
-| phase | was | now | why |
+| phase | budgeted | declared | measured on multi-tenant-saas-2 |
 |---|---|---|---|
-| `01-scaffold` | 2 | **2** | unchanged. Measured ~2m (vela), 1m35s (multi-tenant-saas) |
-| `02-foundation` | 9 | **5** | vela's 9m was PR verify lanes 3m29s + convergence 3m56s. The PR pass is gone (`plan` only on a bootstrap branch) |
-| `03-infrastructure` | 9 | **8** | Supabase project creation, 5–7m, is the floor and nobody can shorten it. The PR pass (1m28s on multi-tenant-saas) is gone |
-| `03-infrastructure-database` | 6 | **5** | measured 7m20s on multi-tenant-saas, of which its PR pass was 1m25s |
-| `04-workers` | 31 | **14** | vela's 31m was PR lanes ~7m + strip convergence 13m18s + restore convergence 10m54s. One fleet deploy and no PR pass leaves the 13m18s |
-| `04-workers-restore` | 5 | **gone** | the fleet deploys once, with its bindings (`tooling/deploy/fleet-stubs.mjs`) |
-| `05-edge` | 5 | **4** | measured 5m22s (vela) / 5m03s (ambient) including its PR pass |
-| `06-console` | 16 | **5** | measured 15m37s / 14m01s, nearly all of it the cold Next.js build. The console is now FETCHED, not built (saas-console-artifact CA4): the Cloudflare-only baseline measured the build step at 0.6s and the whole console job at 1m13s–1m22s, two environments |
-| `08-docs` | 1 | **2** | it also restores the promotion gate and dev's lanes now |
-| **total** | **84** | **45** | |
+| `01-scaffold` | 2 | **1** | 1m15s |
+| `02-foundation` | 5 | **3** | 2m30s |
+| `03-infrastructure` | 8 | **2** | 2m5s |
+| `03-infrastructure-database` | 5 | **3** | 3m2s |
+| `04-workers` | 14 | **4** | 3m53s |
+| `05-edge` | 4 | **2** | 2m21s |
+| `06-console` | 5 | **2** | 2m29s |
+| `08-docs` | 2 | **1** | under a minute |
+| **total** | **45** | **18** | **18m wall clock** (17m35s of phases) |
+
+**ONE RUN IS ONE SAMPLE**, and this page should not be read as a promise. What
+makes it worth declaring anyway: it was a *fresh* account — no Supabase
+project, no KV namespace, no Cloudflare worker, nothing cached — which is the
+slow case rather than the fast one. What could still make a build slower than
+18: Supabase or Cloudflare having a bad day, a GitHub Actions queue, and the
+one condition on `06-console` below. A second measured run belongs on this
+page beside the first rather than replacing it.
+
+**One condition on `06-console`'s 2.** The console is fetched only when the
+baseline tag being built from has a published artifact for exactly these
+sources — `.github/workflows/tag.yml` publishes one as part of cutting a tag.
+Without one, or when a product's console sources have changed, the pin is
+absent or stale and the component builds from source: the phase is then its
+old ~13 again, and nothing fails. 2 is the tagged case, which is every build
+a product actually makes, and the measured run is one of them.
 
 Not counted, because they are seconds rather than minutes, and real:
 the task plane opened in the background (~23s per build), each landing
 checked locally instead of by a runner (~24s per landing, eight of them),
 and the convergence watch reading every 5s instead of 40 (~20s per landing).
-
-**One condition on `06-console`'s 5.** The console is fetched only when the
-baseline tag being built from has a published artifact for exactly these
-sources — `.github/workflows/tag.yml` publishes one as part of cutting a tag.
-Without one, or when a product's console sources have changed, the pin is
-absent or stale and the component builds from source exactly as before: the
-phase is then its old ~13 again, and nothing fails. The budget is for the
-tagged case, which is every build a product actually makes.
 
 **What the earlier measurements were.** Two real Lumen bootstraps, both under
 the shell layer that `repo-blueprint.yaml` replaced, and both before any of

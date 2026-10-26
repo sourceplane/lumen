@@ -2,6 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: integrations-worker-tests
+  description: Verification suite for `integrations-worker` — build, typecheck and its own tests, run on every plan that includes it.
 spec:
   docs:
     overview: docs/overview.md

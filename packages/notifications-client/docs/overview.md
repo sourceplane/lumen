@@ -1,6 +1,6 @@
 # notifications-client
 
-Shared workspace package.
+Best-effort internal client for `notifications-worker`, posting the V1 enqueue contract over its service binding.
 
 A shared package of the lumen workspace, consumed by the components
 below at build time.

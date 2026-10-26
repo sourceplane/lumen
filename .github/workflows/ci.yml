@@ -4,6 +4,22 @@ on:
   push:
     branches: [main]
   pull_request:
+  # ON-DEMAND DEPLOY (intent.yaml, `github-dispatch`). The selection is the
+  # plan: orun reads these inputs through the binding's `components` and
+  # `environments` paths, so nothing here hand-builds a `--component` list.
+  workflow_dispatch:
+    inputs:
+      component:
+        description: 'Component id, or several comma-separated (e.g. api-edge, or api-edge,web-console-next)'
+        required: true
+        type: string
+      environment:
+        description: Environment to deploy into
+        required: true
+        type: choice
+        options:
+          - stage
+          - prod
 
 # PR runs share a group per ref and superseded runs are cancelled (each
 # push re-plans anyway), which stops stale fan-outs from starving the
@@ -51,7 +67,7 @@ jobs:
           fi
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.78.4
+          version: v2.89.0
       - env:
           # Surface the best-effort catalog auto-sync (execution.state.autopushCatalog).
           # A successful push prints "✓ pushed catalog …"; ORUN_VERBOSE also makes
@@ -65,8 +81,14 @@ jobs:
             --event-file "$GITHUB_EVENT_PATH"
             --intent intent.yaml
             --output plan.json
-            --changed
           )
+          # A dispatch IS its scope (`scope: selected`), so a diff flag has
+          # nothing to say about it: orun ignores `--changed` on such a plan
+          # and prints a line saying so. Not passing it keeps the log honest
+          # about what decided the plan.
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            plan_args+=(--changed)
+          fi
 
           orun plan "${plan_args[@]}"
       # One matrix entry per LANE (execution.lanes in intent.yaml). A plan
@@ -147,7 +169,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: sourceplane/orun-action@v1.2.0
         with:
-          version: v2.78.4
+          version: v2.89.0
       # exec-id is the RUN id alone (no attempt suffix): a `gh run rerun
       # --failed` then RESUMES the same orun execution — jobs that succeeded in
       # a prior attempt stay completed, so re-run lanes' cross-job dependencies

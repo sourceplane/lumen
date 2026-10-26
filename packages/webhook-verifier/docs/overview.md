@@ -1,6 +1,6 @@
 # webhook-verifier
 
-Shared workspace package.
+Zero-dependency HMAC-SHA256 verifier for outbound webhook deliveries, on WebCrypto alone so it runs verbatim on Workers, Bun, Node and browsers.
 
 A shared package of the lumen workspace, consumed by the components
 below at build time.
