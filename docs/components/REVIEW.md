@@ -203,8 +203,12 @@ plain `verify` on `dev`, with no rule skipping it on main.
 
 **Before flipping anything, all nineteen were run locally exactly as `verify`'s
 pre-build step runs them** (`pnpm exec turbo run test --filter=./` in each
-component). Fifteen passed. Four did not, and in every case the test was right
-about what it guards and its harness had drifted from the code underneath it:
+component). Fourteen passed. Five did not, and in every case the test was right
+about what it guards and its harness had drifted from the code underneath it.
+The fifth was found by CI rather than locally: `web-console-next-tests` passed
+here only from jest's transform cache, and its first real run, in a lane, could
+not load four of its files. Every suite has since been re-run with no turbo
+cache and an empty jest cache, in a tree staged the way orun stages a job.
 
 | suite | what it hit | the fix |
 |---|---|---|
@@ -212,10 +216,13 @@ about what it guards and its harness had drifted from the code underneath it:
 | `membership-worker-tests` | the same file, read at `describe` time, so the whole suite failed to load | the same |
 | `db-tests` | `tsconfig.json` enumerates thirteen `@saas/db/*` subpaths and not `integrations`; jest resolved it through its `(.*)` catch-all, ts-jest's type-check did not | add the path |
 | `integrations-worker-tests` | `tsconfig.json` maps `@saas/db/*`, which does not match bare `@saas/db` | add the path |
+| `web-console-next-tests` | the console's sources import `@saas/sdk`; the suite's tsconfig and jest mapper named only `@saas/contracts`, so ts-jest could not resolve it and four files failed to load | map `@saas/sdk` to the sdk's source |
 
 The suites that failed *to load* were hiding more than their failure counts
 showed: `membership-worker-tests` went from 85 tests to **269**, `db-tests` from
-552 to **578**, `integrations-worker-tests` from 70 to **77**.
+552 to **578**, `integrations-worker-tests` from 70 to **77**,
+`web-console-next-tests` from 215 to **258**. **3,088 tests across the
+nineteen**, every one passing on the finished tree.
 
 **The repointed binding tests guard something real**, which was checked by
 breaking it: pointing stage's `IDENTITY_WORKER` at `lumen-identity-worker-prod`
