@@ -218,6 +218,18 @@ cache and an empty jest cache, in a tree staged the way orun stages a job.
 | `integrations-worker-tests` | `tsconfig.json` maps `@saas/db/*`, which does not match bare `@saas/db` | add the path |
 | `web-console-next-tests` | the console's sources import `@saas/sdk`; the suite's tsconfig and jest mapper named only `@saas/contracts`, so ts-jest could not resolve it and four files failed to load | map `@saas/sdk` to the sdk's source |
 
+**And one that only a CI runner shows.** Eighteen test files across the worker
+suites faked the database as `postgres://fake`. The list handlers read the
+database concurrently with the membership call (PERF12) and wait for both, so
+every such request made a real DNS lookup of the hostname `fake`. That fails in
+milliseconds on a workstation; on a runner whose resolver does not answer it
+waits out glibc's 5-second timeout, which is exactly jest's, and
+`config-worker-tests` failed that way on its second CI run having passed its
+first. Each now reads `postgres://fake@127.0.0.1:1/fake`, a closed loopback port
+the kernel refuses at once with no lookup. Checked by delaying every lookup but
+`localhost` by six seconds: the old URL times out seventeen tests in
+config-worker alone, and with the change all nineteen suites pass with none.
+
 The suites that failed *to load* were hiding more than their failure counts
 showed: `membership-worker-tests` went from 85 tests to **269**, `db-tests` from
 552 to **578**, `integrations-worker-tests` from 70 to **77**,
