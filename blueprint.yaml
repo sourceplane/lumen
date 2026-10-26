@@ -22,7 +22,7 @@ metadata:
   description: >
     Cloudflare + Supabase multi-tenant SaaS: 12 bounded-context Workers
     behind one edge API, Next.js console, terraform data plane, migrations,
-    CI that converges on merge. Budgeted at 84 minutes to live on stage+prod.
+    CI that converges on merge. Budgeted at 45 minutes to live on stage+prod.
   tags: [saas, cloudflare, supabase, nextjs]
 spec:
   source:
