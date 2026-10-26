@@ -22,6 +22,12 @@ export interface Env {
   RATE_LIMITER_DO?: DurableObjectNamespace;
   ENVIRONMENT: string;
   CONSOLE_CUSTOM_DOMAIN?: string;
+  // Where the console this edge trusts for CORS is deployed, per deploy rather
+  // than per build (see ./app-config). Both are plain wrangler vars, not
+  // secrets; when unset the Worker falls back to its compiled-in constants and,
+  // for the subdomain, to the one its own hostname names.
+  CONSOLE_WORKERS_DEV_SUBDOMAIN?: string;
+  CONSOLE_WORKER_PREFIX?: string;
   // M0 / Solo profile switch. "true" runs the single-user B2C profile (see
   // ./solo-mode.ts); absent or any other value keeps the full multi-tenant
   // baseline. Deploy-time wrangler var, not a secret.
