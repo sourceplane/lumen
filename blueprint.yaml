@@ -22,7 +22,7 @@ metadata:
   description: >
     Cloudflare + Supabase multi-tenant SaaS: 12 bounded-context Workers
     behind one edge API, Next.js console, terraform data plane, migrations,
-    CI that converges on merge. Budgeted at 45 minutes to live on stage+prod.
+    CI that converges on merge. Live on stage+prod in 18 measured minutes.
   tags: [saas, cloudflare, supabase, nextjs]
 spec:
   source:
@@ -179,13 +179,19 @@ spec:
     # the registry row names THIS file, the console card; it is not the build.
     blueprint: repo-blueprint.yaml
     # The sum of the phases' own `expectedMinutes` in repo-blueprint.yaml;
-    # `testing/manifest.test.sh` holds the two equal. Re-budgeted from the
-    # measured runs once the duplicate PR verify pass was dropped, the fleet
-    # stopped deploying twice and prod stopped waiting out stage
-    # (docs/phases/TIMINGS.md has the arithmetic, phase by phase). No build
-    # has been timed end to end under these numbers yet, so this is a budget,
-    # not a measurement.
-    expectedMinutes: 45
+    # `testing/manifest.test.sh` holds the two equal.
+    #
+    # MEASURED, not budgeted, and this is the first version of this card that
+    # can say so: pullely/multi-tenant-saas-2 built in 18 minutes end to end
+    # (2026-10-26, 13:14 → 13:32 UTC), and each phase's number is that run's
+    # own elapsed rounded to the nearest minute. docs/phases/TIMINGS.md has
+    # the run, phase by phase, and what it overturned — the 45 these replace
+    # was arithmetic, and it was 2.5x the truth.
+    #
+    # ONE RUN IS ONE SAMPLE. It was a fresh account with no cached anything,
+    # which is the slow case rather than the fast one, but a second run on a
+    # bad day for Supabase or Cloudflare will be slower than 18.
+    expectedMinutes: 18
     tokenChannel: ORUN_TOKEN_FILE   # how a runner hands over its refreshed token
   verify:
     urls:

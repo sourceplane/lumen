@@ -1,6 +1,6 @@
 # shared
 
-Shared workspace package.
+The small things every component needs and none should re-implement: error types and id helpers.
 
 A shared package of the lumen workspace, consumed by the components
 below at build time.

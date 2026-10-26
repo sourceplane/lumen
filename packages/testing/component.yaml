@@ -2,6 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: testing
+  description: Fixtures and id helpers the suites share, so two tests never disagree about what a valid record looks like.
 spec:
   docs:
     overview: docs/overview.md

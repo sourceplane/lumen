@@ -1,6 +1,6 @@
 # db
 
-Shared workspace package.
+Postgres access for the fleet — branded ids, the typed query layer, and the repositories each bounded context reads through.
 
 A shared package of the lumen workspace, consumed by the components
 below at build time.

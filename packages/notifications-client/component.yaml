@@ -2,6 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: notifications-client
+  description: Best-effort internal client for `notifications-worker`, posting the V1 enqueue contract over its service binding.
 spec:
   docs:
     overview: docs/overview.md

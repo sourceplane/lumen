@@ -2,6 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: db
+  description: Postgres access for the fleet — branded ids, the typed query layer, and the repositories each bounded context reads through.
 spec:
   docs:
     overview: docs/overview.md

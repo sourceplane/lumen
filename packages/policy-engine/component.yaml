@@ -2,6 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: policy-engine
+  description: The pure authorization decision function the policy worker and its callers evaluate, with no I/O of its own.
 spec:
   docs:
     overview: docs/overview.md

@@ -137,7 +137,7 @@ modes are the same files.
 ## Unattended: `--resume`
 
 `--resume` places every phase not already derived as done, in dependency
-order, honouring each barrier. Budget **45 minutes** — the sum of the
+order, honouring each barrier. **18 measured minutes** — the sum of the
 phases' `expectedMinutes`, which the card carries — against the ~73 minutes
 measured for phases 01–06 under the shell layer this replaced. The worker
 fleet (~31m) and the console build (~16m) dominate; Supabase project creation
