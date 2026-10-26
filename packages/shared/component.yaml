@@ -2,7 +2,7 @@ apiVersion: sourceplane.io/v1
 kind: Component
 metadata:
   name: shared
-  description: The small things every component needs and none should re-implement: error types and id helpers.
+  description: The small things every component needs and none should re-implement — error types and id helpers.
 spec:
   docs:
     overview: docs/overview.md
