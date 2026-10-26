@@ -88,16 +88,37 @@ Distribution: **5/5**: 6 · **4/5**: 30 · **3/5**: 9.
 ## The finding that is not a documentation problem
 
 **26 components subscribe with `profile: quick-check`, and that profile runs no
-tests.** This repository says so itself, in
+tests.** **Observed directly**, on the pull request that added this page — lumen's own
+CI, not an inherited note. The `db-tests · dev · Verify` lane
+([run 40296065423](https://github.com/sourceplane/lumen/actions/runs/40296065423))
+ran four steps and stopped:
+
+```
+01 setup-pnpm                      6.3s
+02 setup-node                     13.4s
+03 install-workspace-dependencies  4.1s
+04 verify-package-structure        0.0s
+✓ Verify completed · 21.8s
+  steps  4 passed, 0 failed, 0 skipped
+```
+
+`projects-worker-tests`, in the same lane, ran the same four. The suite's own
+`preBuildCommand` — `pnpm exec turbo run test --filter=./` — never executed,
+and `verify-package-structure` took 0.0s.
+
+**The lane is named `· Verify`**, which is why nobody noticed: the check that
+appears on a pull request, goes green, and satisfies branch protection is
+titled Verify whatever profile it ran.
+
+This repository had already written the finding down, in
 `.github/workflows/baseline.yml`:
 
 > It used to ride a `tests/flows` component whose `quick-check` profile runs
 > setup, install and a package-structure check — and no tests (observed live
 > on cirrus: `4 passed, 0 failed`, none of them a test).
 
-So the lanes for these components go green having installed their
-dependencies and checked that a `package.json` is present. Sixteen of them are
-test suites whose tests live in `preBuildCommand`, which `quick-check` skips.
+Sixteen of the 26 are test suites whose tests live in `preBuildCommand`, which
+`quick-check` skips.
 
 The fix is one word per component — `profile: verify` — and it is **not in this
 change on purpose**: flipping it turns on sixteen suites that have never run in
