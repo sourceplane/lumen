@@ -85,9 +85,9 @@ Distribution: **5/5**: 6 · **4/5**: 30 · **3/5**: 9.
   consumed by the components below at build time"), which is true of all seven
   and says nothing about any. Each now opens with what it actually is.
 
-## The finding that is not a documentation problem
+## The finding that was not a documentation problem
 
-**26 components subscribe with `profile: quick-check`, and that profile runs no
+**26 components subscribed with `profile: quick-check`, and that profile runs no
 tests.** **Observed directly**, on the pull request that added this page — lumen's own
 CI, not an inherited note. The `db-tests · dev · Verify` lane
 ([run 40296065423](https://github.com/sourceplane/lumen/actions/runs/40296065423))
@@ -117,17 +117,75 @@ This repository had already written the finding down, in
 > setup, install and a package-structure check — and no tests (observed live
 > on cirrus: `4 passed, 0 failed`, none of them a test).
 
-Sixteen of the 26 are test suites whose tests live in `preBuildCommand`, which
-`quick-check` skips.
+**What the two profiles actually are**, read from stack-tectonic 0.20.0's own
+`turbo-package` definitions rather than inferred:
 
-The fix is one word per component — `profile: verify` — and it is **not in this
-change on purpose**: flipping it turns on sixteen suites that have never run in
-CI, and the right place to absorb that is a change that can watch what it
-turns on, not one that is also moving the build's timings. orun-cloud hit the
-identical hole and recorded it as the `packages/db` lesson (#1536); its test
-components now say `verify` for exactly this reason.
+| capability | `quick-check` | `verify` |
+|---|---|---|
+| setup-node, setup-pnpm, install | ✓ | ✓ |
+| verify-structure | ✓ | ✓ |
+| **pre-build** — where every suite here keeps its tests | — | ✓ |
+| **build** | — | ✓ |
+| **typecheck** | — | ✓ |
 
-Components on `quick-check`: `admin-worker-tests`, `api-edge-tests`, `billing-worker-tests`, `cli`, `config-worker-tests`, `contracts`, `contracts-tests`, `db`, `db-tests`, `identity-worker-tests`, `integrations-worker-tests`, `membership-worker-tests`, `metering-worker-tests`, `notifications-client`, `notifications-client-tests`, `notifications-worker-tests`, `platform-limits-tests`, `policy-engine`, `policy-engine-tests`, `policy-worker-tests`, `projects-worker-tests`, `sdk`, `shared`, `testing`, `web-console-next-tests`, `webhook-verifier`.
+So `quick-check` skipped not only the tests but the build and typecheck as well.
+
+### Fixed
+
+Nineteen components carry tests in `preBuildCommand`: the **seventeen**
+`tests/*` suites and two packages with their own, `cli` and `sdk`. An earlier
+draft of this page said sixteen; it was counting the overviews that read
+`None`, and `platform-limits-tests` is a seventeenth suite with a real overview.
+
+All nineteen now say `profile: verify` on `dev`, the only environment the
+suites subscribe to and the one a pull request plans. `cli` and `sdk` keep
+`quick-check` on `stage` and `prod`: a package does not deploy, so those rows
+are its seat in each environment's graph, and running identical tests three
+times would buy nothing. That matches how lumen's workers already subscribe —
+plain `verify` on `dev`, with no rule skipping it on main.
+
+**Before flipping anything, all nineteen were run locally exactly as `verify`'s
+pre-build step runs them** (`pnpm exec turbo run test --filter=./` in each
+component). Fifteen passed. Four did not, and in every case the test was right
+about what it guards and its harness had drifted from the code underneath it:
+
+| suite | what it hit | the fix |
+|---|---|---|
+| `api-edge-tests` | 12 tests read `apps/api-edge/wrangler.jsonc`, which no longer exists — each worker commits `wrangler.template.jsonc` and `tooling/wire/render.mjs` renders the deployable file (BF6) | read the template, which carries exactly the bindings asserted |
+| `membership-worker-tests` | the same file, read at `describe` time, so the whole suite failed to load | the same |
+| `db-tests` | `tsconfig.json` enumerates thirteen `@saas/db/*` subpaths and not `integrations`; jest resolved it through its `(.*)` catch-all, ts-jest's type-check did not | add the path |
+| `integrations-worker-tests` | `tsconfig.json` maps `@saas/db/*`, which does not match bare `@saas/db` | add the path |
+
+The suites that failed *to load* were hiding more than their failure counts
+showed: `membership-worker-tests` went from 85 tests to **269**, `db-tests` from
+552 to **578**, `integrations-worker-tests` from 70 to **77**.
+
+**The repointed binding tests guard something real**, which was checked by
+breaking it: pointing stage's `IDENTITY_WORKER` at `lumen-identity-worker-prod`
+fails exactly the two tests written for it ("has stage service binding to
+lumen-identity-worker-stage", "stage does not bind to prod identity worker").
+A cross-environment binding would route stage traffic into prod's workers.
+
+Not every `wrangler.jsonc` reference was rot. `config-worker-tests` renders the
+template itself into a temporary file, `platform-limits-tests` tries the
+template first, and `policy-worker` binds nothing, so it never moved to a
+template and its `wrangler.jsonc` is real. None of those passes was vacuous.
+
+### Left on `quick-check`, by design
+
+`contracts`, `db`, `notifications-client`, `policy-engine`, `shared`,
+`testing`, `webhook-verifier`. None has a `preBuildCommand`: their tests live
+in the matching `tests/*` suite, which now builds and typechecks them on every
+plan that includes it. Moving them to `verify` would add their own build and
+typecheck lanes — defensible, but a different change from making tests run.
+
+### What this costs a build
+
+The 18 measured minutes in `docs/phases/TIMINGS.md` were taken **with these
+suites not running.** They now run in the merge convergence of four phases —
+`02-foundation` (6), `04-workers` (11), `05-edge` (2), `06-console` (1). Each
+is its own lane, so the cost should sit near the slowest suite rather than the
+sum, but that is a prediction; the next measured build is what will say.
 
 ## Declared product URLs
 

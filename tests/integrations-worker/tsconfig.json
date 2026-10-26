@@ -13,6 +13,7 @@
     "declarationMap": false,
     "baseUrl": ".",
     "paths": {
+      "@saas/db": ["../../packages/db/src/index.ts"],
       "@saas/contracts": [
         "../../packages/contracts/src/index.ts"
       ],

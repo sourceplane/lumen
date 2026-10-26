@@ -836,8 +836,8 @@ describe("api-edge project facade", () => {
   });
 
   describe("binding verification config", () => {
-    it("wrangler.jsonc has stage PROJECTS_WORKER binding to lumen-projects-worker-stage", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+    it("wrangler.template.jsonc has stage PROJECTS_WORKER binding to lumen-projects-worker-stage", () => {
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -848,8 +848,8 @@ describe("api-edge project facade", () => {
       expect(projects.service).toBe("lumen-projects-worker-stage");
     });
 
-    it("wrangler.jsonc has prod PROJECTS_WORKER binding to lumen-projects-worker-prod", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+    it("wrangler.template.jsonc has prod PROJECTS_WORKER binding to lumen-projects-worker-prod", () => {
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -861,7 +861,7 @@ describe("api-edge project facade", () => {
     });
 
     it("stage does not bind to prod projects worker", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
@@ -873,7 +873,7 @@ describe("api-edge project facade", () => {
     });
 
     it("prod does not bind to stage projects worker", () => {
-      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.jsonc");
+      const configPath = resolve(__dirname, "../../../apps/api-edge/wrangler.template.jsonc");
       const raw = readFileSync(configPath, "utf-8");
       const config = JSON.parse(stripJsoncComments(raw));
 
