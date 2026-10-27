@@ -257,13 +257,17 @@ typecheck lanes — defensible, but a different change from making tests run.
 
 ### What this costs a build
 
-The 18 measured minutes in `docs/phases/TIMINGS.md` were taken under
-`quick-check`. On `verify` the nineteen add a **build and a typecheck** to the
-merge convergences of four phases — `02-foundation` (6), `04-workers` (11),
-`05-edge` (2), `06-console` (1) — and the suites
-themselves. Each is its own lane, so the cost should sit near the slowest
-one rather than the sum, but that is a prediction; the next measured build is
-what will say.
+Nothing, during a bootstrap. The nineteen verify on `dev` only, and a
+bootstrap runs no `dev` lane: a landing's pull request is checked by `plan`
+alone (`ci.yml` skips lanes on `orun/BASE-*`), and `01-scaffold` defers `dev`'s
+push-to-main trigger until `08-docs` restores it
+(`tooling/bootstrap/dev-lanes.mjs`). So the 18 measured minutes in
+`docs/phases/TIMINGS.md` stand. An earlier draft of this section predicted the
+suites would add to four phases' merge convergences; it had missed the defer.
+
+After the bootstrap they run on every pull request and every merge to main, a
+lane per suite beside the deploys. On this pull request's CI each suite's
+pre-build took 3 to 13 seconds.
 
 ## Declared product URLs
 

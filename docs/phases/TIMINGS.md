@@ -55,14 +55,15 @@ slow case rather than the fast one. What could still make a build slower than
 one condition on `06-console` below. A second measured run belongs on this
 page beside the first rather than replacing it.
 
-**The run predates two changes to what CI does.** Nineteen components were on
-the `quick-check` profile, which runs no tests, no build and no typecheck. They
-are on `verify` now, and `turbo-package`'s pre-build guard, which skipped
-every suite's tests, is fixed in-tree (`docs/components/REVIEW.md`). Together
-they add the suites, a build and a typecheck inside the merge convergences of
-`02-foundation`, `04-workers`, `05-edge` and `06-console`. Each is its own
-lane, so the cost should land near the slowest rather than the sum — but that
-is a prediction, and the next measured build is the answer.
+**The test suites cost a bootstrap nothing.** Nineteen components moved from
+`quick-check` to `verify`, and `turbo-package`'s pre-build guard, which skipped
+every suite's tests, is fixed in-tree (`docs/components/REVIEW.md`). All
+nineteen verify on `dev` only, and a bootstrap runs no `dev` lane: each
+landing's pull request is checked by `plan` alone (`ci.yml` skips lanes on
+`orun/BASE-*`), and `01-scaffold` defers `dev`'s push-to-main trigger until
+`08-docs` restores it (`tooling/bootstrap/dev-lanes.mjs`). The 18 minutes
+stand. The suites run from the product's first pull request on, and on every
+merge to main after `08-docs`, each in its own lane beside the deploys.
 
 **One condition on `06-console`'s 2.** The console is fetched only when the
 baseline tag being built from has a published artifact for exactly these
