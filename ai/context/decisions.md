@@ -49,6 +49,12 @@ Last updated: 2026-05-26
   was already producing drift against `orun-cloud`. The tag is pinned, never
   `latest`, so a catalog release cannot change this repo's execution contracts
   without a commit here.
+- The pin is stack-tectonic 0.20.1 (2026-10-27), the first release whose
+  `turbo-package` runs a component's `preBuildCommand`: 0.18.1 through 0.20.0
+  guarded pre-build, build and typecheck on keys orun never sets, so every
+  suite's tests skipped themselves (sourceplane/stack-tectonic#20). The fix
+  went upstream rather than into an in-tree copy, which this repo carried for a
+  day before the release.
 - All component types use `spec.parameters` instead of `spec.inputs` on the
   current Orun runtime.
 - Cloudflare/Supabase human-provided resources discovered in Task 0002 remain

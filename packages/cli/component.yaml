@@ -16,7 +16,7 @@ spec:
   subscribe:
     environments:
       - name: dev
-        profile: quick-check
+        profile: verify
       - name: stage
         profile: quick-check
       - name: prod

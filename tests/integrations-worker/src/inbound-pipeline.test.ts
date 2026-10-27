@@ -35,7 +35,8 @@ function fakeExecutor(respond: SqlResponder): { executor: SqlExecutor; queries: 
 function createEnv(overrides?: Partial<Record<string, unknown>>): Env {
   return {
     ENVIRONMENT: "test",
-    PLATFORM_DB: { connectionString: "postgres://fake" },
+    // 127.0.0.1:1 refuses at once; a hostname here is a real DNS lookup, which a slow resolver turns into a test timeout.
+    PLATFORM_DB: { connectionString: "postgres://fake@127.0.0.1:1/fake" },
     GITHUB_APP_ID: "4242",
     GITHUB_APP_SLUG: "sourceplane-test",
     GITHUB_APP_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nirrelevant\n-----END PRIVATE KEY-----",

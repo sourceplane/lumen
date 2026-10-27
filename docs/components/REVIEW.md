@@ -85,9 +85,9 @@ Distribution: **5/5**: 6 · **4/5**: 30 · **3/5**: 9.
   consumed by the components below at build time"), which is true of all seven
   and says nothing about any. Each now opens with what it actually is.
 
-## The finding that is not a documentation problem
+## The finding that was not a documentation problem
 
-**26 components subscribe with `profile: quick-check`, and that profile runs no
+**26 components subscribed with `profile: quick-check`, and that profile runs no
 tests.** **Observed directly**, on the pull request that added this page — lumen's own
 CI, not an inherited note. The `db-tests · dev · Verify` lane
 ([run 40296065423](https://github.com/sourceplane/lumen/actions/runs/40296065423))
@@ -117,17 +117,149 @@ This repository had already written the finding down, in
 > setup, install and a package-structure check — and no tests (observed live
 > on cirrus: `4 passed, 0 failed`, none of them a test).
 
-Sixteen of the 26 are test suites whose tests live in `preBuildCommand`, which
-`quick-check` skips.
+**What the two profiles actually are**, read from stack-tectonic 0.20.0's own
+`turbo-package` definitions rather than inferred:
 
-The fix is one word per component — `profile: verify` — and it is **not in this
-change on purpose**: flipping it turns on sixteen suites that have never run in
-CI, and the right place to absorb that is a change that can watch what it
-turns on, not one that is also moving the build's timings. orun-cloud hit the
-identical hole and recorded it as the `packages/db` lesson (#1536); its test
-components now say `verify` for exactly this reason.
+| capability | `quick-check` | `verify` |
+|---|---|---|
+| setup-node, setup-pnpm, install | ✓ | ✓ |
+| verify-structure | ✓ | ✓ |
+| **pre-build** — where every suite here keeps its tests | — | ✓ |
+| **build** | — | ✓ |
+| **typecheck** | — | ✓ |
 
-Components on `quick-check`: `admin-worker-tests`, `api-edge-tests`, `billing-worker-tests`, `cli`, `config-worker-tests`, `contracts`, `contracts-tests`, `db`, `db-tests`, `identity-worker-tests`, `integrations-worker-tests`, `membership-worker-tests`, `metering-worker-tests`, `notifications-client`, `notifications-client-tests`, `notifications-worker-tests`, `platform-limits-tests`, `policy-engine`, `policy-engine-tests`, `policy-worker-tests`, `projects-worker-tests`, `sdk`, `shared`, `testing`, `web-console-next-tests`, `webhook-verifier`.
+So `quick-check` skipped not only the tests but the build and typecheck as well.
+
+### Two fixes, not one: the profile, and a guard in the composition
+
+Flipping the profile was necessary and not sufficient. The pull request that
+flipped it went green, and its `db-tests` lane reported seven steps where it
+used to report four — exactly `verify`'s count. Neither of those is evidence
+that a test ran, so the log was read:
+
+```
+✓  04 pre-build          0.0s  ·  Skipping pre-build.
+✓  06 build-package      3.8s
+✓  07 typecheck-package  2.3s
+```
+
+Pre-build skipped itself, for every component, whatever it declared. The guard
+in stack-tectonic 0.20.0's `turbo-package` verify job reads a key orun never
+sets:
+
+```
+{{if .preBuildCommand}}            ← orun's context has .orun, .parameters, .env
+{{.parameters.preBuildCommand}}    ← where the value actually is
+{{else}}
+echo "Skipping pre-build."
+```
+
+`buildCommand` and `typecheckCommand` have the same mistake and only appear to
+work: their guards are equally always-false, and their `else` defaults happen to
+be the commands every component here declares. Pre-build has no default, so it is
+the one that visibly breaks.
+
+**The fix is upstream, in stack-tectonic 0.20.1**
+([sourceplane/stack-tectonic#20](https://github.com/sourceplane/stack-tectonic/pull/20)):
+the three guards read `.parameters.*`, and that repository's `verify.sh` now
+refuses a guard on any key outside `.orun`, `.parameters` and `.env` and renders
+`turbo-package` through the packed artifact to check its commands come out. Every
+release from 0.18.1 to 0.20.0 carried the bug, and every structural check passed
+them. This repository pins 0.20.1; for a day it carried an in-tree copy of the
+fixed composition instead, and that copy is gone.
+
+**No other baseline changes with it.** Each of the other 25 baselines on
+stack-tectonic was planned with its own pin, as published and with only the three
+guards patched: 181 `turbo-package` jobs across the 22 that have any, all on
+`quick-check`, which plans none of the three steps, and not one step differs. No
+consumer declares a custom `buildCommand` or `typecheckCommand`.
+
+**Checked by rendering, not by reading.** `orun plan --all-envs` on 0.20.0 and
+on 0.20.1: 92 jobs and 610 steps either way, and exactly 19 steps differ — the
+pre-build of the nineteen components below, from `echo "Skipping pre-build."` to
+`pnpm exec turbo run test --filter=./`.
+
+### The profile, and the suites made ready to run
+
+Nineteen components carry tests in `preBuildCommand`: the **seventeen**
+`tests/*` suites and two packages with their own, `cli` and `sdk`. An earlier
+draft of this page said sixteen; it was counting the overviews that read
+`None`, and `platform-limits-tests` is a seventeenth suite with a real overview.
+
+All nineteen now say `profile: verify` on `dev`, the only environment the
+suites subscribe to and the one a pull request plans. `cli` and `sdk` keep
+`quick-check` on `stage` and `prod`: a package does not deploy, so those rows
+are its seat in each environment's graph, and running identical tests three
+times would buy nothing. That matches how lumen's workers already subscribe —
+plain `verify` on `dev`, with no rule skipping it on main.
+
+**Before flipping anything, all nineteen were run locally exactly as `verify`'s
+pre-build step runs them** (`pnpm exec turbo run test --filter=./` in each
+component). Fourteen passed. Five did not, and in every case the test was right
+about what it guards and its harness had drifted from the code underneath it.
+The fifth was found by CI rather than locally: `web-console-next-tests` passed
+here only from jest's transform cache, and its first real run, in a lane, could
+not load four of its files. Every suite has since been re-run with no turbo
+cache and an empty jest cache, in a tree staged the way orun stages a job.
+
+| suite | what it hit | the fix |
+|---|---|---|
+| `api-edge-tests` | 12 tests read `apps/api-edge/wrangler.jsonc`, which no longer exists — each worker commits `wrangler.template.jsonc` and `tooling/wire/render.mjs` renders the deployable file (BF6) | read the template, which carries exactly the bindings asserted |
+| `membership-worker-tests` | the same file, read at `describe` time, so the whole suite failed to load | the same |
+| `db-tests` | `tsconfig.json` enumerates thirteen `@saas/db/*` subpaths and not `integrations`; jest resolved it through its `(.*)` catch-all, ts-jest's type-check did not | add the path |
+| `integrations-worker-tests` | `tsconfig.json` maps `@saas/db/*`, which does not match bare `@saas/db` | add the path |
+| `web-console-next-tests` | the console's sources import `@saas/sdk`; the suite's tsconfig and jest mapper named only `@saas/contracts`, so ts-jest could not resolve it and four files failed to load | map `@saas/sdk` to the sdk's source |
+
+**And one that only a CI runner shows.** Eighteen test files across the worker
+suites faked the database as `postgres://fake`. The list handlers read the
+database concurrently with the membership call (PERF12) and wait for both, so
+every such request made a real DNS lookup of the hostname `fake`. That fails in
+milliseconds on a workstation; on a runner whose resolver does not answer it
+waits out glibc's 5-second timeout, which is exactly jest's, and
+`config-worker-tests` failed that way on its second CI run having passed its
+first. Each now reads `postgres://fake@127.0.0.1:1/fake`, a closed loopback port
+the kernel refuses at once with no lookup. Checked by delaying every lookup but
+`localhost` by six seconds: the old URL times out seventeen tests in
+config-worker alone, and with the change all nineteen suites pass with none.
+
+The suites that failed *to load* were hiding more than their failure counts
+showed: `membership-worker-tests` went from 85 tests to **269**, `db-tests` from
+552 to **578**, `integrations-worker-tests` from 70 to **77**,
+`web-console-next-tests` from 215 to **258**. **3,088 tests across the
+nineteen**, every one passing on the finished tree.
+
+**The repointed binding tests guard something real**, which was checked by
+breaking it: pointing stage's `IDENTITY_WORKER` at `lumen-identity-worker-prod`
+fails exactly the two tests written for it ("has stage service binding to
+lumen-identity-worker-stage", "stage does not bind to prod identity worker").
+A cross-environment binding would route stage traffic into prod's workers.
+
+Not every `wrangler.jsonc` reference was rot. `config-worker-tests` renders the
+template itself into a temporary file, `platform-limits-tests` tries the
+template first, and `policy-worker` binds nothing, so it never moved to a
+template and its `wrangler.jsonc` is real. None of those passes was vacuous.
+
+### Left on `quick-check`, by design
+
+`contracts`, `db`, `notifications-client`, `policy-engine`, `shared`,
+`testing`, `webhook-verifier`. None has a `preBuildCommand`: their tests live
+in the matching `tests/*` suite, which builds and typechecks them on every plan
+that includes it. Moving them to `verify` would add their own build and
+typecheck lanes — defensible, but a different change from making tests run.
+
+### What this costs a build
+
+Nothing, during a bootstrap. The nineteen verify on `dev` only, and a
+bootstrap runs no `dev` lane: a landing's pull request is checked by `plan`
+alone (`ci.yml` skips lanes on `orun/BASE-*`), and `01-scaffold` defers `dev`'s
+push-to-main trigger until `08-docs` restores it
+(`tooling/bootstrap/dev-lanes.mjs`). So the 18 measured minutes in
+`docs/phases/TIMINGS.md` stand. An earlier draft of this section predicted the
+suites would add to four phases' merge convergences; it had missed the defer.
+
+After the bootstrap they run on every pull request and every merge to main, a
+lane per suite beside the deploys. On this pull request's CI each suite's
+pre-build took 3 to 13 seconds.
 
 ## Declared product URLs
 

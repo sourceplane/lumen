@@ -55,6 +55,16 @@ slow case rather than the fast one. What could still make a build slower than
 one condition on `06-console` below. A second measured run belongs on this
 page beside the first rather than replacing it.
 
+**The test suites cost a bootstrap nothing.** Nineteen components moved from
+`quick-check` to `verify`, and `turbo-package`'s pre-build guard, which skipped
+every suite's tests, is fixed in stack-tectonic 0.20.1 (`docs/components/REVIEW.md`). All
+nineteen verify on `dev` only, and a bootstrap runs no `dev` lane: each
+landing's pull request is checked by `plan` alone (`ci.yml` skips lanes on
+`orun/BASE-*`), and `01-scaffold` defers `dev`'s push-to-main trigger until
+`08-docs` restores it (`tooling/bootstrap/dev-lanes.mjs`). The 18 minutes
+stand. The suites run from the product's first pull request on, and on every
+merge to main after `08-docs`, each in its own lane beside the deploys.
+
 **One condition on `06-console`'s 2.** The console is fetched only when the
 baseline tag being built from has a published artifact for exactly these
 sources — `.github/workflows/tag.yml` publishes one as part of cutting a tag.

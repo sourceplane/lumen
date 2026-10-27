@@ -9,6 +9,7 @@
     "declarationMap": false,
     "baseUrl": ".",
     "paths": {
+      "@saas/db/integrations": ["../../packages/db/src/integrations/index.ts"],
       "@saas/db": ["../../packages/db/src/index.ts"],
       "@saas/db/hyperdrive": ["../../packages/db/src/hyperdrive/index.ts"],
       "@saas/db/identity": ["../../packages/db/src/identity/index.ts"],

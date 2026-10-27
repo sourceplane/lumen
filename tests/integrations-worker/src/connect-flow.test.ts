@@ -72,7 +72,8 @@ function billingFetcher(allowed: boolean, reason?: string): Fetcher {
 function createEnv(overrides?: Partial<Record<string, unknown>>): Env {
   return {
     ENVIRONMENT: "test",
-    PLATFORM_DB: { connectionString: "postgres://fake" },
+    // 127.0.0.1:1 refuses at once; a hostname here is a real DNS lookup, which a slow resolver turns into a test timeout.
+    PLATFORM_DB: { connectionString: "postgres://fake@127.0.0.1:1/fake" },
     MEMBERSHIP_WORKER: membershipFetcher(),
     POLICY_WORKER: policyFetcher(true),
     BILLING_WORKER: billingFetcher(true),
