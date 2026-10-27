@@ -50,17 +50,7 @@ compositions:
     # a commit here. Bumping the tag is the deliberate upgrade step.
     - name: stack-tectonic
       kind: oci
-      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.20.0
-    # ONE composition patched in-tree, until stack-tectonic releases the fix.
-    # 0.20.0's turbo-package guards its pre-build, build and typecheck steps on
-    # `.preBuildCommand` where the value is `.parameters.preBuildCommand`, so
-    # pre-build skips itself on every component — and pre-build is where every
-    # test suite here keeps its tests. The binding below takes `turbo-package`
-    # alone from this copy; everything else is still the OCI artifact.
-    # stack-tectonic-fixes/README.md says how to delete it.
-    - name: stack-tectonic-fixes
-      kind: dir
-      path: stack-tectonic-fixes
+      ref: oci://ghcr.io/sourceplane/stack-tectonic:0.20.1
   resolution:
     precedence:
       - stack-tectonic
@@ -68,7 +58,6 @@ compositions:
       terraform: stack-tectonic
       cloudflare-domain: stack-tectonic
       db-migrate: stack-tectonic
-      turbo-package: stack-tectonic-fixes
 
 discovery:
   roots:

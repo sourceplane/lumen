@@ -57,7 +57,7 @@ page beside the first rather than replacing it.
 
 **The test suites cost a bootstrap nothing.** Nineteen components moved from
 `quick-check` to `verify`, and `turbo-package`'s pre-build guard, which skipped
-every suite's tests, is fixed in-tree (`docs/components/REVIEW.md`). All
+every suite's tests, is fixed in stack-tectonic 0.20.1 (`docs/components/REVIEW.md`). All
 nineteen verify on `dev` only, and a bootstrap runs no `dev` lane: each
 landing's pull request is checked by `plan` alone (`ci.yml` skips lanes on
 `orun/BASE-*`), and `01-scaffold` defers `dev`'s push-to-main trigger until

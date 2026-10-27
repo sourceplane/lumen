@@ -527,19 +527,6 @@ modules:
   # are made in sourceplane/stack-tectonic, released there, and adopted by
   # bumping the pinned tag — in the fork exactly as in the baseline.
   #
-  # ONE EXCEPTION, AND IT IS TEMPORARY. 0.20.0's `turbo-package` guards its
-  # pre-build step on a key orun never sets, so every test suite's tests skip
-  # themselves. `stack-tectonic-fixes/` is that one composition with the guard
-  # fixed, and `intent.yaml` binds `turbo-package` to it — so a product's
-  # intent names the directory and has to receive it, in the same phase as
-  # the intent. `testing/composition-fixes.test.sh` holds it to the published
-  # files plus the fix and nothing else; its README says how to delete it.
-  - name: stack-tectonic-fixes
-    mode: copy
-    source: baseline
-    from: stack-tectonic-fixes
-    to: stack-tectonic-fixes
-  #
   # Only the tooling a PRODUCT runs: shared TS/ESLint config and the
   # deploy-time wrangler renderer. This was `from: tooling`, the whole
   # directory, and every product shipped the factory with it — the rebrand
@@ -974,7 +961,7 @@ phases:
       start:  'Creating the repository and its foundations.'
       done:   '{{ .inputs.githuborg }}/{{ .inputs.reponame }} has its foundations on main, branded as {{ .inputs.productname }}, in {{ .meta.elapsed }}.'
       failed: 'The repository did not get off the ground; the failing step says why.'
-    modules: [ai-deployment, ai-operations, discovery-roots, github-workflows, rebrand-values, root-agents, root-gitignore, root-intent, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, stack-tectonic-fixes, tooling-deploy, tooling-eslint, tooling-tsconfig, tooling-wire]
+    modules: [ai-deployment, ai-operations, discovery-roots, github-workflows, rebrand-values, root-agents, root-gitignore, root-intent, root-package-json, root-pnpm-lock, root-pnpm-workspace, root-readme, root-turbo, tooling-deploy, tooling-eslint, tooling-tsconfig, tooling-wire]
     # THE PLATFORM MUST BE ABLE TO SEE THE REPOSITORY BEFORE IT EXISTS. Every
     # phase lands a pull request that files under its task, and the platform
     # learns of a PR only through the GitHub App installation on the account

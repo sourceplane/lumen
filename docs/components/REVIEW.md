@@ -159,33 +159,25 @@ work: their guards are equally always-false, and their `else` defaults happen to
 be the commands every component here declares. Pre-build has no default, so it is
 the one that visibly breaks.
 
-**The fix belongs upstream** — three guards in `sourceplane/stack-tectonic`,
-each `.<key>` → `.parameters.<key>` — and could not be made there from this
-change. stack-tectonic's own `main` is still `0.20.0` with the broken guards.
-orun-cloud carries an in-tree copy that already reads `.parameters.*`, which is
-why its suites run, and the proof the corrected guard works: its
-`agents-worker-tests` pre-build ran for 29.9s and failed on real assertions.
+**The fix is upstream, in stack-tectonic 0.20.1**
+([sourceplane/stack-tectonic#20](https://github.com/sourceplane/stack-tectonic/pull/20)):
+the three guards read `.parameters.*`, and that repository's `verify.sh` now
+refuses a guard on any key outside `.orun`, `.parameters` and `.env` and renders
+`turbo-package` through the packed artifact to check its commands come out. Every
+release from 0.18.1 to 0.20.0 carried the bug, and every structural check passed
+them. This repository pins 0.20.1; for a day it carried an in-tree copy of the
+fixed composition instead, and that copy is gone.
 
-**So the fix lives here until it ships there.** `stack-tectonic-fixes/` is
-0.20.0's `turbo-package` with those three guards corrected and nothing else, and
-`intent.yaml` binds that one composition type to it; every other composition is
-still the pinned OCI artifact. It breaks this repository's rule that
-compositions are not vendored, and it is fenced accordingly:
+**No other baseline changes with it.** Each of the other 25 baselines on
+stack-tectonic was planned with its own pin, as published and with only the three
+guards patched: 181 `turbo-package` jobs across the 22 that have any, all on
+`quick-check`, which plans none of the three steps, and not one step differs. No
+consumer declares a custom `buildCommand` or `typecheckCommand`.
 
-- `testing/composition-fixes.test.sh` undoes the three fixes and requires every
-  file to hash to what 0.20.0 published, so the copy cannot become the place a
-  step gets changed;
-- the same gate fails on any stack-tectonic pin other than 0.20.0 while the
-  directory exists, so moving the pin is when somebody decides whether the copy
-  is still needed;
-- the directory ships to products in `01-scaffold`, the phase that ships the
-  `intent.yaml` naming it — a product's first plan needs both.
-
-**Checked by rendering, not by reading.** `orun plan --all-envs` before and
-after: 92 jobs and 610 steps either way, and exactly 19 steps differ — the
+**Checked by rendering, not by reading.** `orun plan --all-envs` on 0.20.0 and
+on 0.20.1: 92 jobs and 610 steps either way, and exactly 19 steps differ — the
 pre-build of the nineteen components below, from `echo "Skipping pre-build."` to
-`pnpm exec turbo run test --filter=./`. A product placed and branded from the
-blueprint receives the directory byte for byte and plans the same command.
+`pnpm exec turbo run test --filter=./`.
 
 ### The profile, and the suites made ready to run
 
