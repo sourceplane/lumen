@@ -45,6 +45,32 @@ spec:
           - profile: deploy
             when:
               triggerRef: github-push-main
+  # How the console runs itself for orun.work's live Preview tab
+  # (saas-parallel-baselining PB4): `orun preview` starts this, and a coding
+  # session keeps it running while it works, so the person watches it change
+  # as it is built. The dev server binds the box's loopback only, on a fixed
+  # port, and installs first, so a checkout the session has not installed yet
+  # still comes up.
+  # Kept small on purpose, for looking at the UI inside the session's own box:
+  # the console alone, `next dev` on the loopback, and no `needs`, so none of
+  # the twelve workers, the API edge, Supabase or wrangler start. Its API is
+  # the product's deployed STAGE (CONSOLE_DEPLOY_ENV=stage picks it from the
+  # committed app config, as a stage deploy does); only the console's own
+  # packages are installed (`--filter ...`); `next` itself runs, not `pnpm
+  # exec next`; and its heap is capped at 1 GiB, so it can never starve the
+  # agent. The token-free pages (the landing page, /login, /demo) show in
+  # full; pages behind sign-in show the sign-in prompt.
+  preview:
+    run:
+      - sh
+      - -c
+      - pnpm install --frozen-lockfile --prefer-offline --filter "@saas/web-console-next..." && exec node_modules/.bin/next dev -H 127.0.0.1 -p 3001
+    port: 3001
+    path: /
+    env:
+      CONSOLE_DEPLOY_ENV: stage
+      NODE_OPTIONS: --max-old-space-size=1024
+      NEXT_TELEMETRY_DISABLED: "1"
   parameters:
     nodeVersion: "22"
     pnpmVersion: "10.12.1"
