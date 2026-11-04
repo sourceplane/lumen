@@ -36,6 +36,16 @@ const nextConfig = {
     // the build deterministic across Node/ESLint flat-config quirks.
     ignoreDuringBuilds: true,
   },
+  experimental: {
+    // Dev server only: behind orun.work's live Preview the browser's Origin
+    // is the preview's host while `next dev` sees a local Host, and Next.js
+    // refuses a Server Action from an origin it is not told about. `next
+    // build` runs with NODE_ENV=production, so production keeps its
+    // same-origin check.
+    ...(process.env.NODE_ENV === "development"
+      ? { serverActions: { allowedOrigins: ["*.orun-preview.app", "preview-gateway-stage.oruncloud.workers.dev"] } }
+      : {}),
+  },
   env: {
     NEXT_PUBLIC_DEPLOY_ENV: process.env.NEXT_PUBLIC_DEPLOY_ENV ?? "",
     // M0 / Solo profile (Lumen ships single-user). Build with
