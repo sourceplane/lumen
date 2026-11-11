@@ -13,6 +13,10 @@
   "vars": {
     "ENVIRONMENT": "local",
     "CONSOLE_CUSTOM_DOMAIN": "",
+    // Where the console is deployed, so CORS follows the DEPLOY and not
+    // the build (src/app-config.ts). The rebrand rewrites both values.
+    "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+    "CONSOLE_WORKER_PREFIX": "lumen-web-console-next",
     // M0 / Solo profile (Lumen ships single-user). Set "false" to restore the
     // full multi-tenant baseline. See specs/profiles/solo-m0.md.
     "SOLO_MODE": "true"
@@ -30,6 +34,10 @@
       "vars": {
         "ENVIRONMENT": "dev",
         "CONSOLE_CUSTOM_DOMAIN": "",
+        // Where the console is deployed, so CORS follows the DEPLOY and not
+        // the build (src/app-config.ts). The rebrand rewrites both values.
+        "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+        "CONSOLE_WORKER_PREFIX": "lumen-web-console-next",
         "SOLO_MODE": "true"
       },
       "durable_objects": {
@@ -45,6 +53,10 @@
       "vars": {
         "ENVIRONMENT": "stage",
         "CONSOLE_CUSTOM_DOMAIN": "stage.lumen.app",
+        // Where the console is deployed, so CORS follows the DEPLOY and not
+        // the build (src/app-config.ts). The rebrand rewrites both values.
+        "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+        "CONSOLE_WORKER_PREFIX": "lumen-web-console-next",
         "SOLO_MODE": "true"
       },
       "hyperdrive": [
@@ -114,6 +126,10 @@
       "vars": {
         "ENVIRONMENT": "prod",
         "CONSOLE_CUSTOM_DOMAIN": "prod.lumen.app",
+        // Where the console is deployed, so CORS follows the DEPLOY and not
+        // the build (src/app-config.ts). The rebrand rewrites both values.
+        "CONSOLE_WORKERS_DEV_SUBDOMAIN": "rahulvarghesepullely",
+        "CONSOLE_WORKER_PREFIX": "lumen-web-console-next",
         "SOLO_MODE": "true"
       },
       "hyperdrive": [

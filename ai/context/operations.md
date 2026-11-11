@@ -149,7 +149,7 @@ anyone's real domain). Nothing that uses the domain was removed; it waits:
 |---|---|
 | `intent.yaml` | `BASE_DOMAIN` (every environment) and `CONSOLE_CUSTOM_DOMAIN` (`stage.lumen.app`, `prod.lumen.app`) — the parameters of the parked `infra/terraform/cloudflare-domain` |
 | `infra/terraform/cloudflare-domain` | `baseDomain` in its `component.yaml`, the Terraform variable's default, its README |
-| `apps/api-edge/wrangler.template.jsonc` | `CONSOLE_CUSTOM_DOMAIN`, the console origin CORS allows besides the workers.dev one |
+| `apps/api-edge/wrangler.template.jsonc` | `CONSOLE_CUSTOM_DOMAIN`, the console origin CORS allows besides the workers.dev one (`CONSOLE_WORKERS_DEV_SUBDOMAIN` and `CONSOLE_WORKER_PREFIX` beside it name that workers.dev one, and carry no domain) |
 | `apps/identity-worker/wrangler.template.jsonc` | `OAUTH_ALLOWED_CONSOLE_ORIGINS`, which lists the workers.dev console too, so sign-in works without a domain |
 | `apps/notifications-worker/wrangler.template.jsonc` | `EMAIL_FROM_ADDRESS`, `no-reply@mail.lumen.app` |
 | `apps/billing-worker/wrangler.template.jsonc` | `POLAR_SUCCESS_URL`, the fallback return after checkout |

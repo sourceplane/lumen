@@ -137,6 +137,33 @@ in the allowlist alongside the custom domain so SSR previews work without DNS.
 Legacy `lumen-web-console-{env}.pages.dev` Pages origins were removed
 from the allowlist in Task 0083 when `apps/web-console` was decommissioned.
 
+### Where the console's workers.dev origin comes from
+
+Not from the build. `apps/api-edge/src/app-config.ts` resolves the console's
+worker prefix and workers.dev subdomain per request, from three sources:
+
+1. the Worker's `vars` — `CONSOLE_WORKER_PREFIX`,
+   `CONSOLE_WORKERS_DEV_SUBDOMAIN` (`wrangler.template.jsonc`, per environment);
+2. the constants compiled into the bundle (what a deploy with no `vars` gets);
+3. for the subdomain only, **the one this Worker's own hostname names**.
+
+(3) exists because the workers.dev subdomain is an account fact the bootstrap
+learns only after the scaffold phase has already written the constants into the
+bundle. A product shipped with the placeholder still in its edge: every
+preflight from the real console came back without
+`access-control-allow-origin`, so the login screen read "Failed to fetch"
+against a healthy API. The edge and the console are deployed to one Cloudflare
+account, so the subdomain in the edge's own hostname is the console's — and
+reading it there makes the allowlist correct whatever the bundle was built
+with.
+
+This widens nothing: each source yields one complete origin, matched whole, and
+`stage` still refuses the `prod` console (and the reverse). A custom-domain edge
+host names no workers.dev subdomain, so (3) contributes nothing there.
+`tests/platform-limits/src/console-origin-agreement.test.ts` guards the other
+half — the identity worker's `OAUTH_ALLOWED_CONSOLE_ORIGINS`, an open-redirect
+guard that is deliberately literal and cannot self-correct.
+
 The custom domain origin is read from the `CONSOLE_CUSTOM_DOMAIN` environment
 variable (set in `wrangler.jsonc` per environment, sourced from `intent.yaml`
 environment-level `env` declarations). This ensures domain names are never
